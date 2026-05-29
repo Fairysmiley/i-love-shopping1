@@ -1,0 +1,125 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-villi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-villi_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-villi}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-villi} -d ${POSTGRES_DB:-villi}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published to the host by default (avoids clashing with a local
+    # Postgres). The API reaches it over the internal network as `postgres`.
+    expose:
+      - '5432'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Internal-only (reached as `redis` by the API); not published to the host.
+    expose:
+      - '6379'
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 3001
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:5173}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-villi}:${POSTGRES_PASSWORD:-villi_dev_password}@postgres:5432/${POSTGRES_DB:-villi}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access_secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900s}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      RECAPTCHA_SECRET: ${RECAPTCHA_SECRET:-}
+      RECAPTCHA_MIN_SCORE: ${RECAPTCHA_MIN_SCORE:-0.5}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/v1/auth/oauth/google/callback}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      FACEBOOK_CALLBACK_URL: ${FACEBOOK_CALLBACK_URL:-http://localhost:3001/api/v1/auth/oauth/facebook/callback}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Villi <no-reply@villi.test>}
+      TWO_FACTOR_APP_NAME: ${TWO_FACTOR_APP_NAME:-Villi}
+      SEED_ON_START: ${SEED_ON_START:-true}
+    ports:
+      - '${API_HOST_PORT:-3001}:3001'
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3001/api/v1}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+        VITE_GOOGLE_OAUTH_ENABLED: ${VITE_GOOGLE_OAUTH_ENABLED:-false}
+        VITE_FACEBOOK_OAUTH_ENABLED: ${VITE_FACEBOOK_OAUTH_ENABLED:-false}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${WEB_HOST_PORT:-5173}:80'
+
+  # Automated test runner (Unit + API integration + Security).
+  # Joined to the internal network so it reaches postgres/redis by name.
+  # Run with: docker compose --profile test run --rm e2e
+  e2e:
+    image: node:20-alpine
+    profiles: ['test']
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://${POSTGRES_USER:-villi}:${POSTGRES_PASSWORD:-villi_dev_password}@postgres:5432/${POSTGRES_DB:-villi}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: test_access_secret
+      JWT_REFRESH_SECRET: test_refresh_secret
+      JWT_ACCESS_TTL: 900s
+      JWT_REFRESH_TTL: 7d
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command:
+      - sh
+      - -c
+      - >-
+        npm ci &&
+        npx prisma generate &&
+        npx prisma migrate deploy &&
+        npm run prisma:seed &&
+        npm test &&
+        npm run test:e2e
+
+volumes:
+  pgdata:
+  redisdata:
