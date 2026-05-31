@@ -49,10 +49,17 @@ export class AuthController {
     return { userAgent: req.headers['user-agent'], ip: req.ip };
   }
 
+  private cookieSecure(): boolean {
+    const publicUrl = this.config.get<string>('apiPublicUrl') ?? '';
+    // Secure cookies for HTTPS public URLs (ngrok, production). Plain HTTP local dev stays non-secure.
+    return publicUrl.startsWith('https://');
+  }
+
   private setRefreshCookie(res: Response, token: string): void {
+    const secure = this.cookieSecure();
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      secure: this.config.get<string>('env') === 'production',
+      secure,
       sameSite: 'lax',
       path: '/api/v1/auth',
       maxAge: this.tokens.refreshCookieMaxAgeMs(),
@@ -60,7 +67,7 @@ export class AuthController {
   }
 
   private clearRefreshCookie(res: Response): void {
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth', secure: this.cookieSecure() });
   }
 
   @Public()

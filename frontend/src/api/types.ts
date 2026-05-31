@@ -55,3 +55,21 @@ export interface Category {
   description?: string | null;
   children: Category[];
 }
+
+export interface Review {
+  id: string;
+  rating: number;
+  title?: string | null;
+  body?: string | null;
+  author: string;
+  createdAt: string;
+}
+
+export interface ReviewList {
+  summary: {
+    averageRating: number;
+    ratingCount: number;
+    distribution: Record<string, number>;
+  };
+  data: Review[];
+}

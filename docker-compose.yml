@@ -86,6 +86,19 @@ services:
     ports:
       - '${WEB_HOST_PORT:-5173}:80'
 
+  # Single-origin gateway — point ngrok (or reviewers) at this port.
+  # Routes / → web, /api → api so auth cookies and the SPA share one host.
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - web
+    ports:
+      - '${PROXY_HOST_PORT:-8080}:80'
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
   # Automated test runner (Unit + API integration + Security).
   # Joined to the internal network so it reaches postgres/redis by name.
   # Run with: docker compose --profile test run --rm e2e

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -51,7 +52,7 @@ export function Navbar() {
 
         <div className="search" ref={boxRef}>
           <input
-            type="text"
+            type="search"
             placeholder="Search pre-loved gear, brands, sizes..."
             aria-label="Search products"
             value={term}
@@ -70,27 +71,29 @@ export function Navbar() {
           )}
         </div>
 
-        <div className="nav-spacer" />
+        <div className="navbar-actions">
+          <ThemeToggle />
 
-        {user ? (
-          <>
-            <Link to="/account" className="btn">
-              {user.firstName}
-            </Link>
-            <button className="btn" onClick={() => logout()}>
-              Log out
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="btn">
-              Sign in
-            </Link>
-            <Link to="/register" className="btn btn-primary">
-              Sign up
-            </Link>
-          </>
-        )}
+          {user ? (
+            <>
+              <Link to="/account" className="btn">
+                {user.firstName}
+              </Link>
+              <button className="btn" onClick={() => logout()}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="btn">
+                Sign in
+              </Link>
+              <Link to="/register" className="btn btn-primary">
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

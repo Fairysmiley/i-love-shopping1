@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { money } from '../format';
+import { StarRating } from '../components/StarRating';
+import { ProductReviews } from '../components/ProductReviews';
 import type { Product } from '../api/types';
 
 export function ProductPage() {
@@ -9,13 +11,15 @@ export function ProductPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const load = () => {
     if (!slug) return;
     api
       .get<Product>(`/products/${slug}`)
       .then(setProduct)
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Failed to load'));
-  }, [slug]);
+  };
+
+  useEffect(load, [slug]);
 
   if (error) return <div className="container" style={{ padding: 28 }}>{error}</div>;
   if (!product) return <div className="container" style={{ padding: 28 }}>Loading...</div>;
@@ -27,7 +31,7 @@ export function ProductPage() {
       <Link to="/" className="muted">
         &larr; Back to catalog
       </Link>
-      <div className="layout" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 12 }}>
+      <div className="layout product-detail">
         <img
           src={product.images[0]?.url}
           alt={product.images[0]?.altText ?? product.name}
@@ -53,8 +57,8 @@ export function ProductPage() {
               </span>
             )}
           </div>
-          <p className="rating">
-            {'\u2605'.repeat(Math.round(product.averageRating))} ({product.ratingCount} reviews)
+          <p>
+            <StarRating value={product.averageRating} count={product.ratingCount} showCount />
           </p>
           <p className="price" style={{ fontSize: 28 }}>
             {money(product.price, product.currency)}
@@ -108,6 +112,8 @@ export function ProductPage() {
           </p>
         </div>
       </div>
+
+      <ProductReviews slug={product.slug} onChange={load} />
     </div>
   );
 }

@@ -272,4 +272,79 @@ describe('Villi API (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('reviews: ratings derived from real review rows', () => {
+    let slug: string;
+    let token: string;
+
+    beforeAll(async () => {
+      const list = await api().get('/api/v1/products?limit=1').expect(200);
+      slug = list.body.data[0].slug;
+      const login = await api().post('/api/v1/auth/login').send({ email, password }).expect(200);
+      token = login.body.accessToken;
+    });
+
+    it('lists reviews with a rating summary (public)', async () => {
+      const res = await api().get(`/api/v1/products/${slug}/reviews`).expect(200);
+      expect(res.body.summary).toEqual(
+        expect.objectContaining({
+          averageRating: expect.any(Number),
+          ratingCount: expect.any(Number),
+          distribution: expect.any(Object),
+        }),
+      );
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('blocks review creation for anonymous users (401)', async () => {
+      await api().post(`/api/v1/products/${slug}/reviews`).send({ rating: 5 }).expect(401);
+    });
+
+    it('rejects an out-of-range rating (400)', async () => {
+      await api()
+        .post(`/api/v1/products/${slug}/reviews`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rating: 6 })
+        .expect(400);
+    });
+
+    it('creates a review and recomputes the product rating aggregates', async () => {
+      await api()
+        .post(`/api/v1/products/${slug}/reviews`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rating: 5, title: 'Great', body: 'Exactly as described.' })
+        .expect(201);
+
+      const reviews = await api().get(`/api/v1/products/${slug}/reviews`).expect(200);
+      const me = reviews.body.data.find((r: any) => r.title === 'Great');
+      expect(me).toBeDefined();
+      expect(me.rating).toBe(5);
+
+      // The product's denormalized aggregates reflect the new review.
+      const product = await api().get(`/api/v1/products/${slug}`).expect(200);
+      expect(product.body.ratingCount).toBe(reviews.body.summary.ratingCount);
+      expect(product.body.averageRating).toBeCloseTo(reviews.body.summary.averageRating, 1);
+    });
+
+    it('updates (not duplicates) an existing review on re-submit', async () => {
+      const before = await api().get(`/api/v1/products/${slug}/reviews`).expect(200);
+      const countBefore = before.body.summary.ratingCount;
+
+      await api()
+        .post(`/api/v1/products/${slug}/reviews`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rating: 3, title: 'Changed my mind' })
+        .expect(201);
+
+      const after = await api().get(`/api/v1/products/${slug}/reviews`).expect(200);
+      expect(after.body.summary.ratingCount).toBe(countBefore);
+    });
+
+    it('deletes the caller’s own review and recomputes (204)', async () => {
+      await api()
+        .delete(`/api/v1/products/${slug}/reviews/mine`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+    });
+  });
 });

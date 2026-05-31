@@ -221,14 +221,37 @@ Then open:
 
 | Service | URL |
 |---|---|
-| Web app | http://localhost:5173 |
-| API | http://localhost:3001/api/v1 |
-| Swagger docs | http://localhost:3001/api/docs |
+| **Unified gateway** (web + API, one origin) | http://localhost:8080 |
+| Web app (direct) | http://localhost:5173 |
+| API (direct) | http://localhost:3001/api/v1 |
+| Swagger docs | http://localhost:3001/api/docs (or http://localhost:8080/api/docs via gateway) |
 | Health check | http://localhost:3001/api/v1/health |
 
-> **Port already in use?** If `3001` or `5173` are taken on your machine, set
-> `API_HOST_PORT` / `WEB_HOST_PORT` in `.env` (the Postgres and Redis containers
-> are internal-only and never bind host ports).
+> **Port already in use?** If `3001`, `5173`, or `8080` are taken on your machine,
+> set `API_HOST_PORT` / `WEB_HOST_PORT` / `PROXY_HOST_PORT` in `.env` (Postgres and
+> Redis are internal-only and never bind host ports).
+
+### Share with remote reviewers (ngrok)
+
+Auth refresh cookies require the browser to talk to **one origin** for both the
+SPA and `/api/v1`. A small **nginx proxy** (`proxy/nginx.conf`, port **8080**)
+routes `/` → web and `/api/` → API so ngrok can expose a single HTTPS URL.
+
+```bash
+# Install ngrok and configure your authtoken first: https://ngrok.com/download
+./ngrok.sh
+```
+
+This starts Docker (including the proxy), opens an ngrok tunnel to port 8080,
+updates `.env` with the public URL, rebuilds the web app, and restarts the API
+(CORS + secure cookies). Share the printed HTTPS link with reviewers.
+
+To point at a known URL (e.g. reserved ngrok domain) without auto-detect:
+
+```bash
+./scripts/configure-public-url.sh https://your-name.ngrok-free.app
+ngrok http 8080
+```
 
 ### Seeded accounts
 
@@ -268,14 +291,20 @@ npm run dev                # http://localhost:5173
    for live type-ahead suggestions, the left rail to filter by category, price,
    brand, rating, and attribute facets (e.g. size, condition, colour), and the sort
    dropdown for relevance / price / rating / newest.
-2. **Register** — create an account (CAPTCHA shown when a site key is set). You
-   are signed in immediately; the access token lives only in memory.
-3. **Sign in** — email/password or an OAuth provider. If 2FA is enabled you are
+2. **Reviews & ratings** — open any product to read customer reviews. Signed-in
+   users can leave a 1–5 star review (one per product, editable); a product's
+   star rating and count are computed from these real reviews and feed the
+   rating facet/sort.
+3. **Register** — create an account (CAPTCHA shown when a site key is set).
+   Forms validate **on the client** (email format, password strength, required
+   fields) for instant feedback, and again on the server. You are signed in
+   immediately; the access token lives only in memory.
+4. **Sign in** — email/password or an OAuth provider. If 2FA is enabled you are
    prompted for a 6-digit code.
-4. **Account page** — enable/disable TOTP 2FA (scan the QR with Google
+5. **Account page** — enable/disable TOTP 2FA (scan the QR with Google
    Authenticator/Authy and save recovery codes), export your data, or delete
    your account (GDPR).
-5. **Admin** — sign in as the admin to create/update products, categories, and
+6. **Admin** — sign in as the admin to create/update products, categories, and
    brands via the API (admin-guarded endpoints; see Swagger).
 
 ---
@@ -311,6 +340,9 @@ Base URL: `http://localhost:3001/api/v1`. Full interactive docs at `/api/docs`.
 | GET | `/products/facets` | Facet values + counts for current filters |
 | GET | `/products/:idOrSlug` | Product detail |
 | POST/PATCH/DELETE | `/products[/:id]` | Admin product management |
+| GET | `/products/:idOrSlug/reviews` | List reviews + rating summary |
+| POST | `/products/:idOrSlug/reviews` | Create/update your review (auth) |
+| DELETE | `/products/:idOrSlug/reviews/mine` | Delete your own review (auth) |
 | GET | `/categories`, `/categories/tree` | Browse categories |
 | GET | `/brands` | List brands |
 
@@ -379,10 +411,13 @@ npm run test:e2e  # 24 API integration + security tests (needs a reachable DB + 
   product shape incl. derived fields (`src/catalog/products.service.spec.ts`), and
   metric/imperial dimension correctness (`src/common/utils/units.spec.ts`).
 
-**API integration + security tests** (24, `test/app.e2e-spec.ts`) cover:
+**API integration + security tests** (30, `test/app.e2e-spec.ts`) cover:
 - **Catalog endpoints** — list/pagination, single product by slug (+404),
   facets, faceted filtering by brand and attribute, price filtering, sorting by
   price and rating, invalid-sort rejection, suggestions, and the category tree.
+- **Reviews** — public listing + rating summary, auth-gated creation, rating
+  range validation (400), aggregate recomputation on the product, edit-not-
+  duplicate on re-submit, and owner deletion.
 - **Auth & persistence** — register (persisted + retrieved via `/users/me`),
   duplicate rejection, login success/failure, and bearer-token enforcement.
 - **Refresh-token rotation** — single-use validation: a rotated token is
@@ -414,7 +449,9 @@ third-party flows that are hard to fully automate):
 
 ```
 .
-├── docker-compose.yml        # postgres + redis + api + web
+├── proxy/nginx.conf          # unified gateway (/ → web, /api → api)
+├── ngrok.sh                  # remote demo via single HTTPS origin
+├── docker-compose.yml        # postgres + redis + api + web + proxy
 ├── start.sh                  # one-command build & run
 ├── .env.example              # all configuration (12-factor)
 ├── backend/                  # NestJS API
@@ -446,6 +483,11 @@ third-party flows that are hard to fully automate):
 - Refresh-token **family reuse detection** (theft mitigation).
 - Redis-backed **access-token revocation** denylist.
 - **Faceted** filtering with live counts + attribute facets (condition, size, colour, material, authenticity).
+- **Customer reviews & ratings** — 1–5 stars with title/body; product rating
+  aggregates are **recomputed transactionally** from real review rows (the
+  rating facet/sort use genuine data, not seeded numbers).
+- **Client + server validation** on auth forms with inline, accessible
+  (`aria-invalid`) error messages mirroring the server rules.
 - **Verified-authentic** + **condition** trust badges surfaced per item.
 - Dual **metric/imperial** product dimensions.
 - **GDPR** data export & erasure endpoints.

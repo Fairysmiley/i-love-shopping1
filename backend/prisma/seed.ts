@@ -123,7 +123,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Deep Forest' },
+        { name: 'colour', value: 'Ocean Blue' },
         { name: 'material', value: 'Recycled Polyester' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'One Size' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Ox Red' },
+        { name: 'colour', value: 'Frost Green' },
         { name: 'material', value: 'Vinylon F' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Like New' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Magnetite' },
+        { name: 'colour', value: 'Navy / Aqua' },
         { name: 'material', value: 'Recycled Down 800fp' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'S' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Tarn Blue' },
+        { name: 'colour', value: 'Black' },
         { name: 'material', value: 'Polartec Power Grid' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -207,7 +207,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'XL' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Charcoal' },
+        { name: 'colour', value: 'Black' },
         { name: 'material', value: 'Polyamide / PrimaLoft' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Like New' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Pale Sky' },
+        { name: 'colour', value: 'Light Grey' },
         { name: 'material', value: 'Recycled Nylon' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -270,7 +270,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Indigo Night' },
+        { name: 'colour', value: 'Slate Teal' },
         { name: 'material', value: 'Softshell Stretch' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -312,7 +312,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'S' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Lingonberry' },
+        { name: 'colour', value: 'Turquoise / Black' },
         { name: 'material', value: 'DrymaxX Polyester' },
         { name: 'authenticity', value: 'Verified' },
       ],
@@ -321,6 +321,8 @@ async function main(): Promise<void> {
       image: '/products/halti-fort.png',
     },
   ];
+
+  const createdProducts: { id: string; rating: number }[] = [];
 
   for (const p of products) {
     const slug = slugify(p.name);
@@ -357,10 +359,72 @@ async function main(): Promise<void> {
     await prisma.productImage.create({
       data: { productId: product.id, url: p.image, altText: p.name, isPrimary: true, position: 0 },
     });
+
+    createdProducts.push({ id: product.id, rating: p.rating });
+  }
+
+  // --- Reviews (real rows so ratings are computed, not hard-coded) ---
+  // A small panel of demo reviewers; product rating aggregates are derived from
+  // these via ReviewsService.recomputeAggregates-equivalent logic below.
+  const reviewerSeed = [
+    { email: 'mikko@villi.test', firstName: 'Mikko', lastName: 'Korhonen' },
+    { email: 'sofia@villi.test', firstName: 'Sofia', lastName: 'Lindqvist' },
+    { email: 'erik@villi.test', firstName: 'Erik', lastName: 'Nilsen' },
+    { email: 'liisa@villi.test', firstName: 'Liisa', lastName: 'Mäkinen' },
+    { email: 'anders@villi.test', firstName: 'Anders', lastName: 'Berg' },
+  ];
+  const reviewerPassword = await argon2.hash('Reviewer!Passw0rd');
+  const reviewers = [] as { id: string }[];
+  for (const r of reviewerSeed) {
+    reviewers.push(
+      await prisma.user.upsert({
+        where: { email: r.email },
+        update: {},
+        create: { ...r, passwordHash: reviewerPassword, isEmailVerified: true },
+      }),
+    );
+  }
+
+  const comments = [
+    { title: 'Exactly as described', body: 'Condition matched the listing perfectly. Authentication gave me real confidence buying pre-loved.' },
+    { title: 'Great find', body: 'Barely any wear and so much warmth for the weight. Would buy pre-loved here again.' },
+    { title: 'Solid quality', body: 'Classic Nordic build. A couple of tiny marks as noted, otherwise excellent.' },
+    { title: 'Very happy', body: 'Fast handling and the gear is genuinely as good as new. Highly recommend.' },
+    { title: 'Good but runs snug', body: 'Quality is top-notch; sizing is a touch slim, factor that in when ordering.' },
+  ];
+
+  for (const cp of createdProducts) {
+    // Idempotent re-seed: clear and regenerate this product's reviews.
+    await prisma.review.deleteMany({ where: { productId: cp.id } });
+
+    const target = Math.round(cp.rating); // 1..5
+    const count = 3 + (Math.round(cp.rating * 10) % 3); // 3–5 reviews
+    for (let i = 0; i < count && i < reviewers.length; i++) {
+      // Spread ratings around the target so the average stays believable.
+      const offset = i === 0 ? 0 : i % 2 === 0 ? 0 : -1;
+      const rating = Math.min(5, Math.max(3, target + offset));
+      const c = comments[i % comments.length];
+      await prisma.review.create({
+        data: { productId: cp.id, userId: reviewers[i].id, rating, title: c.title, body: c.body },
+      });
+    }
+
+    const agg = await prisma.review.aggregate({
+      where: { productId: cp.id },
+      _avg: { rating: true },
+      _count: true,
+    });
+    await prisma.product.update({
+      where: { id: cp.id },
+      data: {
+        averageRating: Math.round((agg._avg.rating ?? 0) * 10) / 10,
+        ratingCount: agg._count,
+      },
+    });
   }
 
   console.log(
-    `Seeded: admin=${admin.email}, customer=${customer.email}, products=${products.length}`,
+    `Seeded: admin=${admin.email}, customer=${customer.email}, products=${products.length}, reviewers=${reviewers.length}`,
   );
 }
 

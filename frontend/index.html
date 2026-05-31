@@ -8,6 +8,20 @@
       name="description"
       content="Villi: a curated marketplace for verified, authenticated pre-loved Finnish and Nordic design outdoor apparel."
     />
+    <script>
+      // Apply the saved/system theme before paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('villi-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
