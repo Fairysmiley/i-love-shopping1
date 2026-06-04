@@ -9,7 +9,7 @@ function currentTheme(): Theme {
 }
 
 /** Toggles between light and dark color themes, persisting the choice. */
-export function ThemeToggle() {
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [theme, setTheme] = useState<Theme>(currentTheme);
 
   useEffect(() => {
@@ -24,7 +24,8 @@ export function ThemeToggle() {
   const next = theme === 'dark' ? 'light' : 'dark';
   return (
     <button
-      className="btn"
+      type="button"
+      className={compact ? 'navbar-icon-btn' : 'btn'}
       aria-label={`Switch to ${next} mode`}
       title={`Switch to ${next} mode`}
       onClick={() => setTheme(next)}

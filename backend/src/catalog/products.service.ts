@@ -68,19 +68,22 @@ export class ProductsService {
     return { AND: and };
   }
 
-  private orderBy(sort?: ProductSort): Prisma.ProductOrderByWithRelationInput {
-    switch (sort) {
+  private orderBy(sort?: ProductSort): Prisma.ProductOrderByWithRelationInput[] {
+    const tiebreaker: Prisma.ProductOrderByWithRelationInput = { id: 'asc' };
+    const resolved = sort ?? ProductSort.RELEVANCE;
+
+    switch (resolved) {
       case ProductSort.PRICE_ASC:
-        return { price: 'asc' };
+        return [{ price: 'asc' }, tiebreaker];
       case ProductSort.PRICE_DESC:
-        return { price: 'desc' };
+        return [{ price: 'desc' }, tiebreaker];
       case ProductSort.RATING:
-        return { averageRating: 'desc' };
+        return [{ averageRating: 'desc' }, { ratingCount: 'desc' }, tiebreaker];
       case ProductSort.NEWEST:
-        return { createdAt: 'desc' };
+        return [{ createdAt: 'desc' }, tiebreaker];
       default:
-        // "Relevance": rank well-rated, in-stock items first as a heuristic.
-        return { averageRating: 'desc' };
+        // Relevance: well-rated first, then newest (differs from pure "Top rated").
+        return [{ averageRating: 'desc' }, { createdAt: 'desc' }, tiebreaker];
     }
   }
 
@@ -91,7 +94,7 @@ export class ProductsService {
       this.prisma.product.findMany({
         where,
         include: productInclude,
-        orderBy: this.orderBy(query.sort),
+        orderBy: this.orderBy(query.sort ?? ProductSort.RELEVANCE),
         skip: query.skip,
         take: query.limit,
       }),

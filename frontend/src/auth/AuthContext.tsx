@@ -82,7 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/auth/logout');
+      // Never refresh on 401 during logout — that would revive the session we are ending.
+      await api.post('/auth/logout', undefined, { retryOnAuth: false });
+    } catch {
+      // Clear local session even if the server call fails (offline, expired token, etc.).
     } finally {
       setAccessToken(null);
       setUser(null);

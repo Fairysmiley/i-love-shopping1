@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -24,6 +25,7 @@ export class CategoriesController {
   constructor(private readonly categories: CategoriesService) {}
 
   @Public()
+  @SkipThrottle()
   @Get()
   @ApiOperation({ summary: 'List all categories (flat)' })
   findAll() {
@@ -31,6 +33,7 @@ export class CategoriesController {
   }
 
   @Public()
+  @SkipThrottle()
   @Get('tree')
   @ApiOperation({ summary: 'Category tree for browsing' })
   tree() {

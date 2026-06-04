@@ -16,19 +16,38 @@ attributes buyers can filter on, with stock fixed at one unit per item.
 > admin dashboards, accessibility & perf hardening) build on top of this
 > Foundation. See [Roadmap](#roadmap).
 
+### README deliverables (Project 1)
+
+This file meets the required documentation deliverables:
+
+| Deliverable | Section |
+|-------------|---------|
+| **Project overview** | [Project overview](#project-overview) (capabilities table) + introduction above |
+| **Entity Relationship Diagram** | [Entity Relationship Diagram](#entity-relationship-diagram) (Mermaid ERD, PK/FK, cardinality, modality) |
+| **Setup and installation** | [Setup and installation](#setup-and-installation) (Docker one-command + local dev) |
+| **Usage guide** | [Usage guide](#usage-guide) (browse, auth, account, admin) |
+
+Bonus material (API reference, security, testing, review checklists) follows below.
+
 ---
 
 ## Table of contents
 
+**Core (required)**
+
 - [Project overview](#project-overview)
+- [Entity Relationship Diagram](#entity-relationship-diagram)
+- [Setup and installation](#setup-and-installation) · [Which port to use](#which-port-to-use)
+- [Usage guide](#usage-guide)
+
+**Architecture & domain**
+
+- [B2C e-commerce model](#b2c-e-commerce-model)
 - [Tech stack](#tech-stack)
 - [Architecture](#architecture)
-- [Entity Relationship Diagram](#entity-relationship-diagram)
-- [Setup and installation](#setup-and-installation)
-- [Usage guide](#usage-guide)
 - [API reference](#api-reference)
 - [Security model](#security-model)
-- [Testing](#testing)
+- [Testing](#testing) · [Testing review criteria (task1)](#testing-review-criteria-task1)
 - [Manual test checklist](#manual-test-checklist)
 - [Project structure](#project-structure)
 - [Roadmap](#roadmap)
@@ -37,13 +56,41 @@ attributes buyers can filter on, with stock fixed at one unit per item.
 
 ## Project overview
 
+**Villi** is a B2C e-commerce **Foundation** for a curated pre-loved outdoor
+apparel shop. Shoppers browse and search a product catalog; the platform handles
+**accounts** (registration, login, JWT sessions, optional 2FA) and a **relational
+catalog** (categories, brands, facets, reviews) backed by PostgreSQL. Commerce
+(cart, checkout, payments) and the full admin UI are planned in later projects.
+
 | Capability | Summary |
 |---|---|
-| **Accounts & auth** | Email/password + OAuth (Google, Facebook), CAPTCHA on signup, JWT access + rotating refresh tokens, token revocation, password reset, optional TOTP 2FA. |
+| **Accounts & auth** | Email/password + OAuth (Google, GitHub), CAPTCHA on signup, JWT access + rotating refresh tokens, token revocation, password reset, optional TOTP 2FA. |
 | **Database** | PostgreSQL (relational, ACID) via Prisma. Transactions for multi-step writes, FKs/constraints for integrity. |
-| **Catalog** | Nested categories, Nordic brands, unique pre-loved items with metric+imperial dimensions and condition/size/authenticity facets, faceted search, live suggestions, sorting, pagination. |
+| **Catalog** | Full product model (id, name, description, price, stock, category, brand, images, metric+imperial dimensions), nested category browse, faceted search, sort by relevance/price/rating, static product images. See [Catalog review criteria](#catalog-review-criteria-task1). |
 | **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape, per-IP rate limiting. |
 | **Ops** | Fully containerized; one command builds + runs the whole stack. |
+| **Business model** | **B2C** — Villi (the business) sells directly to individual consumers; see [B2C e-commerce model](#b2c-e-commerce-model). |
+
+---
+
+## B2C e-commerce model
+
+**Requirement:** The platform implements a Business-to-Consumer (B2C) e-commerce model.
+
+Villi is a **single-store B2C** marketplace: one business operates the catalog and sells
+**to end customers** (shoppers), not to other businesses.
+
+| B2C characteristic | How Villi implements it |
+|--------------------|-------------------------|
+| **Customers are consumers** | Shoppers register with role `USER`, browse the public catalog, and (in Project 2) will check out as individuals — not as business accounts or wholesalers. |
+| **Business → Consumer flow** | Products are listed by the platform (admin-managed catalog). There is no multi-vendor seller portal, B2B pricing tier, or purchase-order workflow in Foundation. |
+| **Public storefront** | React SPA: search, facets, product detail, reviews — oriented at individual buyers. |
+| **Curated retail positioning** | Pre-loved, one-of-a-kind Nordic outdoor apparel (`niche.txt`); `stockQuantity` is typically **1** per listing (consumer buys a unique item). |
+| **Consumer accounts** | `User` model for shoppers; `ADMIN` for platform staff only — not a separate “merchant” entity. |
+
+**Not in scope (by design):** B2B wholesale, marketplace sellers onboarding, corporate billing, or multi-tenant vendor stores (aligned with Project 1 Foundation; commerce features arrive in Project 2).
+
+More detail: [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md).
 
 ---
 
@@ -64,7 +111,7 @@ flowchart LR
   Browser["React SPA (nginx)"] -->|"HTTPS REST /api/v1"| API["NestJS API"]
   API --> PG[("PostgreSQL")]
   API --> Redis[("Redis")]
-  API --> OAuth["Google / Facebook OAuth"]
+  API --> OAuth["Google / GitHub OAuth"]
   API --> Mail["SMTP (email)"]
   API --> Captcha["Google reCAPTCHA"]
 
@@ -85,120 +132,235 @@ about while leaving clean seams to extract services later if needed.
 
 ## Entity Relationship Diagram
 
+**Requirement:** An ERD showing **entities**, **attributes**, **relationships**,
+**primary keys (PK)**, **foreign keys (FK)**, **cardinality**, and **modality**.
+
+Source of truth: `backend/prisma/schema.prisma`. Full tables and relationship
+matrix: [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md).
+
+### Diagram (Crow’s foot notation)
+
 ```mermaid
 erDiagram
-  User ||--o| TwoFactorSecret : "has"
-  User ||--o{ OAuthAccount : "links"
-  User ||--o{ RefreshToken : "owns"
-  User ||--o{ PasswordResetToken : "requests"
-  User ||--o{ Review : "writes"
+  User ||--o| TwoFactorSecret : "has 0..1"
+  User ||--o{ OAuthAccount : "links 0..N"
+  User ||--o{ RefreshToken : "owns 0..N"
+  User ||--o{ PasswordResetToken : "requests 0..N"
+  User ||--o{ Review : "writes 0..N"
 
-  Category ||--o{ Category : "parent of"
-  Category ||--o{ Product : "contains"
-  Brand ||--o{ Product : "makes"
-  Product ||--o{ ProductImage : "has"
-  Product ||--o{ ProductAttribute : "has"
-  Product ||--o{ Review : "receives"
+  Category ||--o{ Category : "parent 0..N children"
+  Category ||--o{ Product : "contains 1..N"
+  Brand ||--o{ Product : "makes 1..N"
+  Product ||--o{ ProductImage : "has 1..N"
+  Product ||--o{ ProductAttribute : "has 0..N"
+  Product ||--o{ Review : "receives 0..N"
 
   User {
     uuid id PK
     string email UK
-    string passwordHash "null for OAuth-only"
+    string passwordHash "nullable"
     string firstName
     string lastName
-    enum role "USER | ADMIN"
+    enum role
     bool isEmailVerified
     bool isActive
+    datetime createdAt
+    datetime updatedAt
   }
   TwoFactorSecret {
     uuid id PK
-    uuid userId FK,UK
+    uuid userId FK_UK
     string secret
     bool enabled
-    string[] recoveryCodes "argon2 hashed"
+    string_array recoveryCodes
+    datetime createdAt
+    datetime confirmedAt "nullable"
   }
   OAuthAccount {
     uuid id PK
-    enum provider "GOOGLE | FACEBOOK"
+    enum provider
     string providerAccountId
     uuid userId FK
+    datetime createdAt
+    composite_UK provider_providerAccountId
   }
   RefreshToken {
     uuid id PK
     uuid userId FK
-    string tokenHash UK "sha256"
+    string tokenHash UK
     string familyId
     datetime expiresAt
-    datetime revokedAt
-    string replacedById
+    datetime revokedAt "nullable"
+    string replacedById "nullable"
+    string userAgent "nullable"
+    string ip "nullable"
+    datetime createdAt
   }
   PasswordResetToken {
     uuid id PK
     uuid userId FK
     string tokenHash UK
     datetime expiresAt
-    datetime usedAt
+    datetime usedAt "nullable"
+    datetime createdAt
   }
   Category {
     uuid id PK
     string name
     string slug UK
-    uuid parentId FK "self-relation"
+    string description "nullable"
+    uuid parentId FK "nullable self"
+    datetime createdAt
   }
   Brand {
     uuid id PK
     string name UK
     string slug UK
+    string description "nullable"
+    string logoUrl "nullable"
+    datetime createdAt
   }
   Product {
     uuid id PK
     string name
     string slug UK
+    string description
     decimal price
+    string currency
     int stockQuantity
     uuid categoryId FK
     uuid brandId FK
-    int weightGrams "metric base unit"
+    int weightGrams "nullable"
+    int lengthMm "nullable"
+    int widthMm "nullable"
+    int heightMm "nullable"
     float averageRating
     int ratingCount
     bool isActive
+    datetime createdAt
+    datetime updatedAt
   }
   ProductImage {
     uuid id PK
     uuid productId FK
     string url
+    string altText "nullable"
+    int position
     bool isPrimary
   }
   ProductAttribute {
     uuid id PK
     uuid productId FK
-    string name "facet key"
-    string value "facet value"
+    string name
+    string value
+    composite_UK productId_name
   }
   Review {
     uuid id PK
     uuid productId FK
     uuid userId FK
     int rating
+    string title "nullable"
+    string body "nullable"
+    datetime createdAt
+    composite_UK productId_userId
   }
 ```
 
+### Notation legend
+
+| Symbol / term | Meaning |
+|---------------|---------|
+| **PK** | Primary key — unique row identifier (`@id` in Prisma) |
+| **FK** | Foreign key — references another entity’s PK (`@relation`) |
+| **UK** | Alternate unique key (`@unique` or `@@unique`) |
+| **Cardinality** | Maximum multiplicity on each side (one vs many), shown on diagram edges |
+| **Modality** | Minimum participation (optional `0` vs mandatory `1`) |
+
+**Mermaid edge cheat sheet**
+
+| Syntax | Cardinality | Modality (child side) |
+|--------|-------------|------------------------|
+| `\|\|--o\|` | 1 : 0..1 | Child optional (at most one) |
+| `\|\|--o{` | 1 : 0..N | Child optional, many allowed |
+| `\|\|--\|{` | 1 : 1..N | Child mandatory, many allowed |
+
+### Relationships (cardinality + modality + FK)
+
+| Relationship | Cardinality | Modality | Foreign key |
+|--------------|-------------|----------|-------------|
+| User → TwoFactorSecret | 1 : 0..1 | 2FA optional per user; if present, exactly one row per user | `TwoFactorSecret.userId` → `User.id` |
+| User → OAuthAccount | 1 : 0..N | OAuth optional; user may link multiple providers | `OAuthAccount.userId` → `User.id` |
+| User → RefreshToken | 1 : 0..N | Zero or many active/historical sessions | `RefreshToken.userId` → `User.id` |
+| User → PasswordResetToken | 1 : 0..N | Zero or many reset requests over time | `PasswordResetToken.userId` → `User.id` |
+| User → Review | 1 : 0..N | Shoppers may write zero or many reviews | `Review.userId` → `User.id` |
+| Category → Category (tree) | 1 : 0..N | Root categories have `parentId` null; optional hierarchy | `Category.parentId` → `Category.id` |
+| Category → Product | 1 : 0..N | Each product in exactly one category; category may be empty | `Product.categoryId` → `Category.id` |
+| Brand → Product | 1 : 0..N | Each product has one brand; brand may have zero products | `Product.brandId` → `Brand.id` |
+| Product → ProductImage | 1 : 0..N | Images optional; usually one or more per product | `ProductImage.productId` → `Product.id` |
+| Product → ProductAttribute | 1 : 0..N | Facets optional (condition, size, colour, etc.) | `ProductAttribute.productId` → `Product.id` |
+| Product → Review | 1 : 0..N | Reviews optional; aggregates on `Product` | `Review.productId` → `Product.id` |
+
 **ACID notes:** multi-step operations (OAuth provisioning + linking, refresh
 rotation, password reset + session revocation, product creation with
-images/attributes) run inside Prisma `$transaction`s (atomic & isolated).
-Foreign keys and unique constraints enforce consistency; PostgreSQL guarantees
-durability of committed transactions. Dimensions are stored once in canonical
-**metric base units** and imperial values are derived in the API to avoid
-redundant, drift-prone data.
+images/attributes, review + rating recompute) run inside Prisma `$transaction`s
+(atomic & isolated). Foreign keys and unique constraints enforce consistency;
+PostgreSQL guarantees durability of committed transactions. Dimensions are
+stored once in canonical **metric base units** and imperial values are derived
+in the API to avoid redundant, drift-prone data.
 
 ---
 
 ## Setup and installation
 
+Follow these steps to run the full stack locally or to prepare a machine for
+review. Only **Docker** is required for the primary path.
+
 ### Prerequisite
 
 **Docker** (with Docker Compose v2) is the only requirement. All application
-dependencies are included in the containers.
+dependencies (Node, PostgreSQL, Redis, nginx) are included in the containers.
+
+### Which port to use
+
+**Open the app at http://localhost:8080** — that is the intended URL for daily use,
+reviews, OAuth, and sign-in. The default `.env` is configured for this **unified
+gateway** (`proxy` service): one origin serves both the React storefront and
+`/api/v1`, so cookies and OAuth work without cross-port issues.
+
+| Port | URL | When to use |
+|------|-----|-------------|
+| **8080** (recommended) | http://localhost:8080 | **Default.** Browse, login, OAuth, register. API at `/api/v1`, Swagger at `/api/docs`. |
+| 5173 | http://localhost:5173 | Web UI only — only if you deliberately use [split-port](#changing-ports) mode and rebuilt `web` for it. |
+| 3001 | http://localhost:3001/api/v1 | API / Swagger direct access — debugging, not the main storefront URL. |
+
+**Do not** expect the app on other ports (e.g. `8081`, `5174`) unless you changed
+`PROXY_HOST_PORT`, `WEB_HOST_PORT`, or `API_HOST_PORT` in `.env` **and** rebuilt
+the stack. Random localhost ports usually mean an old bookmark or another project.
+
+Start all services including the gateway:
+
+```bash
+./start.sh -d
+# or: docker compose up --build -d api web proxy
+```
+
+Detached mode prints URLs when ready. Foreground: `./start.sh` (URLs shown before logs).
+
+**Changing ports** — edit `.env`, then rebuild:
+
+| Variable | Default | Maps to |
+|----------|---------|---------|
+| `PROXY_HOST_PORT` | `8080` | Unified gateway (browse here) |
+| `WEB_HOST_PORT` | `5173` | Frontend container only |
+| `API_HOST_PORT` | `3001` | API container only |
+
+If you change `PROXY_HOST_PORT`, also set `API_PUBLIC_URL`, `WEB_PUBLIC_URL`, and
+`VITE_API_BASE_URL=/api/v1` for that origin, update OAuth callback URLs, and run
+`docker compose up --build -d api web proxy`. See [`docs/OAUTH_SETUP.md`](docs/OAUTH_SETUP.md).
+
+**Split-port mode** (optional): browse `:5173` with `VITE_API_BASE_URL=http://localhost:3001/api/v1`
+and matching OAuth callbacks on `:3001` — do not mix with the `:8080` defaults.
 
 ### Run everything (one command)
 
@@ -207,25 +369,25 @@ dependencies are included in the containers.
 ```
 
 This copies `.env.example` to `.env` if missing, then builds and starts
-PostgreSQL, Redis, the API, and the web app. On first boot the API container
-automatically applies migrations and seeds sample data.
+PostgreSQL, Redis, the API, the web app, and the **proxy** on port **8080**.
+On first boot the API container automatically applies migrations and seeds sample data.
 
 Equivalently:
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker compose up --build -d api web proxy
 ```
 
-Then open:
+**Use this URL:** http://localhost:8080 (see [Which port to use](#which-port-to-use)).
 
 | Service | URL |
 |---|---|
-| **Unified gateway** (web + API, one origin) | http://localhost:8080 |
-| Web app (direct) | http://localhost:5173 |
-| API (direct) | http://localhost:3001/api/v1 |
-| Swagger docs | http://localhost:3001/api/docs (or http://localhost:8080/api/docs via gateway) |
-| Health check | http://localhost:3001/api/v1/health |
+| **Storefront + API (use this)** | **http://localhost:8080** |
+| Web only (split-port / debugging) | http://localhost:5173 |
+| API only (Swagger, curl) | http://localhost:3001/api/v1 |
+| Swagger docs | http://localhost:8080/api/docs or http://localhost:3001/api/docs |
+| Health check | http://localhost:8080/api/v1/health |
 
 > **Port already in use?** If `3001`, `5173`, or `8080` are taken on your machine,
 > set `API_HOST_PORT` / `WEB_HOST_PORT` / `PROXY_HOST_PORT` in `.env` (Postgres and
@@ -287,6 +449,11 @@ npm run dev                # http://localhost:5173
 
 ## Usage guide
 
+After [setup](#run-everything-one-command), open **http://localhost:8080** ([which port to use](#which-port-to-use)).
+Sign in with a [seeded account](#seeded-accounts) to try authenticated flows.
+
+### Shopper flows
+
 1. **Browse & search** — the landing page lists products. Use the search bar
    for live type-ahead suggestions, the left rail to filter by category, price,
    brand, rating, and attribute facets (e.g. size, condition, colour), and the sort
@@ -307,6 +474,22 @@ npm run dev                # http://localhost:5173
 6. **Admin** — sign in as the admin to create/update products, categories, and
    brands via the API (admin-guarded endpoints; see Swagger).
 
+### Quick reviewer walkthrough
+
+| Step | Action |
+|------|--------|
+| 1 | `./start.sh -d` — wait until API, web, and proxy are up |
+| 2 | Open **http://localhost:8080** — browse catalog, use facets and sort |
+| 3 | Open a product — check images, specs (metric + imperial), reviews |
+| 4 | Register or sign in as `shopper@villi.test` / `Shopper!Passw0rd` |
+| 5 | Account → optional 2FA; API docs at http://localhost:3001/api/docs |
+| 6 | Run tests: `docker compose --profile test run --rm e2e` (see [Testing](#testing)) |
+
+### Password reset (optional demo)
+
+1. Go to **Forgot password** → enter an email → check API logs for `[DEV EMAIL]` reset link (SMTP optional).
+2. Open the link → set a new password → sign in.
+
 ---
 
 ## API reference
@@ -323,7 +506,7 @@ Base URL: `http://localhost:3001/api/v1`. Full interactive docs at `/api/docs`.
 | POST | `/auth/forgot-password` | Request reset email |
 | POST | `/auth/reset-password` | Set new password from token |
 | GET/POST | `/auth/2fa/status\|setup\|enable\|disable` | Manage TOTP 2FA |
-| GET | `/auth/oauth/google\|facebook` | Start OAuth flow |
+| GET | `/auth/oauth/google\|github` | Start OAuth flow |
 
 ### Users
 | Method | Path | Description |
@@ -385,6 +568,18 @@ GET /api/v1/products?q=jacket&category=shell-jackets&brands=fjallraven&brands=ha
 Frameworks: **Jest** (+ ts-jest) for unit tests, **Supertest** for API
 integration/security tests.
 
+### Testing review criteria (task1)
+
+| Criterion | Status | Count | How to demonstrate |
+|-----------|--------|-------|-------------------|
+| **Unit tests** | Done | **34** (`src/**/*.spec.ts`) | `cd backend && npm test` — JWT, auth DTO validation, CAPTCHA, product DTO/model, dimensions. No DB. |
+| **API integration tests** | Done | **32** e2e (`test/app.e2e-spec.ts`) | Real HTTP + PostgreSQL: auth register/login, catalog CRUD/list/facets, token rotation, reviews. `npm run test:e2e` or Docker below. |
+| **Security tests** | Done | Unit DTO + **6** e2e in `security:` block | Malformed/extra fields, SQLi-style login/search/path, admin guard. Run `npx jest test/app.e2e-spec.ts -t security`. |
+| **Auth + catalog coverage** | Done | Both domains in unit and e2e | See matrix in [`docs/TASK1_TESTING.md`](docs/TASK1_TESTING.md). |
+| **Explain & demo** | Done | Oral script in testing doc | Walk through one unit file + one e2e block; run `docker compose --profile test run --rm e2e`. |
+
+**Explain to a reviewer:** Unit tests prove isolated logic (tokens, validation, product shape). E2e tests boot the full API and hit Postgres so endpoints and persistence are real. Security tests send malicious strings and assert safe status codes (400/401/404) and an intact database.
+
 **Run the whole suite with only Docker** (unit + integration + security, against
 a throwaway DB on the internal network — no host ports needed):
 
@@ -396,22 +591,24 @@ Or run pieces locally (Node 20+):
 
 ```bash
 cd backend
-npm test          # 29 unit tests (no DB required)
+npm test          # 34 unit tests (no DB required)
 npm run test:cov  # unit tests with coverage
-npm run test:e2e  # 24 API integration + security tests (needs a reachable DB + Redis)
+npm run test:e2e  # 32 API integration + security tests (needs a reachable DB + Redis)
 ```
 
-**Unit tests** (29) cover:
+**Unit tests** (34) cover:
 - **JWT token handling** — generation, claims, expiration, refresh-token
   rotation, and reuse/family-revocation detection (`src/auth/tokens.service.spec.ts`).
 - **User input validation** — registration/login DTO rules incl. injection-style
   input (`src/auth/dto/auth.dto.spec.ts`).
+- **CAPTCHA** — dev skip, token required when secret set, siteverify success/failure
+  (`src/auth/captcha.service.spec.ts`).
 - **Product data model** — required-field & nested validation of the product
   DTOs and faceted-query DTO (`src/catalog/dto/product.dto.spec.ts`), the public
   product shape incl. derived fields (`src/catalog/products.service.spec.ts`), and
   metric/imperial dimension correctness (`src/common/utils/units.spec.ts`).
 
-**API integration + security tests** (30, `test/app.e2e-spec.ts`) cover:
+**API integration + security tests** (32, `test/app.e2e-spec.ts`) cover:
 - **Catalog endpoints** — list/pagination, single product by slug (+404),
   facets, faceted filtering by brand and attribute, price filtering, sorting by
   price and rating, invalid-sort rejection, suggestions, and the category tree.
@@ -428,6 +625,54 @@ npm run test:e2e  # 24 API integration + security tests (needs a reachable DB + 
 
 ---
 
+## Auth review criteria (task1)
+
+Use this when a reviewer checks the six authentication deliverables. Each item is
+**already implemented**; the table points to code and how to demonstrate it.
+
+| Criterion | Status | Where | How to demonstrate |
+|-----------|--------|-------|-------------------|
+| **Email-password + OAuth** | Done | Email: `POST /auth/register`, `POST /auth/login`. OAuth: `GET /auth/oauth/google`, `GET /auth/oauth/github` + callbacks; `findOrCreateFromOAuth()` links providers to existing emails. UI: `/register`, `/login` + `OAuthButtons.tsx`. E2E: *auth flow* + *OAuth authentication methods*. | Register/sign in with email. OAuth: set `GOOGLE_*` / `GITHUB_*` + `VITE_*_OAUTH_ENABLED=true` per `docs/OAUTH_SETUP.md`, rebuild `web`, then **Continue with Google/GitHub**. |
+| **Access token in memory** | Done | `frontend/src/api/client.ts` (`let accessToken` module variable); `AuthContext` calls `setAccessToken` only — never `localStorage`/`sessionStorage` for JWT | DevTools → Application → Local Storage: no access token. After login, API calls send `Authorization: Bearer …` from memory; reload tab loses access until `/auth/refresh` restores session via cookie. |
+| **Refresh rotation (single-use)** | Done | `backend/src/auth/tokens.service.ts` `rotate()` — marks old token `revokedAt` + `replacedById`, issues new cookie | Automated: `docker compose --profile test run --rm e2e` → test *"rotates the refresh token and rejects reuse of the old one"*. Manual: login → call `POST /auth/refresh` twice with the **first** cookie → second call returns **401**; reusing a rotated token burns the family. |
+| **Revocation (access + refresh)** | Done | Refresh: `revokeRefreshToken` on logout; access: Redis denylist by `jti` in `jwt.strategy.ts` + `auth.controller.ts` `logout()` | E2E test *"revokes tokens on logout"*. After logout, `GET /users/me` with old bearer → **401**; `POST /auth/refresh` with old cookie → **401**. |
+| **Password reset via email** | Done | `POST /auth/forgot-password`, `POST /auth/reset-password`; `mail.service.ts` `sendPasswordReset()` | Forgot password on `/forgot-password` → check API logs for `[DEV EMAIL]` with reset link (or real SMTP if configured) → open `/reset-password?token=…` → sign in with new password. |
+| **Client + server validation** | Done | Server: `backend/src/auth/dto/auth.dto.ts` + global `ValidationPipe`. Client: `frontend/src/utils/validation.ts` on Login, Register, Forgot, Reset (+ 2FA step on Login) | Submit empty/weak fields → inline errors before request; server still returns **400** if client is bypassed. |
+
+More detail: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md).
+
+## CAPTCHA & 2FA review criteria (task1)
+
+| Criterion | Status | Where | How to demonstrate |
+|-----------|--------|-------|-------------------|
+| **CAPTCHA on registration** | Done | `Recaptcha.tsx` on `/register`; `auth.service.ts` calls `CaptchaService.verify()`; `captcha.service.spec.ts` | With keys in `.env`: widget on register, cannot submit until checked. Without keys: note on form + server skips (dev). Unit tests cover enforce/skip logic. |
+| **Optional user-enabled 2FA** | Done | `/account` → Enable 2FA; `two-factor.service.ts` (TOTP + recovery codes); login 2FA step on `/login` | Enable on Account → sign out → login asks for code. Disabled by default; user opts in and can disable later. |
+
+Full walkthrough: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md) §7–8.
+
+## Catalog review criteria (task1)
+
+| Criterion | Status | Where | How to demonstrate |
+|-----------|--------|-------|-------------------|
+| **Product data model (all fields)** | Done | `prisma/schema.prisma` `Product` + `ProductImage`; API `ProductsService.toPublic()` + `buildDimensions()` | `GET /api/v1/products?limit=1` — check id, name, description, price, stockQuantity, category, brand, images, dimensions.metric + dimensions.imperial. Unit test: `products.service.spec.ts`. |
+| **Categories / browsing** | Done | Nested `Category` tree; `GET /categories/tree`; sidebar on home | Pick a subcategory (e.g. Shell Jackets) — listing updates. |
+| **Faceted search** | Done | `GET /products` + `GET /products/facets`; `buildWhere()` | Filter by brand, min/max price, min rating, attribute facets (`condition:Very Good`). |
+| **Sorting** | Done | `ProductSort` enum: relevance, price_asc, price_desc, rating | Sort dropdown on catalog; e2e tests for price + rating. |
+| **Product images** | Done | `frontend/public/products/*.png`; `ProductImage` URLs; nginx `/products/` | Images on cards; `curl -I http://localhost:5173/products/keb-shell.png` → 200. |
+
+Full walkthrough: [`docs/TASK1_CATALOG.md`](docs/TASK1_CATALOG.md).
+
+---
+
+## B2C & ERD review criteria (task1)
+
+| Criterion | Status | Where | How to demonstrate |
+|-----------|--------|-------|-------------------|
+| **B2C e-commerce model** | Done | Consumer `USER` role, public catalog, platform-operated inventory, no seller/B2B entities | README [B2C e-commerce model](#b2c-e-commerce-model); browse as shopper; explain Villi sells to individuals. |
+| **ERD (full)** | Done | README [Entity Relationship Diagram](#entity-relationship-diagram) + [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md) | Mermaid diagram with entities/attributes/PK/FK; relationship table with **cardinality** and **modality**; matches `prisma/schema.prisma`. |
+
+---
+
 ## Manual test checklist
 
 Run periodically (these guard against vulnerability-seeking bots and verify
@@ -437,7 +682,7 @@ third-party flows that are hard to fully automate):
   registration shows the widget and fails server-side without a valid token.
 - [ ] **OAuth (Google)** — "Continue with Google" completes and lands signed-in
   on `/oauth/callback`, linking/creating the account.
-- [ ] **OAuth (Facebook)** — same flow via Facebook.
+- [ ] **OAuth (GitHub)** — same flow via GitHub.
 - [ ] **2FA setup** — enable on the Account page, scan the QR, verify a code,
   confirm recovery codes are shown once.
 - [ ] **2FA login** — sign out and back in; confirm the 6-digit code prompt and

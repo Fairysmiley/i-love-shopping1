@@ -30,8 +30,21 @@ export function validateLoginPassword(value: string): string | null {
   return null;
 }
 
+/** Second login step when 2FA is enabled. */
+export function validateTwoFactorCode(value: string): string | null {
+  if (!value.trim()) return 'Enter your 6-digit code or a recovery code.';
+  return null;
+}
+
 export function validateRequired(value: string, label: string): string | null {
   if (!value.trim()) return `${label} is required.`;
+  return null;
+}
+
+/** Registration CAPTCHA — required when VITE_RECAPTCHA_SITE_KEY is set. */
+export function validateCaptchaToken(token: string | null, required: boolean): string | null {
+  if (!required) return null;
+  if (!token) return 'Please complete the CAPTCHA verification.';
   return null;
 }
 

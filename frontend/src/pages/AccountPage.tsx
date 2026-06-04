@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { validateTwoFactorCode } from '../utils/validation';
 
 interface TwoFactorSetup {
   qrCodeDataUrl: string;
@@ -10,9 +12,11 @@ interface TwoFactorSetup {
 
 export function AccountPage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
   const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
   const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -32,6 +36,9 @@ export function AccountPage() {
 
   const confirm = async () => {
     setError('');
+    const err = validateTwoFactorCode(code);
+    setCodeError(err);
+    if (err) return;
     try {
       await api.post('/auth/2fa/enable', { code });
       setEnabled(true);
@@ -44,9 +51,16 @@ export function AccountPage() {
   };
 
   const disable = async () => {
-    await api.post('/auth/2fa/disable');
-    setEnabled(false);
-    setMsg('Two-factor authentication disabled.');
+    if (!window.confirm('Disable two-factor authentication on this account?')) return;
+    setError('');
+    try {
+      await api.post('/auth/2fa/disable');
+      setEnabled(false);
+      setSetup(null);
+      setMsg('Two-factor authentication disabled.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Failed to disable 2FA');
+    }
   };
 
   const exportData = async () => {
@@ -64,6 +78,13 @@ export function AccountPage() {
     if (!window.confirm('Permanently delete your account? This cannot be undone.')) return;
     await api.del('/users/me');
     await logout();
+    navigate('/');
+  };
+
+  const signOut = async () => {
+    setError('');
+    await logout();
+    navigate('/');
   };
 
   return (
@@ -80,21 +101,28 @@ export function AccountPage() {
         <p className="muted" style={{ margin: '4px 0' }}>
           {user?.email} &middot; role: {user?.role}
         </p>
+        <button type="button" className="btn" style={{ marginTop: 14 }} onClick={signOut}>
+          Sign out
+        </button>
       </div>
 
       <div className="panel" style={{ marginBottom: 18 }}>
-        <h3>Two-factor authentication</h3>
+        <h3>Two-factor authentication (optional)</h3>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Off by default. You choose to enable TOTP (Google Authenticator, Authy, etc.) from
+          this page — not required to shop.
+        </p>
         {enabled ? (
           <>
-            <p className="muted">2FA is currently enabled on your account.</p>
-            <button className="btn" onClick={disable}>
+            <p className="muted">2FA is currently <strong>enabled</strong> on your account.</p>
+            <button type="button" className="btn" onClick={disable}>
               Disable 2FA
             </button>
           </>
         ) : setup ? (
           <>
             <p className="muted">Scan this QR code with Google Authenticator or Authy, then enter the code.</p>
-            <img className="qr" src={setup.qrCodeDataUrl} alt="2FA QR code" />
+            <img className="qr" src={setup.qrCodeDataUrl} alt="2FA QR code for authenticator app" />
             <p className="muted center" style={{ fontSize: 12 }}>
               Save these one-time recovery codes somewhere safe:
             </p>
@@ -104,17 +132,27 @@ export function AccountPage() {
               ))}
             </div>
             <div className="field" style={{ marginTop: 14 }}>
-              <label>Authentication code</label>
-              <input inputMode="numeric" placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} />
+              <label htmlFor="twofa-code">Authentication code</label>
+              <input
+                id="twofa-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-invalid={!!codeError}
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onBlur={() => setCodeError(validateTwoFactorCode(code))}
+              />
+              {codeError && <p className="field-error">{codeError}</p>}
             </div>
-            <button className="btn btn-primary" onClick={confirm}>
+            <button type="button" className="btn btn-primary" onClick={confirm}>
               Verify &amp; enable
             </button>
           </>
         ) : (
           <>
             <p className="muted">Add an extra layer of security with an authenticator app.</p>
-            <button className="btn btn-primary" onClick={beginSetup}>
+            <button type="button" className="btn btn-primary" onClick={beginSetup}>
               Enable 2FA
             </button>
           </>

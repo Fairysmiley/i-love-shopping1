@@ -4,15 +4,19 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { OAuthButtons } from '../components/OAuthButtons';
 import { PasswordInput } from '../components/PasswordInput';
+import { config } from '../config';
 import { Recaptcha } from '../components/Recaptcha';
 import {
   hasNoErrors,
+  validateCaptchaToken,
   validateEmail,
   validateNewPassword,
   validateRequired,
 } from '../utils/validation';
 
-type FieldErrors = Partial<Record<'firstName' | 'lastName' | 'email' | 'password', string | null>>;
+type FieldErrors = Partial<
+  Record<'firstName' | 'lastName' | 'email' | 'password' | 'captcha', string | null>
+>;
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -48,6 +52,7 @@ export function RegisterPage() {
       lastName: validateRequired(form.lastName, 'Last name'),
       email: validateEmail(form.email),
       password: validateNewPassword(form.password),
+      captcha: validateCaptchaToken(captchaToken, config.recaptchaRequired),
     };
     setFieldErrors(errors);
     return hasNoErrors(errors);
@@ -130,7 +135,13 @@ export function RegisterPage() {
               </p>
             )}
           </div>
-          <Recaptcha onChange={setCaptchaToken} />
+          <Recaptcha
+            onChange={(token) => {
+              setCaptchaToken(token);
+              if (token) setFieldErrors((f) => ({ ...f, captcha: null }));
+            }}
+            error={fieldErrors.captcha}
+          />
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Creating account...' : 'Create account'}
           </button>

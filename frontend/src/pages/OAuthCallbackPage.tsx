@@ -18,6 +18,8 @@ export function OAuthCallbackPage() {
     handled.current = true;
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const token = hash.get('accessToken');
+    // Remove the fragment so the JWT is not left in the address bar or history.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
     if (!token) {
       setError('No token returned from provider.');
       return;

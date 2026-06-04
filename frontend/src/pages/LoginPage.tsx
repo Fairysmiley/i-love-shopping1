@@ -4,7 +4,12 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { OAuthButtons } from '../components/OAuthButtons';
 import { PasswordInput } from '../components/PasswordInput';
-import { hasNoErrors, validateEmail, validateLoginPassword } from '../utils/validation';
+import {
+  hasNoErrors,
+  validateEmail,
+  validateLoginPassword,
+  validateTwoFactorCode,
+} from '../utils/validation';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -15,7 +20,11 @@ export function LoginPage() {
   const [needs2fa, setNeeds2fa] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string | null; password?: string | null }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string | null;
+    password?: string | null;
+    twoFactorCode?: string | null;
+  }>({});
 
   const validate = () => {
     const errors = { email: validateEmail(email), password: validateLoginPassword(password) };
@@ -27,6 +36,11 @@ export function LoginPage() {
     e.preventDefault();
     setError('');
     if (!needs2fa && !validate()) return;
+    if (needs2fa) {
+      const totpErr = validateTwoFactorCode(twoFactorCode);
+      setFieldErrors((f) => ({ ...f, twoFactorCode: totpErr }));
+      if (totpErr) return;
+    }
     setBusy(true);
     try {
       const result = await login(email, password, needs2fa ? twoFactorCode : undefined);
@@ -80,11 +94,19 @@ export function LoginPage() {
               <input
                 id="totp"
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 autoFocus
+                aria-invalid={!!fieldErrors.twoFactorCode}
                 placeholder="123456"
                 value={twoFactorCode}
                 onChange={(e) => setTwoFactorCode(e.target.value)}
+                onBlur={() =>
+                  setFieldErrors((f) => ({ ...f, twoFactorCode: validateTwoFactorCode(twoFactorCode) }))
+                }
               />
+              {fieldErrors.twoFactorCode && (
+                <p className="field-error">{fieldErrors.twoFactorCode}</p>
+              )}
               <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
                 Enter the 6-digit code from your authenticator app (or a recovery code).
               </p>

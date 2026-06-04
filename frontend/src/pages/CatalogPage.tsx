@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { money } from '../format';
+import { flattenCategoryTree, getCachedCategoryTree, loadCategoryTree } from '../api/categoryTree';
+import { ProductCard } from '../components/ProductCard';
+import { StarRating } from '../components/StarRating';
 import type { Category, Facets, Paginated, Product } from '../api/types';
 
 const SORTS = [
@@ -12,17 +14,18 @@ const SORTS = [
   { value: 'newest', label: 'Newest' },
 ];
 
-function Stars({ value }: { value: number }) {
-  const full = Math.round(value);
-  return <span className="rating" aria-label={`${value} out of 5`}>{'\u2605'.repeat(full)}{'\u2606'.repeat(5 - full)}</span>;
-}
-
 export function CatalogPage() {
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [result, setResult] = useState<Paginated<Product> | null>(null);
   const [facets, setFacets] = useState<Facets | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(getCachedCategoryTree);
+  const [categoriesLoading, setCategoriesLoading] = useState(() => getCachedCategoryTree().length === 0);
+  const [categoriesError, setCategoriesError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const fetchGen = useRef(0);
 
   const q = params.get('q') ?? '';
   const category = params.get('category') ?? '';
@@ -34,28 +37,79 @@ export function CatalogPage() {
   const page = parseInt(params.get('page') ?? '1', 10);
 
   useEffect(() => {
-    api.get<Category[]>('/categories/tree').then(setCategories).catch(() => undefined);
+    let active = true;
+    setCategoriesLoading(true);
+    setCategoriesError(false);
+
+    loadCategoryTree()
+      .then((tree) => {
+        if (!active) return;
+        if (tree?.length) {
+          setCategories(tree);
+          setCategoriesError(false);
+        } else if (!getCachedCategoryTree().length) {
+          setCategoriesError(true);
+        }
+      })
+      .catch(() => {
+        if (active) setCategoriesError(true);
+      })
+      .finally(() => {
+        if (active) setCategoriesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
+  // Refetch when the URL query changes. Products load first (sidebar facets can follow).
   useEffect(() => {
+    const gen = ++fetchGen.current;
+    const controller = new AbortController();
+    const query = location.search;
+
     setLoading(true);
-    const qs = params.toString();
-    Promise.all([
-      api.get<Paginated<Product>>(`/products?${qs}`),
-      api.get<Facets>(`/products/facets?${qs}`),
-    ])
-      .then(([r, f]) => {
-        setResult(r);
-        setFacets(f);
-      })
-      .finally(() => setLoading(false));
-  }, [params]);
+    setLoadError(null);
+
+    (async () => {
+      try {
+        const products = await api.get<Paginated<Product>>(`/products${query}`, {
+          signal: controller.signal,
+        });
+        if (gen !== fetchGen.current) return;
+        setResult(products);
+        setLoadError(null);
+        setLoading(false);
+
+        // Facets are secondary — do not block the product grid.
+        api
+          .get<Facets>(`/products/facets${query}`, { signal: controller.signal })
+          .then((f) => {
+            if (gen === fetchGen.current) setFacets(f);
+          })
+          .catch(() => undefined);
+      } catch (err) {
+        if (gen !== fetchGen.current || controller.signal.aborted) return;
+        const message =
+          err instanceof Error && err.message ? err.message : 'Could not load products.';
+        setLoadError(message);
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [location.search, reloadKey]);
 
   const update = (mutate: (p: URLSearchParams) => void) => {
-    const next = new URLSearchParams(params);
-    mutate(next);
-    next.delete('page');
-    setParams(next);
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      mutate(next);
+      next.delete('page');
+      return next;
+    });
   };
 
   const toggleBrand = (slug: string) => {
@@ -83,7 +137,37 @@ export function CatalogPage() {
                 All categories
               </button>
             </div>
-            {categories.flatMap((c) => [c, ...c.children]).map((c) => (
+            {categoriesLoading && flattenCategoryTree(categories).length === 0 && (
+              <p className="muted" style={{ fontSize: 13, margin: '8px 0' }}>
+                Loading categories…
+              </p>
+            )}
+            {categoriesError && flattenCategoryTree(categories).length === 0 && !categoriesLoading && (
+              <p className="muted" style={{ fontSize: 13, margin: '8px 0' }}>
+                Could not load categories.{' '}
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: '2px 8px', fontSize: 12 }}
+                  onClick={() => {
+                    setCategoriesLoading(true);
+                    setCategoriesError(false);
+                    loadCategoryTree(true).then((tree) => {
+                      setCategoriesLoading(false);
+                      if (tree?.length) {
+                        setCategories(tree);
+                        setCategoriesError(false);
+                      } else {
+                        setCategoriesError(true);
+                      }
+                    });
+                  }}
+                >
+                  Retry
+                </button>
+              </p>
+            )}
+            {flattenCategoryTree(categories).map((c) => (
               <div className="facet-row" key={c.id}>
                 <label style={{ margin: 0, cursor: 'pointer', color: category === c.slug ? 'var(--primary)' : undefined }}>
                   <input
@@ -149,7 +233,7 @@ export function CatalogPage() {
                     onChange={() => update((p) => p.set('minRating', String(r)))}
                     style={{ width: 'auto', marginRight: 8 }}
                   />
-                  <Stars value={r} /> &amp; up
+                  <StarRating value={r} /> &amp; up
                 </label>
               </div>
             ))}
@@ -196,7 +280,13 @@ export function CatalogPage() {
         <div className="toolbar">
           <span className="result-count">
             {q ? <>Results for &ldquo;{q}&rdquo; &middot; </> : null}
-            {result ? `${result.meta.total} items` : 'Loading...'}
+            {loading && !result
+              ? 'Loading…'
+              : loadError && !result
+                ? 'Unavailable'
+                : result
+                  ? `${result.meta.total} items`
+                  : '—'}
           </span>
           <div className="nav-spacer" />
           <select value={sort} onChange={(e) => update((p) => p.set('sort', e.target.value))} style={{ width: 220 }}>
@@ -208,33 +298,34 @@ export function CatalogPage() {
           </select>
         </div>
 
-        {loading && <p className="muted">Loading items...</p>}
+        {loading && !result && <p className="muted">Loading items…</p>}
+
+        {loadError && !result && !loading && (
+          <div className="panel" style={{ marginBottom: 16, padding: 16 }}>
+            <p style={{ margin: '0 0 10px' }}>{loadError}</p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {loading && result && (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+            Updating results…
+          </p>
+        )}
 
         {result && result.data.length === 0 && !loading && (
           <p className="muted">No items match your filters. Try widening your search.</p>
         )}
 
-        <div className="grid">
+        <div className="product-list">
           {result?.data.map((p) => (
-            <Link to={`/product/${p.slug}`} className="card" key={p.id}>
-              <img src={p.images[0]?.url} alt={p.images[0]?.altText ?? p.name} loading="lazy" />
-              <div className="card-body">
-                <div className="brand-tag">{p.brand.name}</div>
-                <div className="name">{p.name}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
-                  <Stars value={p.averageRating} />
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    ({p.ratingCount})
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span className="price">{money(p.price, p.currency)}</span>
-                  <span className={`badge ${p.inStock ? '' : 'out'}`}>
-                    {p.inStock ? 'In stock' : 'Out of stock'}
-                  </span>
-                </div>
-              </div>
-            </Link>
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
 
@@ -243,7 +334,13 @@ export function CatalogPage() {
             <button
               className="btn"
               disabled={page <= 1}
-              onClick={() => setParams((p) => { p.set('page', String(page - 1)); return p; })}
+              onClick={() =>
+                setParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page - 1));
+                  return next;
+                })
+              }
             >
               Previous
             </button>
@@ -253,7 +350,13 @@ export function CatalogPage() {
             <button
               className="btn"
               disabled={page >= result.meta.totalPages}
-              onClick={() => setParams((p) => { p.set('page', String(page + 1)); return p; })}
+              onClick={() =>
+                setParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('page', String(page + 1));
+                  return next;
+                })
+              }
             >
               Next
             </button>

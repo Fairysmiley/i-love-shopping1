@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -26,6 +27,7 @@ export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
   @Public()
+  @SkipThrottle()
   @Get()
   @ApiOperation({ summary: 'Search/browse products with faceted filters + sorting' })
   search(@Query() query: ProductQueryDto) {
@@ -33,6 +35,7 @@ export class ProductsController {
   }
 
   @Public()
+  @SkipThrottle()
   @Get('suggest')
   @ApiOperation({ summary: 'Dynamic search suggestions (type-ahead)' })
   @ApiQuery({ name: 'q', required: true })
@@ -41,6 +44,7 @@ export class ProductsController {
   }
 
   @Public()
+  @SkipThrottle()
   @Get('facets')
   @ApiOperation({ summary: 'Available facet values + counts for the current filters' })
   facets(@Query() query: ProductQueryDto) {
@@ -48,6 +52,7 @@ export class ProductsController {
   }
 
   @Public()
+  @SkipThrottle()
   @Get(':idOrSlug')
   @ApiOperation({ summary: 'Get a single product by id or slug' })
   findOne(@Param('idOrSlug') idOrSlug: string) {

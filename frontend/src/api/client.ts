@@ -30,11 +30,16 @@ export class ApiError extends Error {
   }
 }
 
+const DEFAULT_TIMEOUT_MS = 20_000;
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
   retryOnAuth?: boolean;
   auth?: boolean;
+  /** Abort the request after this many ms (default 20s). */
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
@@ -43,12 +48,31 @@ async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(`${config.apiBaseUrl}${path}`, {
-    method: opts.method ?? 'GET',
-    headers,
-    credentials: 'include',
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+
+  const onAbort = () => timeoutController.abort();
+  opts.signal?.addEventListener('abort', onAbort);
+
+  let res: Response;
+  try {
+    res = await fetch(`${config.apiBaseUrl}${path}`, {
+      method: opts.method ?? 'GET',
+      headers,
+      credentials: 'include',
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: timeoutController.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(408, 'Request timed out. Check that the API is running and reachable.');
+    }
+    throw new ApiError(0, 'Could not reach the server. Check your connection and API URL.');
+  } finally {
+    clearTimeout(timeoutId);
+    opts.signal?.removeEventListener('abort', onAbort);
+  }
 
   if (res.status === 204) return undefined as T;
 
@@ -68,6 +92,7 @@ export async function refreshSession(): Promise<boolean> {
     const data = await rawRequest<{ accessToken: string }>('/auth/refresh', {
       method: 'POST',
       auth: false,
+      timeoutMs: 8_000,
     });
     accessToken = data.accessToken;
     return true;
@@ -81,7 +106,6 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
   try {
     return await rawRequest<T>(path, opts);
   } catch (err) {
-    // On 401, try one silent refresh + retry before giving up.
     if (err instanceof ApiError && err.status === 401 && opts.retryOnAuth !== false) {
       const refreshed = await refreshSession();
       if (refreshed) {
@@ -94,8 +118,13 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  get: <T>(path: string, opts?: Pick<RequestOptions, 'signal' | 'timeoutMs' | 'retryOnAuth'>) =>
+    request<T>(path, opts),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    opts?: Pick<RequestOptions, 'retryOnAuth' | 'auth'>,
+  ) => request<T>(path, { method: 'POST', body, ...opts }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };

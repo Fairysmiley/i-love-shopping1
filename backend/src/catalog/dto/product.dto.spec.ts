@@ -92,6 +92,12 @@ describe('Product data model validation', () => {
       expect(dto.skip).toBe(20);
     });
 
+    it('accepts valid sort options', async () => {
+      expect(await errorsFor(ProductQueryDto, { sort: 'price_desc' })).toHaveLength(0);
+      const dto = plainToInstance(ProductQueryDto, { sort: 'price_asc' });
+      expect(dto.sort).toBe(ProductSort.PRICE_ASC);
+    });
+
     it('rejects an unknown sort option', async () => {
       const errs = await errorsFor(ProductQueryDto, { sort: 'cheapest' });
       expect(errs.length).toBeGreaterThan(0);

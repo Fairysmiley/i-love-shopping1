@@ -24,7 +24,7 @@ export function ProductPage() {
   if (error) return <div className="container" style={{ padding: 28 }}>{error}</div>;
   if (!product) return <div className="container" style={{ padding: 28 }}>Loading...</div>;
 
-  const d = (product as Product & { dimensions?: any }).dimensions;
+  const d = product.dimensions;
 
   return (
     <div className="container" style={{ padding: 28 }}>
@@ -94,10 +94,18 @@ export function ProductPage() {
               {d?.metric?.lengthMm != null && (
                 <tr>
                   <td className="muted" style={{ padding: '6px 0' }}>
-                    Dimensions
+                    Dimensions (L&times;W&times;H)
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     {d.metric.lengthMm}&times;{d.metric.widthMm}&times;{d.metric.heightMm} mm
+                    {d.imperial.lengthIn != null && (
+                      <>
+                        {' '}
+                        <span className="muted">
+                          ({d.imperial.lengthIn}&times;{d.imperial.widthIn}&times;{d.imperial.heightIn} in)
+                        </span>
+                      </>
+                    )}
                   </td>
                 </tr>
               )}

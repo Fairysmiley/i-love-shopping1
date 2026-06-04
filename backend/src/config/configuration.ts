@@ -14,6 +14,7 @@ export interface AppConfig {
   recaptcha: { secret: string; minScore: number };
   oauth: {
     google: { clientId: string; clientSecret: string; callbackUrl: string };
+    github: { clientId: string; clientSecret: string; callbackUrl: string };
     facebook: { clientId: string; clientSecret: string; callbackUrl: string };
   };
   mail: {
@@ -56,6 +57,13 @@ export default (): AppConfig => ({
       callbackUrl:
         process.env.GOOGLE_CALLBACK_URL ??
         'http://localhost:3001/api/v1/auth/oauth/google/callback',
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID ?? '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+      callbackUrl:
+        process.env.GITHUB_CALLBACK_URL ??
+        'http://localhost:3001/api/v1/auth/oauth/github/callback',
     },
     facebook: {
       clientId: process.env.FACEBOOK_CLIENT_ID ?? '',

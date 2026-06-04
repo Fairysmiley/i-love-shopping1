@@ -21,6 +21,7 @@ enum Role {
 
 enum OAuthProvider {
   GOOGLE
+  GITHUB
   FACEBOOK
 }
 

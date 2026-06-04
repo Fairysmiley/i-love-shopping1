@@ -10,10 +10,17 @@ declare global {
 }
 
 /**
- * Renders the Google reCAPTCHA v2 checkbox when a site key is configured.
- * When no key is set (dev), it renders nothing and the backend skips checks.
+ * Google reCAPTCHA v2 checkbox on the registration form.
+ * When no site key is configured (dev), shows a note — the backend still enforces
+ * CAPTCHA when RECAPTCHA_SECRET is set.
  */
-export function Recaptcha({ onChange }: { onChange: (token: string | null) => void }) {
+export function Recaptcha({
+  onChange,
+  error,
+}: {
+  onChange: (token: string | null) => void;
+  error?: string | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const rendered = useRef(false);
 
@@ -42,6 +49,22 @@ export function Recaptcha({ onChange }: { onChange: (token: string | null) => vo
     }
   }, [onChange]);
 
-  if (!config.recaptchaSiteKey) return null;
-  return <div className="field" ref={ref} />;
+  return (
+    <div className="field">
+      <label id="recaptcha-label">Verification (CAPTCHA)</label>
+      {config.recaptchaSiteKey ? (
+        <>
+          <div ref={ref} aria-labelledby="recaptcha-label" aria-invalid={!!error} />
+          {error && <p className="field-error">{error}</p>}
+        </>
+      ) : (
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          Google reCAPTCHA is integrated on registration. Set{' '}
+          <code>VITE_RECAPTCHA_SITE_KEY</code> and <code>RECAPTCHA_SECRET</code> in{' '}
+          <code>.env</code>, then rebuild <code>web</code> to show the widget (server
+          skips verification when the secret is empty).
+        </p>
+      )}
+    </div>
+  );
 }

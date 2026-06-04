@@ -23,11 +23,11 @@ function makePrisma() {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: jest.fn(async (cb: any) => {
-      // rotate() passes a callback; reuse the same refreshToken mock as `tx`.
       const tx = {
         refreshToken: {
           create: jest.fn().mockResolvedValue({ id: 'rt-2' }),
           update: jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
       };
       return cb(tx);
@@ -73,7 +73,7 @@ describe('TokensService (JWT handling + refresh rotation)', () => {
     expect(() => jwt.verify(expired, { secret: SECRET })).toThrow();
   });
 
-  it('rotates a valid refresh token into a new pair', async () => {
+  it('rotates a valid refresh token into a new pair (single-use)', async () => {
     prisma.refreshToken.findUnique.mockResolvedValue({
       id: 'rt-1',
       userId: 'user-1',
@@ -86,6 +86,7 @@ describe('TokensService (JWT handling + refresh rotation)', () => {
     const pair = await service.rotate('some-refresh-token');
     expect(pair.accessToken).toEqual(expect.any(String));
     expect(pair.refreshToken).toEqual(expect.any(String));
+    expect(pair.refreshToken).not.toBe('some-refresh-token');
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 
@@ -104,6 +105,7 @@ describe('TokensService (JWT handling + refresh rotation)', () => {
       where: { familyId: 'fam-1', revokedAt: null },
       data: expect.objectContaining({ revokedAt: expect.any(Date) }),
     });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown refresh token', async () => {

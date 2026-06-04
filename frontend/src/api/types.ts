@@ -20,6 +20,22 @@ export interface ProductImage {
   isPrimary: boolean;
 }
 
+/** Metric stored in DB; imperial derived by the API (`buildDimensions`). */
+export interface ProductDimensions {
+  metric: {
+    weightGrams: number | null;
+    lengthMm: number | null;
+    widthMm: number | null;
+    heightMm: number | null;
+  };
+  imperial: {
+    weightOz: number | null;
+    lengthIn: number | null;
+    widthIn: number | null;
+    heightIn: number | null;
+  };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -31,6 +47,7 @@ export interface Product {
   inStock: boolean;
   category: { id: string; name: string; slug: string };
   brand: { id: string; name: string; slug: string };
+  dimensions: ProductDimensions;
   averageRating: number;
   ratingCount: number;
   images: ProductImage[];

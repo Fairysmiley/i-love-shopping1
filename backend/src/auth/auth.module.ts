@@ -10,6 +10,7 @@ import { TokensService } from './tokens.service';
 import { TwoFactorService } from './two-factor.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { GithubStrategy } from './strategies/github.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 
 @Module({
@@ -34,6 +35,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
     TwoFactorService,
     JwtStrategy,
     GoogleStrategy,
+    GithubStrategy,
     FacebookStrategy,
   ],
   exports: [TokensService],

@@ -42,6 +42,7 @@ set_env API_PUBLIC_URL "$PUBLIC_URL"
 set_env WEB_PUBLIC_URL "$PUBLIC_URL"
 set_env VITE_API_BASE_URL "$API_BASE"
 set_env GOOGLE_CALLBACK_URL "${API_BASE}/auth/oauth/google/callback"
+set_env GITHUB_CALLBACK_URL "${API_BASE}/auth/oauth/github/callback"
 set_env FACEBOOK_CALLBACK_URL "${API_BASE}/auth/oauth/facebook/callback"
 
 echo "[configure] Public URL:  $PUBLIC_URL"

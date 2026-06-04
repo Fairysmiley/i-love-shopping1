@@ -34,3 +34,6 @@ backend/prisma/*.db
 # Misc
 *.pem
 tmp/
+/dot-com-retail
+/docs
+niche.txt

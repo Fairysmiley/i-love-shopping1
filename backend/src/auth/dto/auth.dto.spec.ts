@@ -51,5 +51,13 @@ describe('User input validation', () => {
       const errs = await errorsFor(LoginDto, {});
       expect(errs.length).toBeGreaterThanOrEqual(2);
     });
+
+    it('rejects injection-like email strings at validation time', async () => {
+      const errs = await errorsFor(LoginDto, {
+        email: "admin' OR '1'='1",
+        password: 'Str0ng!Passw0rd',
+      });
+      expect(errs.length).toBeGreaterThan(0);
+    });
   });
 });

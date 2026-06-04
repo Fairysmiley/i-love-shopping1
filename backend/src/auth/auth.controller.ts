@@ -29,7 +29,7 @@ import {
   ResetPasswordDto,
   TwoFactorCodeDto,
 } from './dto/auth.dto';
-import { OAuthProfile } from './strategies/google.strategy';
+import { OAuthProfile } from './strategies/oauth-profile';
 
 const REFRESH_COOKIE = 'refresh_token';
 
@@ -67,7 +67,13 @@ export class AuthController {
   }
 
   private clearRefreshCookie(res: Response): void {
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth', secure: this.cookieSecure() });
+    const secure = this.cookieSecure();
+    res.clearCookie(REFRESH_COOKIE, {
+      path: '/api/v1/auth',
+      secure,
+      sameSite: 'lax',
+      httpOnly: true,
+    });
   }
 
   @Public()
@@ -211,6 +217,21 @@ export class AuthController {
   @Get('oauth/google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: Request, @Res() res: Response) {
+    await this.completeOAuth(req.user as OAuthProfile, req, res);
+  }
+
+  @Public()
+  @Get('oauth/github')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'Start GitHub OAuth flow' })
+  githubStart(): void {
+    // Passport redirects to GitHub.
+  }
+
+  @Public()
+  @Get('oauth/github/callback')
+  @UseGuards(AuthGuard('github'))
+  async githubCallback(@Req() req: Request, @Res() res: Response) {
     await this.completeOAuth(req.user as OAuthProfile, req, res);
   }
 

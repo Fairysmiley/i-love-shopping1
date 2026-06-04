@@ -23,6 +23,14 @@ interface RequestContext {
   ip?: string;
 }
 
+/** Thrown when a concurrent refresh wins the single-use claim on the same row. */
+class TokenRotationRaceError extends Error {
+  constructor(readonly familyId: string) {
+    super('Refresh token already rotated');
+    this.name = 'TokenRotationRaceError';
+  }
+}
+
 /**
  * Issues and rotates JWT access tokens + opaque refresh tokens.
  *
@@ -122,8 +130,7 @@ export class TokensService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    // Reuse detection: a revoked/already-rotated token being presented again
-    // means it was leaked. Burn the entire family.
+    // Reuse must revoke the family outside any rolling-back transaction.
     if (stored.revokedAt || stored.replacedById) {
       await this.revokeFamily(stored.familyId);
       throw new UnauthorizedException('Refresh token reuse detected');
@@ -133,29 +140,48 @@ export class TokensService {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    const jti = randomUUID();
-    const accessToken = this.signAccessToken(stored.user, jti);
     const newRefresh = randomBytes(48).toString('base64url');
     const newExpiresAt = new Date(Date.now() + this.refreshTtlSeconds() * 1000);
+    const jti = randomUUID();
 
-    await this.prisma.$transaction(async (tx) => {
-      const replacement = await tx.refreshToken.create({
-        data: {
-          userId: stored.userId,
-          tokenHash: this.hash(newRefresh),
-          familyId: stored.familyId,
-          expiresAt: newExpiresAt,
-          userAgent: ctx.userAgent,
-          ip: ctx.ip,
-        },
-      });
-      await tx.refreshToken.update({
-        where: { id: stored.id },
-        data: { revokedAt: new Date(), replacedById: replacement.id },
-      });
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Claim this row for rotation (single-use); loses race → treat as reuse.
+        const claimed = await tx.refreshToken.updateMany({
+          where: { id: stored.id, revokedAt: null, replacedById: null },
+          data: { revokedAt: new Date() },
+        });
 
-    return { accessToken, refreshToken: newRefresh, accessExpiresIn: this.accessTtlSeconds() };
+        if (claimed.count !== 1) {
+          throw new TokenRotationRaceError(stored.familyId);
+        }
+
+        const replacement = await tx.refreshToken.create({
+          data: {
+            userId: stored.userId,
+            tokenHash: this.hash(newRefresh),
+            familyId: stored.familyId,
+            expiresAt: newExpiresAt,
+            userAgent: ctx.userAgent,
+            ip: ctx.ip,
+          },
+        });
+
+        await tx.refreshToken.update({
+          where: { id: stored.id },
+          data: { replacedById: replacement.id },
+        });
+
+        const accessToken = this.signAccessToken(stored.user, jti);
+        return { accessToken, refreshToken: newRefresh, accessExpiresIn: this.accessTtlSeconds() };
+      });
+    } catch (err) {
+      if (err instanceof TokenRotationRaceError) {
+        await this.revokeFamily(err.familyId);
+        throw new UnauthorizedException('Refresh token reuse detected');
+      }
+      throw err;
+    }
   }
 
   /** Revokes a single refresh token (used on logout). */

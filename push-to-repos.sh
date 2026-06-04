@@ -1,8 +1,18 @@
-set -e
+#!/usr/bin/env bash
+# Push Villi to Gitea (origin) and GitHub (github).
+#
+# Default: local and remote branch **main**.
+#   ./push-to-repos.sh
+#
+# Push a different branch (same name on both remotes):
+#   ./push-to-repos.sh task2
+#
+set -euo pipefail
 
 GITEA_URL="${GITEA_URL:-https://gitea.kood.tech/juliageorgieva/i-love-shopping1}"
 GITHUB_URL="${GITHUB_URL:-https://github.com/Fairysmiley/i-love-shopping1}"
-BRANCH="${1:-main}"
+DEFAULT_BRANCH="main"
+BRANCH="${1:-$DEFAULT_BRANCH}"
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -22,31 +32,22 @@ else
 fi
 
 echo ""
-echo "Branch: $BRANCH"
+echo "Target branch: $BRANCH (default: $DEFAULT_BRANCH)"
 if git rev-parse --verify "$BRANCH" &>/dev/null; then
   git checkout "$BRANCH"
   echo "  checked out existing $BRANCH"
 else
   git checkout -b "$BRANCH"
-  echo "  created and checked out $BRANCH"
+  echo "  created and checked out $BRANCH from current HEAD"
 fi
 
 echo ""
-echo "Pushing to origin (Gitea)..."
+echo "Pushing $BRANCH -> origin (Gitea) refs/heads/$BRANCH ..."
 git push -u origin "$BRANCH"
 
 echo ""
-echo "Pushing to github..."
+echo "Pushing $BRANCH -> github refs/heads/$BRANCH ..."
 git push -u github "$BRANCH"
 
 echo ""
-echo "Done. $BRANCH pushed to both repos."
-
-# echo "Merging to main..."
-# git checkout main
-# git pull origin main          # optional: sync main first
-# git merge task2             # brings task2 into main (merge commit or fast-forward)
-# # fix conflicts if Git reports any, then: git add … && git commit
-# git push origin main        # Gitea, if that remote is origin
-# git push github main 
-# echo "Merged to main."
+echo "Done. Branch '$BRANCH' is on both remotes (remote branch name: $BRANCH)."

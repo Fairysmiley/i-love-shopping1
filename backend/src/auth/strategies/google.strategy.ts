@@ -2,14 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy, VerifyCallback } from 'passport-google-oauth20';
+import { OAuthProfile } from './oauth-profile';
 
-export interface OAuthProfile {
-  provider: 'GOOGLE' | 'FACEBOOK';
-  providerAccountId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
+export type { OAuthProfile };
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {

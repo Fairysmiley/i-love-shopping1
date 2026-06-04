@@ -4,17 +4,24 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
+import { UsersService } from '../src/users/users.service';
 
 /**
- * API integration + security tests covering authentication and the product
- * catalog.
+ * Automated API integration + security tests (task1).
  *
- * Requires a running PostgreSQL and Redis (DATABASE_URL / REDIS_URL) plus a
- * seeded database. The easiest Docker-only way to run these:
+ * | Block | Type | Covers |
+ * |-------|------|--------|
+ * | catalog:* | Integration + catalog security | Product API endpoints, DB reads, facets, injection-safe search |
+ * | auth flow | Integration | Register/login persistence (database operations) |
+ * | OAuth | Integration | Provider redirects + OAuthAccount provisioning/linking |
+ * | refresh token rotation | Integration + auth | Token rotation against real DB |
+ * | security:* | Security | Malformed input, SQLi-style strings, authz |
+ * | reviews:* | Integration | Review API + aggregate recompute (bonus) |
  *
- *   docker compose --profile test run --rm e2e
+ * Unit tests (JWT, DTO validation, product model) live in src/*.spec.ts files.
  *
- * (see docker-compose.yml). Locally: `npm run test:e2e` with a reachable DB.
+ * Run everything (Docker only): docker compose --profile test run --rm e2e
+ * Locally: npm test, then npm run test:e2e (needs PostgreSQL + Redis + seed).
  */
 describe('Villi API (e2e)', () => {
   let app: INestApplication;
@@ -137,6 +144,13 @@ describe('Villi API (e2e)', () => {
       expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
     });
 
+    it('supports relevance sort (default)', async () => {
+      const res = await api().get('/api/v1/products?sort=relevance').expect(200);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      const ratings = res.body.data.map((p: any) => p.averageRating);
+      expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    });
+
     it('rejects an invalid sort option (400)', async () => {
       await api().get('/api/v1/products?sort=cheapest').expect(400);
     });
@@ -193,6 +207,80 @@ describe('Villi API (e2e)', () => {
     });
   });
 
+  describe('OAuth authentication methods', () => {
+    it('redirects GET /auth/oauth/google to Google (302)', async () => {
+      const res = await api().get('/api/v1/auth/oauth/google').expect(302);
+      expect(res.headers.location).toMatch(/google\.com/i);
+    });
+
+    it('redirects GET /auth/oauth/github to GitHub (302)', async () => {
+      const res = await api().get('/api/v1/auth/oauth/github').expect(302);
+      expect(res.headers.location).toMatch(/github\.com/i);
+    });
+
+    it('provisions a new user from a Google OAuth identity', async () => {
+      const users = app.get(UsersService);
+      const oauthEmail = `oauth_google_${unique}@example.com`;
+      const user = await users.findOrCreateFromOAuth({
+        provider: 'GOOGLE',
+        providerAccountId: `google-id-${unique}`,
+        email: oauthEmail,
+        firstName: 'OAuth',
+        lastName: 'Google',
+      });
+      expect(user.email).toBe(oauthEmail);
+      expect(user.isEmailVerified).toBe(true);
+
+      const same = await users.findOrCreateFromOAuth({
+        provider: 'GOOGLE',
+        providerAccountId: `google-id-${unique}`,
+        email: oauthEmail,
+        firstName: 'OAuth',
+        lastName: 'Google',
+      });
+      expect(same.id).toBe(user.id);
+    });
+
+    it('provisions a new user from a GitHub OAuth identity', async () => {
+      const users = app.get(UsersService);
+      const oauthEmail = `oauth_github_${unique}@example.com`;
+      const user = await users.findOrCreateFromOAuth({
+        provider: 'GITHUB',
+        providerAccountId: `github-id-${unique}`,
+        email: oauthEmail,
+        firstName: 'OAuth',
+        lastName: 'GitHub',
+      });
+      expect(user.email).toBe(oauthEmail);
+
+      const login = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: oauthEmail, password: 'NoPassword1!' })
+        .expect(401);
+      expect(login.body).toBeDefined();
+    });
+
+    it('links OAuth to an existing email-password account (same email)', async () => {
+      const users = app.get(UsersService);
+      const linkEmail = `oauth_link_${unique}@example.com`;
+      await api()
+        .post('/api/v1/auth/register')
+        .send({ email: linkEmail, password, firstName: 'Link', lastName: 'User' })
+        .expect(201);
+
+      const linked = await users.findOrCreateFromOAuth({
+        provider: 'GITHUB',
+        providerAccountId: `gh-link-${unique}`,
+        email: linkEmail,
+        firstName: 'Link',
+        lastName: 'OAuth',
+      });
+      expect(linked.email).toBe(linkEmail);
+
+      await api().post('/api/v1/auth/login').send({ email: linkEmail, password }).expect(200);
+    });
+  });
+
   describe('refresh token rotation (single-use)', () => {
     it('rotates the refresh token and rejects reuse of the old one', async () => {
       const login = await api().post('/api/v1/auth/login').send({ email, password }).expect(200);
@@ -234,12 +322,46 @@ describe('Villi API (e2e)', () => {
     });
   });
 
+  describe('password recovery and reset via email', () => {
+    it('accepts forgot-password for unknown emails without enumeration (202)', async () => {
+      await api()
+        .post('/api/v1/auth/forgot-password')
+        .send({ email: 'nobody-here@example.com' })
+        .expect(202);
+    });
+
+    it('accepts forgot-password for a registered email (202)', async () => {
+      await api().post('/api/v1/auth/forgot-password').send({ email }).expect(202);
+    });
+
+    it('rejects reset-password with an invalid token (400)', async () => {
+      await api()
+        .post('/api/v1/auth/reset-password')
+        .send({ token: 'not-a-valid-token', newPassword: 'Str0ng!Passw0rd' })
+        .expect(400);
+    });
+
+    it('rejects reset-password when the new password is too weak (400)', async () => {
+      await api()
+        .post('/api/v1/auth/reset-password')
+        .send({ token: 'any-token', newPassword: 'weak' })
+        .expect(400);
+    });
+  });
+
   describe('security: input validation & injection', () => {
     it('rejects malformed/extra fields on registration (whitelist + validation, 400)', async () => {
       await api()
         .post('/api/v1/auth/register')
         .send({ email: 'bad', password: '123', firstName: '', lastName: '', isAdmin: true })
         .expect(400);
+    });
+
+    it('rejects SQL-injection-style login input with 400/401, not 500 (auth)', async () => {
+      const res = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: "admin' OR '1'='1", password: 'Str0ng!Passw0rd' });
+      expect([400, 401]).toContain(res.status);
     });
 
     it('treats SQL-injection-style search input as data, not commands', async () => {
@@ -340,7 +462,7 @@ describe('Villi API (e2e)', () => {
       expect(after.body.summary.ratingCount).toBe(countBefore);
     });
 
-    it('deletes the caller’s own review and recomputes (204)', async () => {
+    it('deletes the caller own review and recomputes (204)', async () => {
       await api()
         .delete(`/api/v1/products/${slug}/reviews/mine`)
         .set('Authorization', `Bearer ${token}`)
