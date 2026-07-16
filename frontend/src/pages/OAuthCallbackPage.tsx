@@ -25,7 +25,7 @@ export function OAuthCallbackPage() {
       return;
     }
     applyTokenFromOAuth(token)
-      .then(() => navigate('/', { replace: true }))
+      .then(() => navigate('/shop', { replace: true }))
       .catch(() => setError('Failed to complete sign-in.'));
   }, [applyTokenFromOAuth, navigate]);
 

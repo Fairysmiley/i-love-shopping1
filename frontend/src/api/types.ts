@@ -79,6 +79,7 @@ export interface Review {
   title?: string | null;
   body?: string | null;
   author: string;
+  helpfulVotes?: number;
   createdAt: string;
 }
 

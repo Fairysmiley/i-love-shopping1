@@ -24,6 +24,19 @@ export class UsersService {
     return this.prisma.user.create({ data: { ...data, email: data.email.toLowerCase() } });
   }
 
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateRole(id: string, role: 'USER' | 'ADMIN'): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { role },
+    });
+  }
+
   update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
     return this.prisma.user.update({ where: { id }, data });
   }

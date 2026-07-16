@@ -20,15 +20,15 @@ export class MailService implements OnModuleInit {
     this.webUrl = this.config.get<string>('webPublicUrl')!;
     const host = this.config.get<string>('mail.host');
     if (host) {
+      const user = this.config.get<string>('mail.user') ?? '';
+      const pass = this.config.get<string>('mail.password') ?? '';
       this.transporter = nodemailer.createTransport({
         host,
         port: this.config.get<number>('mail.port'),
         secure: this.config.get<boolean>('mail.secure'),
-        auth: {
-          user: this.config.get<string>('mail.user'),
-          pass: this.config.get<string>('mail.password'),
-        },
+        ...(user || pass ? { auth: { user, pass } } : {}),
       });
+      this.logger.log(`SMTP configured (${host}:${this.config.get<number>('mail.port')}).`);
     } else {
       this.logger.warn('SMTP not configured — emails will be logged to the console.');
     }

@@ -1,0 +1,35 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3001",
+    "dev:clean": "rm -f .next/dev/lock && next dev -H 0.0.0.0 -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.11.1",
+    "@wellness-app/server": "workspace:*",
+    "@wellness-app/shared": "workspace:*",
+    "next": "16.0.1",
+    "next-auth": "5.0.0-beta.30",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.3",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

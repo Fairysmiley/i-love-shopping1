@@ -28,13 +28,13 @@ export function ProductPage() {
 
   return (
     <div className="container" style={{ padding: 28 }}>
-      <Link to="/" className="muted">
+      <Link to="/shop" className="muted">
         &larr; Back to catalog
       </Link>
       <div className="layout product-detail">
         <img
           src={product.images[0]?.url}
-          alt={product.images[0]?.altText ?? product.name}
+          alt={product.images[0]?.altText || `Photograph of ${product.name}`}
           style={{ width: '100%', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
         />
         <div>
@@ -70,7 +70,7 @@ export function ProductPage() {
           </p>
           <p>{product.description}</p>
 
-          <h3 className="muted">Specifications</h3>
+          <h2 className="muted">Specifications</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               {product.attributes.map((a) => (

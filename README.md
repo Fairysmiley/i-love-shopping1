@@ -51,6 +51,7 @@ Bonus material (API reference, security, testing, review checklists) follows bel
 - [Manual test checklist](#manual-test-checklist)
 - [Project structure](#project-structure)
 - [Roadmap](#roadmap)
+- [**Review resources (talking points)**](#review-resources)
 
 ---
 
@@ -425,6 +426,13 @@ ngrok http 8080
 > Configure OAuth, reCAPTCHA, and SMTP by filling in the matching variables in
 > `.env`. When left blank, CAPTCHA enforcement is skipped and emails are logged
 > to the API container console so every flow remains testable locally.
+>
+> **Step-by-step CAPTCHA + 2FA:** see [`docs/CAPTCHA_AND_2FA_SETUP.md`](docs/CAPTCHA_AND_2FA_SETUP.md).
+> CAPTCHA needs Google keys + `docker compose up --build -d web`. **2FA is already built in**
+> — sign in → **Account** → **Enable 2FA** (not on the register page).
+>
+> **Password-reset email (Mailhog):** Docker runs [Mailhog](http://localhost:18025) by default.
+> See [`docs/MAIL_SETUP.md`](docs/MAIL_SETUP.md). Merge `SMTP_HOST=mailhog` from `.env.example` if your `.env` still logs to the console only.
 
 ### Local development (without Docker)
 
@@ -468,9 +476,10 @@ Sign in with a [seeded account](#seeded-accounts) to try authenticated flows.
    immediately; the access token lives only in memory.
 4. **Sign in** — email/password or an OAuth provider. If 2FA is enabled you are
    prompted for a 6-digit code.
-5. **Account page** — enable/disable TOTP 2FA (scan the QR with Google
-   Authenticator/Authy and save recovery codes), export your data, or delete
-   your account (GDPR).
+5. **Account page** (`/account#two-factor`) — enable/disable optional TOTP 2FA
+   (scan the QR with Google Authenticator/Authy and save recovery codes), export
+   your data, or delete your account (GDPR). Setup guide:
+   [`docs/CAPTCHA_AND_2FA_SETUP.md`](docs/CAPTCHA_AND_2FA_SETUP.md).
 6. **Admin** — sign in as the admin to create/update products, categories, and
    brands via the API (admin-guarded endpoints; see Swagger).
 
@@ -487,7 +496,7 @@ Sign in with a [seeded account](#seeded-accounts) to try authenticated flows.
 
 ### Password reset (optional demo)
 
-1. Go to **Forgot password** → enter an email → check API logs for `[DEV EMAIL]` reset link (SMTP optional).
+1. Go to **Forgot password** → enter an email → open **http://localhost:18025** (Mailhog) for the reset link, or `docker compose logs api | grep "DEV EMAIL"` if `SMTP_HOST` is empty.
 2. Open the link → set a new password → sign in.
 
 ---
@@ -636,7 +645,7 @@ Use this when a reviewer checks the six authentication deliverables. Each item i
 | **Access token in memory** | Done | `frontend/src/api/client.ts` (`let accessToken` module variable); `AuthContext` calls `setAccessToken` only — never `localStorage`/`sessionStorage` for JWT | DevTools → Application → Local Storage: no access token. After login, API calls send `Authorization: Bearer …` from memory; reload tab loses access until `/auth/refresh` restores session via cookie. |
 | **Refresh rotation (single-use)** | Done | `backend/src/auth/tokens.service.ts` `rotate()` — marks old token `revokedAt` + `replacedById`, issues new cookie | Automated: `docker compose --profile test run --rm e2e` → test *"rotates the refresh token and rejects reuse of the old one"*. Manual: login → call `POST /auth/refresh` twice with the **first** cookie → second call returns **401**; reusing a rotated token burns the family. |
 | **Revocation (access + refresh)** | Done | Refresh: `revokeRefreshToken` on logout; access: Redis denylist by `jti` in `jwt.strategy.ts` + `auth.controller.ts` `logout()` | E2E test *"revokes tokens on logout"*. After logout, `GET /users/me` with old bearer → **401**; `POST /auth/refresh` with old cookie → **401**. |
-| **Password reset via email** | Done | `POST /auth/forgot-password`, `POST /auth/reset-password`; `mail.service.ts` `sendPasswordReset()` | Forgot password on `/forgot-password` → check API logs for `[DEV EMAIL]` with reset link (or real SMTP if configured) → open `/reset-password?token=…` → sign in with new password. |
+| **Password reset via email** | Done | `POST /auth/forgot-password`, `POST /auth/reset-password`; `mail.service.ts`; **Mailhog** in Docker (`docs/MAIL_SETUP.md`) | `/forgot-password` → **http://localhost:18025** (Mailhog) or API `[DEV EMAIL]` logs → `/reset-password?token=…` |
 | **Client + server validation** | Done | Server: `backend/src/auth/dto/auth.dto.ts` + global `ValidationPipe`. Client: `frontend/src/utils/validation.ts` on Login, Register, Forgot, Reset (+ 2FA step on Login) | Submit empty/weak fields → inline errors before request; server still returns **400** if client is bypassed. |
 
 More detail: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md).
@@ -647,6 +656,7 @@ More detail: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md).
 |-----------|--------|-------|-------------------|
 | **CAPTCHA on registration** | Done | `Recaptcha.tsx` on `/register`; `auth.service.ts` calls `CaptchaService.verify()`; `captcha.service.spec.ts` | With keys in `.env`: widget on register, cannot submit until checked. Without keys: note on form + server skips (dev). Unit tests cover enforce/skip logic. |
 | **Optional user-enabled 2FA** | Done | `/account` → Enable 2FA; `two-factor.service.ts` (TOTP + recovery codes); login 2FA step on `/login` | Enable on Account → sign out → login asks for code. Disabled by default; user opts in and can disable later. |
+| **Manual security tests** | Done | `docs/MANUAL_SECURITY_TESTS.md` | CAPTCHA, OAuth, 2FA, rotation, revocation checklists for reviewers. |
 
 Full walkthrough: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md) §7–8.
 
@@ -683,6 +693,8 @@ third-party flows that are hard to fully automate):
 - [ ] **OAuth (Google)** — "Continue with Google" completes and lands signed-in
   on `/oauth/callback`, linking/creating the account.
 - [ ] **OAuth (GitHub)** — same flow via GitHub.
+- [ ] **OAuth (Facebook)** — same flow via Facebook (set `FACEBOOK_CLIENT_ID`,
+  `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_CALLBACK_URL`, `VITE_FACEBOOK_OAUTH_ENABLED=true`, then rebuild `web`).
 - [ ] **2FA setup** — enable on the Account page, scan the QR, verify a code,
   confirm recovery codes are shown once.
 - [ ] **2FA login** — sign out and back in; confirm the 6-digit code prompt and
@@ -737,3 +749,17 @@ third-party flows that are hard to fully automate):
 - Dual **metric/imperial** product dimensions.
 - **GDPR** data export & erasure endpoints.
 - Containerized **one-command** startup with auto-migrate + seed.
+
+---
+
+## Review resources
+
+A complete oral exam script with talking points for every task1.txt checklist item is in
+[`docs/REVIEW_TALKING_POINTS.md`](docs/REVIEW_TALKING_POINTS.md). It covers:
+
+- **JWT** — header/payload/signature, token lifecycle, how to decode a live token.
+- **ACID** — walk-through of a Prisma `$transaction` for token rotation.
+- **Architecture** — why modular monolith for Foundation, extraction path to microservices.
+- **Scalability** — indexes, Redis cache, horizontal API replicas.
+- **Search** — `buildWhere()` walkthrough, Postgres `LIKE`/`ilike`, facet counts.
+- **Testing** — unit vs e2e strategy, how to run and demo each suite live.

@@ -50,7 +50,10 @@ export class ReviewsService {
     const reviews = await this.prisma.review.findMany({
       where: { productId },
       include: reviewInclude,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { helpfulVotes: 'desc' },
+        { createdAt: 'desc' }
+      ],
     });
 
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -117,6 +120,38 @@ export class ReviewsService {
     });
   }
 
+  async voteHelpful(reviewId: string, userId: string): Promise<{ helpfulVotes: number }> {
+    const existingVote = await this.prisma.reviewHelpfulVote.findUnique({
+      where: { reviewId_userId: { reviewId, userId } },
+    });
+
+    if (existingVote) {
+      // User already voted, so we can toggle it off, or just ignore. The prompt asks to 'upvote reviews', usually we allow toggling. Let's just return if already voted, or remove vote.
+      // Actually, removing vote (toggle) is standard.
+      return this.prisma.$transaction(async (tx) => {
+        await tx.reviewHelpfulVote.delete({ where: { id: existingVote.id } });
+        const updated = await tx.review.update({
+          where: { id: reviewId },
+          data: { helpfulVotes: { decrement: 1 } },
+          select: { helpfulVotes: true },
+        });
+        return updated;
+      });
+    } else {
+      return this.prisma.$transaction(async (tx) => {
+        await tx.reviewHelpfulVote.create({
+          data: { reviewId, userId },
+        });
+        const updated = await tx.review.update({
+          where: { id: reviewId },
+          data: { helpfulVotes: { increment: 1 } },
+          select: { helpfulVotes: true },
+        });
+        return updated;
+      });
+    }
+  }
+
   private toPublic(r: FullReview) {
     // Show first name + last initial only — never leak full names/emails.
     const lastInitial = r.user.lastName ? `${r.user.lastName.charAt(0)}.` : '';
@@ -126,6 +161,7 @@ export class ReviewsService {
       title: r.title,
       body: r.body,
       author: `${r.user.firstName} ${lastInitial}`.trim(),
+      helpfulVotes: r.helpfulVotes,
       createdAt: r.createdAt,
     };
   }

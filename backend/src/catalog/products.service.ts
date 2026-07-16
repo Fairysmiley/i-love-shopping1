@@ -88,6 +88,10 @@ export class ProductsService {
   }
 
   async search(query: ProductQueryDto): Promise<PaginatedResult<ReturnType<typeof this.toPublic>>> {
+    const cacheKey = `catalog:search:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
     const where = this.buildWhere(query);
     const [total, items] = await this.prisma.$transaction([
       this.prisma.product.count({ where }),
@@ -100,7 +104,7 @@ export class ProductsService {
       }),
     ]);
 
-    return {
+    const result = {
       data: items.map((p) => this.toPublic(p)),
       meta: {
         page: query.page,
@@ -109,6 +113,9 @@ export class ProductsService {
         totalPages: Math.ceil(total / query.limit) || 1,
       },
     };
+
+    await this.redis.setEx(cacheKey, JSON.stringify(result), 60);
+    return result;
   }
 
   /**
@@ -116,6 +123,10 @@ export class ProductsService {
    * the current filter set, so the UI can render counts next to each option.
    */
   async facets(query: ProductQueryDto) {
+    const cacheKey = `catalog:facets:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
     const where = this.buildWhere(query);
 
     const [brandGroups, attributes, priceAgg] = await this.prisma.$transaction([
@@ -142,7 +153,7 @@ export class ProductsService {
       attrFacets[a.name][a.value] = (attrFacets[a.name][a.value] ?? 0) + 1;
     }
 
-    return {
+    const result = {
       brands: brandGroups
         .map((g) => ({
           slug: brandMap.get(g.brandId)?.slug,
@@ -156,6 +167,9 @@ export class ProductsService {
         max: priceAgg._max.price ? Number(priceAgg._max.price) : 0,
       },
     };
+
+    await this.redis.setEx(cacheKey, JSON.stringify(result), 60);
+    return result;
   }
 
   /** Type-ahead suggestions, cached in Redis to absorb keystroke traffic. */

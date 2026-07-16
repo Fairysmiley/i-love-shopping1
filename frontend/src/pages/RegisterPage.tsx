@@ -6,6 +6,7 @@ import { OAuthButtons } from '../components/OAuthButtons';
 import { PasswordInput } from '../components/PasswordInput';
 import { config } from '../config';
 import { Recaptcha } from '../components/Recaptcha';
+import { SecuritySetupNote } from '../components/SecuritySetupNote';
 import {
   hasNoErrors,
   validateCaptchaToken,
@@ -65,7 +66,7 @@ export function RegisterPage() {
     setBusy(true);
     try {
       await register({ ...form, captchaToken: captchaToken ?? undefined });
-      navigate('/');
+      navigate('/shop');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Registration failed.');
     } finally {
@@ -142,6 +143,7 @@ export function RegisterPage() {
             }}
             error={fieldErrors.captcha}
           />
+          <SecuritySetupNote />
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Creating account...' : 'Create account'}
           </button>

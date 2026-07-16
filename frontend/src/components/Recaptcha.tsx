@@ -59,10 +59,9 @@ export function Recaptcha({
         </>
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          Google reCAPTCHA is integrated on registration. Set{' '}
-          <code>VITE_RECAPTCHA_SITE_KEY</code> and <code>RECAPTCHA_SECRET</code> in{' '}
-          <code>.env</code>, then rebuild <code>web</code> to show the widget (server
-          skips verification when the secret is empty).
+          CAPTCHA is wired up but not active until you add keys to <code>.env</code> and
+          rebuild <code>web</code>. Expand <strong>How to enable CAPTCHA</strong> below, or
+          see <code>docs/CAPTCHA_AND_2FA_SETUP.md</code>.
         </p>
       )}
     </div>

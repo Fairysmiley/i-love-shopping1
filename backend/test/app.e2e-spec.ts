@@ -1,9 +1,12 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { createHash } from 'crypto';
 import cookieParser from 'cookie-parser';
+import { authenticator } from 'otplib';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { UsersService } from '../src/users/users.service';
 
 /**
@@ -15,6 +18,8 @@ import { UsersService } from '../src/users/users.service';
  * | auth flow | Integration | Register/login persistence (database operations) |
  * | OAuth | Integration | Provider redirects + OAuthAccount provisioning/linking |
  * | refresh token rotation | Integration + auth | Token rotation against real DB |
+ * | password reset (full) | Integration + auth | Token hash in DB, login with new password |
+ * | two-factor authentication | Integration + security | Setup, TOTP login, recovery code |
  * | security:* | Security | Malformed input, SQLi-style strings, authz |
  * | reviews:* | Integration | Review API + aggregate recompute (bonus) |
  *
@@ -155,6 +160,21 @@ describe('Villi API (e2e)', () => {
       await api().get('/api/v1/products?sort=cheapest').expect(400);
     });
 
+    it('pagination handles edge-case bounds gracefully (negative page or massive limit)', async () => {
+      const negativePage = await api().get('/api/v1/products?page=-1&limit=5').expect(400);
+      expect(negativePage.body.message).toEqual(expect.arrayContaining([expect.stringMatching(/page/i)]));
+
+      // DTO limits max page size (usually 100)
+      const massiveLimit = await api().get('/api/v1/products?limit=1000').expect(400);
+      expect(massiveLimit.body.message).toEqual(expect.arrayContaining([expect.stringMatching(/limit/i)]));
+    });
+
+    it('faceted search returns empty gracefully for impossible combinations', async () => {
+      const res = await api().get(`/api/v1/products?brands=non-existent-brand`).expect(200);
+      expect(res.body.data.length).toBe(0);
+      expect(res.body.meta.total).toBe(0);
+    });
+
     it('GET /api/v1/products/suggest returns dynamic suggestions', async () => {
       const res = await api().get('/api/v1/products/suggest?q=jac').expect(200);
       expect(Array.isArray(res.body)).toBe(true);
@@ -216,6 +236,11 @@ describe('Villi API (e2e)', () => {
     it('redirects GET /auth/oauth/github to GitHub (302)', async () => {
       const res = await api().get('/api/v1/auth/oauth/github').expect(302);
       expect(res.headers.location).toMatch(/github\.com/i);
+    });
+
+    it('redirects GET /auth/oauth/facebook to Facebook (302)', async () => {
+      const res = await api().get('/api/v1/auth/oauth/facebook').expect(302);
+      expect(res.headers.location).toMatch(/facebook\.com/i);
     });
 
     it('provisions a new user from a Google OAuth identity', async () => {
@@ -347,6 +372,133 @@ describe('Villi API (e2e)', () => {
         .send({ token: 'any-token', newPassword: 'weak' })
         .expect(400);
     });
+
+    it('resets password with a valid token and revokes old refresh sessions', async () => {
+      const resetEmail = `e2e_reset_${unique}@example.com`;
+      const oldPassword = 'Str0ng!Passw0rd';
+      const newPassword = 'NewStr0ng!Passw0rd9';
+
+      const reg = await api()
+        .post('/api/v1/auth/register')
+        .send({ email: resetEmail, password: oldPassword, firstName: 'Reset', lastName: 'User' })
+        .expect(201);
+      const oldRefresh = refreshCookie(reg);
+
+      await api().post('/api/v1/auth/forgot-password').send({ email: resetEmail }).expect(202);
+
+      const prisma = app.get(PrismaService);
+      const user = await prisma.user.findUnique({ where: { email: resetEmail } });
+      expect(user).toBeTruthy();
+
+      const rawToken = `e2e-reset-${unique}`;
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: user!.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+      });
+
+      await api()
+        .post('/api/v1/auth/reset-password')
+        .send({ token: rawToken, newPassword })
+        .expect(200);
+
+      await api()
+        .post('/api/v1/auth/login')
+        .send({ email: resetEmail, password: oldPassword })
+        .expect(401);
+
+      await api()
+        .post('/api/v1/auth/login')
+        .send({ email: resetEmail, password: newPassword })
+        .expect(200);
+
+      await api().post('/api/v1/auth/refresh').set('Cookie', oldRefresh).expect(401);
+    });
+  });
+
+  describe('two-factor authentication (optional, user-enabled)', () => {
+    const tfaEmail = `e2e_2fa_${unique}@example.com`;
+    const tfaPassword = 'Str0ng!Passw0rd9';
+    let tfaSecret = '';
+    let tfaRecoveryCode = '';
+
+    function secretFromOtpauthUrl(otpauthUrl: string): string {
+      const match = otpauthUrl.match(/[?&]secret=([^&]+)/);
+      return match?.[1] ?? '';
+    }
+
+    it('enrolls 2FA and requires a TOTP code on login', async () => {
+      const reg = await api()
+        .post('/api/v1/auth/register')
+        .send({ email: tfaEmail, password: tfaPassword, firstName: 'Two', lastName: 'Factor' })
+        .expect(201);
+      const token = reg.body.accessToken as string;
+
+      const setup = await api()
+        .post('/api/v1/auth/2fa/setup')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+      tfaSecret = secretFromOtpauthUrl(setup.body.otpauthUrl as string);
+      tfaRecoveryCode = setup.body.recoveryCodes[0] as string;
+      expect(tfaSecret.length).toBeGreaterThan(10);
+
+      const totp = authenticator.generate(tfaSecret);
+      await api()
+        .post('/api/v1/auth/2fa/enable')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: totp })
+        .expect(200);
+
+      const step1 = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: tfaEmail, password: tfaPassword })
+        .expect(200);
+      expect(step1.body.requiresTwoFactor).toBe(true);
+      expect(step1.body.accessToken).toBeUndefined();
+
+      const step2 = await api()
+        .post('/api/v1/auth/login')
+        .send({
+          email: tfaEmail,
+          password: tfaPassword,
+          twoFactorCode: authenticator.generate(tfaSecret),
+        })
+        .expect(200);
+      expect(step2.body.accessToken).toEqual(expect.any(String));
+    });
+
+    it('accepts a one-time recovery code at login (then rejects reuse)', async () => {
+      const step1 = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: tfaEmail, password: tfaPassword })
+        .expect(200);
+      expect(step1.body.requiresTwoFactor).toBe(true);
+
+      const step2 = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: tfaEmail, password: tfaPassword, twoFactorCode: tfaRecoveryCode })
+        .expect(200);
+      expect(step2.body.accessToken).toEqual(expect.any(String));
+
+      const step3 = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: tfaEmail, password: tfaPassword, twoFactorCode: tfaRecoveryCode })
+        .expect(401);
+    });
+
+    it('enforces mandatory 2FA gateway for ADMIN role', async () => {
+      // The seeded admin@villi.test does not have 2FA enabled by default.
+      // Trying to log in should immediately reject with a 401 demanding 2FA enrollment.
+      const res = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@villi.test', password: 'Admin!Passw0rd' })
+        .expect(401);
+      
+      expect(res.body.message).toMatch(/Administrators must enroll in Two-Factor Authentication/i);
+    });
   });
 
   describe('security: input validation & injection', () => {
@@ -380,6 +532,19 @@ describe('Villi API (e2e)', () => {
         .expect(404);
     });
 
+    it('enforces rate-limiting on authentication endpoints (429)', async () => {
+      // Send 15 requests sequentially to hit the Throttle limit of 5.
+      const results: any[] = [];
+      for (let i = 0; i < 15; i++) {
+        results.push(
+          await api().post('/api/v1/auth/forgot-password').send({ email: 'ratelimit@example.com' })
+        );
+      }
+      // At least one of these requests must have hit the 429 status code
+      const tooManyRequests = results.some((res: any) => res.status === 429);
+      expect(tooManyRequests).toBe(true);
+    });
+
     it('blocks admin-only product creation for anonymous users (401)', async () => {
       await api()
         .post('/api/v1/products')
@@ -392,6 +557,23 @@ describe('Villi API (e2e)', () => {
           brandId: 'b',
         })
         .expect(401);
+    });
+
+    it('blocks admin-only product creation for a regular logged-in user (403)', async () => {
+      const login = await api().post('/api/v1/auth/login').send({ email, password }).expect(200);
+      const token = login.body.accessToken;
+      await api()
+        .post('/api/v1/products')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Hacker Jacket',
+          description: 'Unauthorized product',
+          price: 1,
+          stockQuantity: 1,
+          categoryId: 'a',
+          brandId: 'b',
+        })
+        .expect(403);
     });
   });
 

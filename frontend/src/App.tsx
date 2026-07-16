@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { HomeRoute } from './components/HomeRoute';
 import { Navbar } from './components/Navbar';
 import { CatalogPage } from './pages/CatalogPage';
 import { ProductPage } from './pages/ProductPage';
@@ -8,6 +9,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { AccountPage } from './pages/AccountPage';
+import { AdminDashboardPage } from './pages/Admin/AdminDashboardPage';
 import { useAuth } from './auth/AuthContext';
 import type { ReactNode } from 'react';
 
@@ -22,7 +24,8 @@ export function App() {
     <>
       <Navbar />
       <Routes>
-        <Route path="/" element={<CatalogPage />} />
+        <Route path="/" element={<HomeRoute />} />
+        <Route path="/shop" element={<CatalogPage />} />
         <Route path="/product/:slug" element={<ProductPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -34,6 +37,14 @@ export function App() {
           element={
             <Protected>
               <AccountPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <Protected>
+              <AdminDashboardPage />
             </Protected>
           }
         />

@@ -9,6 +9,9 @@ import { MailModule } from './mail/mail.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CartModule } from './cart/cart.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { OrdersModule } from './orders/orders.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
@@ -32,6 +35,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     UsersModule,
     AuthModule,
     CatalogModule,
+    CartModule,
+    CheckoutModule,
+    OrdersModule,
   ],
   controllers: [HealthController],
   providers: [

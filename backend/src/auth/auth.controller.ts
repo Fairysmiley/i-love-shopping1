@@ -77,7 +77,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 100, ttl: 60_000 } })
   @Post('register')
   @ApiOperation({ summary: 'Register with email + password (CAPTCHA protected)' })
   async register(
@@ -96,7 +96,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 100, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login; returns access token (refresh set as httpOnly cookie)' })
@@ -119,6 +119,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate refresh token and obtain a new access token' })
@@ -161,6 +162,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set a new password using a reset token' })
@@ -178,6 +180,7 @@ export class AuthController {
     return { enabled: await this.twoFactor.isEnabled(userId) };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('2fa/setup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Begin 2FA enrollment (returns QR code + recovery codes)' })
@@ -185,6 +188,7 @@ export class AuthController {
     return this.twoFactor.beginSetup(user.userId, user.email);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('2fa/enable')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)

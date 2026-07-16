@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { config } from '../config';
 import { validateEmail } from '../utils/validation';
 
 export function ForgotPasswordPage() {
@@ -33,9 +34,21 @@ export function ForgotPasswordPage() {
         <h1>Reset password</h1>
         <p className="sub">We&apos;ll email you a secure reset link.</p>
         {done ? (
-          <div className="alert alert-success">
-            If an account exists for {email}, a reset link is on its way.
-          </div>
+          <>
+            <div className="alert alert-success">
+              If an account exists for <strong>{email}</strong>, a reset link is on its way.
+              Check your inbox (and spam folder).
+            </div>
+            {config.mailInboxUrl && (
+              <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
+                Local dev: open{' '}
+                <a href={config.mailInboxUrl} target="_blank" rel="noreferrer">
+                  Mailhog
+                </a>{' '}
+                to read the reset email and click the link.
+              </p>
+            )}
+          </>
         ) : (
           <>
             {error && <div className="alert alert-error">{error}</div>}

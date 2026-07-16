@@ -23,7 +23,7 @@ export function ProductCard({ product }: Props) {
         <div className="product-card__media">
           <img
             src={img?.url}
-            alt={img?.altText ?? product.name}
+            alt={img?.altText || `Photograph of ${product.name}`}
             loading="lazy"
           />
         </div>

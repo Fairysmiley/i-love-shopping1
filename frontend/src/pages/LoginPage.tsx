@@ -10,6 +10,7 @@ import {
   validateLoginPassword,
   validateTwoFactorCode,
 } from '../utils/validation';
+import { markTwoFactorEnabledHint } from '../utils/twoFactorHint';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -46,8 +47,9 @@ export function LoginPage() {
       const result = await login(email, password, needs2fa ? twoFactorCode : undefined);
       if ('requiresTwoFactor' in result) {
         setNeeds2fa(true);
+        markTwoFactorEnabledHint();
       } else {
-        navigate('/');
+        navigate('/shop');
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
@@ -108,7 +110,8 @@ export function LoginPage() {
                 <p className="field-error">{fieldErrors.twoFactorCode}</p>
               )}
               <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                Enter the 6-digit code from your authenticator app (or a recovery code).
+                Two-factor authentication is enabled on this account. Enter the 6-digit code from
+                your authenticator app, or use a recovery code.
               </p>
             </div>
           )}

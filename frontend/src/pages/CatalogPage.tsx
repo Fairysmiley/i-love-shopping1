@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { flattenCategoryTree, getCachedCategoryTree, loadCategoryTree } from '../api/categoryTree';
 import { ProductCard } from '../components/ProductCard';
@@ -15,6 +16,7 @@ const SORTS = [
 ];
 
 export function CatalogPage() {
+  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [result, setResult] = useState<Paginated<Product> | null>(null);
@@ -29,6 +31,18 @@ export function CatalogPage() {
 
   const q = params.get('q') ?? '';
   const category = params.get('category') ?? '';
+
+  useEffect(() => {
+    if (authLoading || user || !q) return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('q');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [authLoading, user, q, setParams]);
   const sort = params.get('sort') ?? 'relevance';
   const brands = params.getAll('brands');
   const minPrice = params.get('minPrice') ?? '';
@@ -124,8 +138,9 @@ export function CatalogPage() {
 
   return (
     <div className="container layout">
-      <aside>
+      <aside aria-label="Filters">
         <div className="panel">
+          <h2 className="sr-only">Filters</h2>
           <h3>Categories</h3>
           <div className="facet-group">
             <div className="facet-row">
@@ -187,12 +202,14 @@ export function CatalogPage() {
           <div className="facet-group" style={{ display: 'flex', gap: 8 }}>
             <input
               type="number"
+              aria-label="Minimum price"
               placeholder="Min"
               defaultValue={minPrice}
               onBlur={(e) => update((p) => (e.target.value ? p.set('minPrice', e.target.value) : p.delete('minPrice')))}
             />
             <input
               type="number"
+              aria-label="Maximum price"
               placeholder="Max"
               defaultValue={maxPrice}
               onBlur={(e) => update((p) => (e.target.value ? p.set('maxPrice', e.target.value) : p.delete('maxPrice')))}
@@ -277,6 +294,7 @@ export function CatalogPage() {
       </aside>
 
       <main>
+        <h1 className="sr-only">Catalog</h1>
         <div className="toolbar">
           <span className="result-count">
             {q ? <>Results for &ldquo;{q}&rdquo; &middot; </> : null}
@@ -289,7 +307,8 @@ export function CatalogPage() {
                   : '—'}
           </span>
           <div className="nav-spacer" />
-          <select value={sort} onChange={(e) => update((p) => p.set('sort', e.target.value))} style={{ width: 220 }}>
+          <label htmlFor="sort-select" className="sr-only">Sort products</label>
+          <select id="sort-select" value={sort} onChange={(e) => update((p) => p.set('sort', e.target.value))} style={{ width: 220 }}>
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}

@@ -6,4 +6,6 @@ export const config = {
   googleOAuthEnabled: import.meta.env.VITE_GOOGLE_OAUTH_ENABLED === 'true',
   githubOAuthEnabled: import.meta.env.VITE_GITHUB_OAUTH_ENABLED === 'true',
   facebookOAuthEnabled: import.meta.env.VITE_FACEBOOK_OAUTH_ENABLED === 'true',
+  /** Mailhog (or similar) inbox URL — shown after forgot-password in dev. */
+  mailInboxUrl: import.meta.env.VITE_MAIL_INBOX_URL ?? '',
 };

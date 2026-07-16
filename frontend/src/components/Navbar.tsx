@@ -50,12 +50,15 @@ export function Navbar() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const suggestId = 'navbar-suggestions';
 
   useEffect(() => {
     if (term.trim().length < 2) {
       setSuggestions([]);
+      setActiveIndex(-1);
       return;
     }
     const handle = setTimeout(async () => {
@@ -63,6 +66,7 @@ export function Navbar() {
         const s = await api.get<string[]>(`/products/suggest?q=${encodeURIComponent(term)}`);
         setSuggestions(s);
         setSuggestOpen(true);
+        setActiveIndex(-1);
       } catch {
         setSuggestions([]);
       }
@@ -74,6 +78,7 @@ export function Navbar() {
     const onClick = (e: MouseEvent) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
         setSuggestOpen(false);
+        setActiveIndex(-1);
       }
     };
     document.addEventListener('mousedown', onClick);
@@ -90,10 +95,24 @@ export function Navbar() {
     return () => document.removeEventListener('keydown', onKey);
   }, [searchOpen]);
 
+  useEffect(() => {
+    if (!user) {
+      setSearchOpen(false);
+      setTerm('');
+      setSuggestOpen(false);
+      setActiveIndex(-1);
+    }
+  }, [user]);
+
   const submit = (value: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
     setSuggestOpen(false);
     setSearchOpen(false);
-    navigate(`/?q=${encodeURIComponent(value)}`);
+    setActiveIndex(-1);
+    navigate(`/shop?q=${encodeURIComponent(value)}`);
   };
 
   const openSearch = () => {
@@ -105,33 +124,67 @@ export function Navbar() {
     navigate('/');
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!suggestOpen || suggestions.length === 0) {
+      if (e.key === 'Enter') submit(term);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < suggestions.length) {
+        submit(suggestions[activeIndex]);
+      } else {
+        submit(term);
+      }
+    } else if (e.key === 'Escape') {
+      setSuggestOpen(false);
+      setActiveIndex(-1);
+    }
+  };
+
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        <Link to="/" className="brand">
+        <Link to={user ? '/shop' : '/'} className="brand">
           Vil<span>li</span>
         </Link>
 
         <div className="navbar-actions">
           <ThemeToggle compact />
 
-          <button
-            type="button"
-            className="navbar-icon-action"
-            aria-label="Search products"
-            aria-expanded={searchOpen}
-            onClick={() => (searchOpen ? setSearchOpen(false) : openSearch())}
-          >
-            <SearchIcon />
-            <span>search</span>
-          </button>
+          {user && (
+            <button
+              type="button"
+              className="navbar-icon-action"
+              aria-label="Search products"
+              aria-expanded={searchOpen}
+              onClick={() => (searchOpen ? setSearchOpen(false) : openSearch())}
+            >
+              <SearchIcon />
+              <span>search</span>
+            </button>
+          )}
 
-          {user ? (
+          {user && (
             <>
+              <Link to="/shop" className="navbar-icon-action">
+                <span>shop</span>
+              </Link>
               <Link to="/account" className="navbar-icon-action">
                 <UserIcon />
                 <span>{user.firstName}</span>
               </Link>
+              {user.role === 'ADMIN' && (
+                <Link to="/admin" className="navbar-icon-action">
+                  <span>admin</span>
+                </Link>
+              )}
               <button
                 type="button"
                 className="navbar-icon-action"
@@ -140,44 +193,58 @@ export function Navbar() {
               >
                 <span>sign out</span>
               </button>
+              <button
+                type="button"
+                className="navbar-cart"
+                aria-label="Shopping cart"
+                title="Cart & checkout arrive in the Commerce phase"
+                onClick={() => undefined}
+              >
+                <CartIcon />
+              </button>
             </>
-          ) : (
-            <Link to="/login" className="navbar-icon-action">
-              <UserIcon />
-              <span>sign in / register</span>
-            </Link>
           )}
-
-          <button
-            type="button"
-            className="navbar-cart"
-            aria-label="Shopping cart"
-            title="Cart & checkout arrive in the Commerce phase"
-            onClick={() => undefined}
-          >
-            <CartIcon />
-          </button>
         </div>
       </div>
 
-      {searchOpen && (
+      {user && searchOpen && (
         <div className="navbar-search-panel" ref={boxRef}>
           <div className="container">
             <div className="search navbar-search-field">
               <input
                 ref={inputRef}
+                id="navbar-search-input"
                 type="search"
                 placeholder="Search pre-loved gear, brands, sizes…"
                 aria-label="Search products"
+                aria-autocomplete="list"
+                aria-controls={suggestOpen && suggestions.length > 0 ? suggestId : undefined}
+                aria-activedescendant={
+                  activeIndex >= 0 ? `${suggestId}-${activeIndex}` : undefined
+                }
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit(term)}
+                onKeyDown={handleKeyDown}
                 onFocus={() => suggestions.length && setSuggestOpen(true)}
               />
               {suggestOpen && suggestions.length > 0 && (
-                <div className="suggestions" role="listbox">
-                  {suggestions.map((s) => (
-                    <button key={s} type="button" role="option" onClick={() => submit(s)}>
+                <div className="suggestions" role="listbox" id={suggestId}>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={s}
+                      id={`${suggestId}-${i}`}
+                      type="button"
+                      role="option"
+                      aria-selected={i === activeIndex}
+                      style={
+                        i === activeIndex
+                          ? { background: 'var(--primary)', color: '#fff' }
+                          : undefined
+                      }
+                      onMouseEnter={() => setActiveIndex(i)}
+                      onMouseLeave={() => setActiveIndex(-1)}
+                      onClick={() => submit(s)}
+                    >
                       {s}
                     </button>
                   ))}

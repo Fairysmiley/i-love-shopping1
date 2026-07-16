@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { validateTwoFactorCode } from '../utils/validation';
+import {
+  clearTwoFactorEnabledHint,
+  markTwoFactorEnabledHint,
+} from '../utils/twoFactorHint';
 
 interface TwoFactorSetup {
   qrCodeDataUrl: string;
@@ -21,7 +25,18 @@ export function AccountPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get<{ enabled: boolean }>('/auth/2fa/status').then((r) => setEnabled(r.enabled)).catch(() => undefined);
+    api
+      .get<{ enabled: boolean }>('/auth/2fa/status')
+      .then((r) => {
+        setEnabled(r.enabled);
+        if (r.enabled) markTwoFactorEnabledHint();
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash !== '#two-factor') return;
+    document.getElementById('two-factor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   const beginSetup = async () => {
@@ -44,6 +59,7 @@ export function AccountPage() {
       setEnabled(true);
       setSetup(null);
       setCode('');
+      markTwoFactorEnabledHint();
       setMsg('Two-factor authentication is now enabled.');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Invalid code');
@@ -57,6 +73,7 @@ export function AccountPage() {
       await api.post('/auth/2fa/disable');
       setEnabled(false);
       setSetup(null);
+      clearTwoFactorEnabledHint();
       setMsg('Two-factor authentication disabled.');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to disable 2FA');
@@ -94,7 +111,7 @@ export function AccountPage() {
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="panel" style={{ marginBottom: 18 }}>
-        <h3>Profile</h3>
+        <h2>Profile</h2>
         <p style={{ margin: '4px 0' }}>
           {user?.firstName} {user?.lastName}
         </p>
@@ -106,8 +123,8 @@ export function AccountPage() {
         </button>
       </div>
 
-      <div className="panel" style={{ marginBottom: 18 }}>
-        <h3>Two-factor authentication (optional)</h3>
+      <div id="two-factor" className="panel account-2fa-panel" style={{ marginBottom: 18 }}>
+        <h2>Two-factor authentication (optional)</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           Off by default. You choose to enable TOTP (Google Authenticator, Authy, etc.) from
           this page — not required to shop.
@@ -160,7 +177,7 @@ export function AccountPage() {
       </div>
 
       <div className="panel">
-        <h3>Privacy (GDPR)</h3>
+        <h2>Privacy (GDPR)</h2>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn" onClick={exportData}>
             Export my data

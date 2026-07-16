@@ -1,7 +1,10 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -40,5 +43,26 @@ export class UsersController {
       firstName: 'Deleted',
       lastName: 'User',
     });
+  }
+
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Admin: List all users' })
+  async listAll() {
+    const allUsers = await this.users.findAll();
+    return allUsers.map(u => this.users.toPublic(u));
+  }
+
+  @Patch(':id/role')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Admin: Assign role to user' })
+  async updateRole(
+    @Param('id') id: string,
+    @Body('role') role: 'USER' | 'ADMIN',
+  ) {
+    const updated = await this.users.updateRole(id, role);
+    return this.users.toPublic(updated);
   }
 }

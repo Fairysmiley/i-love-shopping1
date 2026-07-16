@@ -20,6 +20,8 @@ fi
 PROXY_PORT="${PROXY_HOST_PORT:-8080}"
 WEB_PORT="${WEB_HOST_PORT:-5173}"
 API_PORT="${API_HOST_PORT:-3001}"
+MAILHOG_WEB_PORT="${MAILHOG_WEB_PORT:-18025}"
+SMTP_HOST_EFFECTIVE="${SMTP_HOST:-mailhog}"
 
 print_urls() {
   echo ""
@@ -32,6 +34,11 @@ print_urls() {
   echo "    Swagger:              http://localhost:${API_PORT}/api/docs"
   echo ""
   echo "  Seeded login: shopper@villi.test / Shopper!Passw0rd"
+  if [ -n "$SMTP_HOST_EFFECTIVE" ]; then
+    echo "  Mailhog inbox:        http://localhost:${MAILHOG_WEB_PORT}  (password reset emails)"
+  else
+    echo "  Dev email:            docker compose logs api | grep \"DEV EMAIL\""
+  fi
   echo "══════════════════════════════════════════════════════════"
   echo ""
 }

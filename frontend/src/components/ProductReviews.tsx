@@ -61,6 +61,19 @@ export function ProductReviews({ slug, onChange }: Props) {
     }
   };
 
+  const handleHelpful = async (reviewId: string) => {
+    if (!user) {
+      setError('Please sign in to vote.');
+      return;
+    }
+    try {
+      await api.post(`/products/${slug}/reviews/${reviewId}/helpful`);
+      loadReviews();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not vote.');
+    }
+  };
+
   const summary = reviews?.summary;
 
   return (
@@ -139,9 +152,18 @@ export function ProductReviews({ slug, onChange }: Props) {
               <strong>{r.title || 'Review'}</strong>
             </div>
             {r.body && <p>{r.body}</p>}
-            <p className="muted" style={{ fontSize: 12 }}>
-              {r.author} &middot; {formatDate(r.createdAt)}
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                {r.author} &middot; {formatDate(r.createdAt)}
+              </p>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '4px 8px', fontSize: 12 }}
+                onClick={() => handleHelpful(r.id)}
+              >
+                Helpful ({r.helpfulVotes || 0})
+              </button>
+            </div>
           </li>
         ))}
       </ul>

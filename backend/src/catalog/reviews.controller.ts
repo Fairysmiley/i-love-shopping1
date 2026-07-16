@@ -44,4 +44,14 @@ export class ReviewsController {
   remove(@Param('idOrSlug') idOrSlug: string, @CurrentUser('userId') userId: string) {
     return this.reviews.removeForUser(idOrSlug, userId);
   }
+
+  @Post(':idOrSlug/reviews/:reviewId/helpful')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle a helpful vote on a review' })
+  voteHelpful(
+    @Param('reviewId') reviewId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.reviews.voteHelpful(reviewId, userId);
+  }
 }
