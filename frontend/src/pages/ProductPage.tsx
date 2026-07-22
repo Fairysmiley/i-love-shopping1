@@ -4,18 +4,28 @@ import { api, ApiError } from '../api/client';
 import { money } from '../format';
 import { StarRating } from '../components/StarRating';
 import { ProductReviews } from '../components/ProductReviews';
+import { useCart } from '../cart/CartContext';
 import type { Product } from '../api/types';
 
 export function ProductPage() {
   const { slug } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [recommended, setRecommended] = useState<Product[]>([]);
+  const { addItem } = useCart();
 
   const load = () => {
     if (!slug) return;
     api
       .get<Product>(`/products/${slug}`)
-      .then(setProduct)
+      .then((p) => {
+        setProduct(p);
+        // Fetch recommendations based on category
+        api.get<{items: Product[]}>(`/products?category=${p.category?.slug}&limit=4`)
+           .then(res => setRecommended(res.items.filter(item => item.id !== p.id).slice(0, 4)))
+           .catch(() => {}); // ignore errors for recommendations
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Failed to load'));
   };
 
@@ -33,7 +43,7 @@ export function ProductPage() {
       </Link>
       <div className="layout product-detail">
         <img
-          src={product.images[0]?.url}
+          src={product.images[0]?.largeUrl || product.images[0]?.url}
           alt={product.images[0]?.altText || `Photograph of ${product.name}`}
           style={{ width: '100%', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
         />
@@ -60,7 +70,7 @@ export function ProductPage() {
           <p>
             <StarRating value={product.averageRating} count={product.ratingCount} showCount />
           </p>
-          <p className="price" style={{ fontSize: 28 }}>
+          <p className="price" style={{ fontSize: "1.75rem" }}>
             {money(product.price, product.currency)}
           </p>
           <p>
@@ -112,16 +122,50 @@ export function ProductPage() {
             </tbody>
           </table>
 
-          <button className="btn btn-primary btn-block" style={{ marginTop: 18 }} disabled={!product.inStock}>
-            Add to cart
+          <button 
+            className="btn btn-primary btn-block" 
+            style={{ marginTop: 18 }} 
+            disabled={!product.inStock || adding}
+            onClick={async () => {
+              setAdding(true);
+              setError('');
+              try {
+                await addItem(product.id, 1);
+              } catch (err: any) {
+                setError(err.message || 'Could not add item to cart');
+              } finally {
+                setAdding(false);
+              }
+            }}
+          >
+            {adding ? 'Adding...' : 'Add to cart'}
           </button>
-          <p className="muted center" style={{ fontSize: 12, marginTop: 8 }}>
-            Cart &amp; checkout arrive in the Commerce phase.
-          </p>
         </div>
       </div>
 
       <ProductReviews slug={product.slug} onChange={load} />
+
+      {recommended.length > 0 && (
+        <div style={{ marginTop: 64 }}>
+          <h2>Related Products</h2>
+          <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            {recommended.map(p => (
+              <Link to={`/product/${p.slug}`} key={p.id} className="panel" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+                {p.images && p.images[0] ? (
+                  <img src={p.images[0].url} alt={p.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} />
+                ) : (
+                  <div style={{ width: '100%', aspectRatio: '1/1', background: '#e2e8f0', borderRadius: 8, marginBottom: 12 }} />
+                )}
+                <h3 style={{ margin: '0 0 4px 0', fontSize: "1rem" }}>{p.name}</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold' }}>{money(p.price)}</span>
+                  {p.averageRating > 0 && <span style={{ fontSize: "0.8125rem", color: '#eab308' }}>★ {p.averageRating.toFixed(1)}</span>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

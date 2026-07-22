@@ -286,6 +286,8 @@ export class ProductsService {
       ratingCount: p.ratingCount,
       images: p.images.map((img) => ({
         url: img.url,
+        thumbnailUrl: img.url.replace('.png', '-thumb.png'),
+        largeUrl: img.url.replace('.png', '-large.png'),
         altText: img.altText,
         isPrimary: img.isPrimary,
       })),

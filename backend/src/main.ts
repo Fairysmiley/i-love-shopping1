@@ -4,12 +4,19 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { resolveCorsOrigin } from './cors';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const httpsOptions = {
+    key: fs.readFileSync(path.join(process.cwd(), 'certs/key.pem')),
+    cert: fs.readFileSync(path.join(process.cwd(), 'certs/cert.pem')),
+  };
+
+  const app = await NestFactory.create(AppModule, { cors: false, httpsOptions });
   const config = app.get(ConfigService);
 
   // API-first: a stable, versioned, documented surface.

@@ -13,6 +13,12 @@ export class OrderFilterDto {
   @IsDateString()
   @IsOptional()
   endDate?: string;
+
+  @IsOptional()
+  sortBy?: 'createdAt' | 'status';
+
+  @IsOptional()
+  sortOrder?: 'asc' | 'desc';
 }
 
 export class UpdateOrderStatusDto {

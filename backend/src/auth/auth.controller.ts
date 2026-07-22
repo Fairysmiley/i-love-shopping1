@@ -202,8 +202,11 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Disable 2FA for the current user' })
-  async twoFactorDisable(@CurrentUser('userId') userId: string) {
-    await this.twoFactor.disable(userId);
+  async twoFactorDisable(@CurrentUser() user: AuthUser) {
+    if (user.role === 'ADMIN') {
+      throw new UnauthorizedException('Administrators cannot disable Two-Factor Authentication.');
+    }
+    await this.twoFactor.disable(user.userId);
     return { enabled: false };
   }
 
@@ -257,9 +260,15 @@ export class AuthController {
   /** Shared OAuth completion: provision/link user, issue tokens, redirect to web. */
   private async completeOAuth(profile: OAuthProfile, req: Request, res: Response): Promise<void> {
     const user = await this.users.findOrCreateFromOAuth(profile);
+    const webUrl = this.config.get<string>('webPublicUrl');
+    
+    if (user.role === 'ADMIN') {
+      res.redirect(`${webUrl}/login?error=Admins must log in with email and password to complete Two-Factor Authentication.`);
+      return;
+    }
+
     const pair = await this.tokens.issuePair(user, this.ctx(req));
     this.setRefreshCookie(res, pair.refreshToken);
-    const webUrl = this.config.get<string>('webPublicUrl');
     // Hand the short-lived access token to the SPA via URL fragment (kept out
     // of server logs / Referer headers); the SPA stores it in memory only.
     res.redirect(`${webUrl}/oauth/callback#accessToken=${pair.accessToken}`);

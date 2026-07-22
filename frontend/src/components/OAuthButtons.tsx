@@ -29,7 +29,7 @@ export function OAuthButtons() {
         )}
       </div>
       {!configured && (
-        <p className="muted center" style={{ fontSize: 12, marginTop: 8 }}>
+        <p className="muted center" style={{ fontSize: "0.75rem", marginTop: 8 }}>
           Add OAuth client IDs in <code>.env</code> and set{' '}
           <code>VITE_GOOGLE_OAUTH_ENABLED=true</code>,{' '}
           <code>VITE_GITHUB_OAUTH_ENABLED=true</code>, and/or{' '}

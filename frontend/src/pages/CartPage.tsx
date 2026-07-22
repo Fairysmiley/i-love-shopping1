@@ -1,0 +1,98 @@
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '../cart/CartContext';
+import { money } from '../format';
+
+export function CartPage() {
+  const { cart, updateItem, removeItem } = useCart();
+  const navigate = useNavigate();
+
+  if (!cart) return <div className="container" style={{ padding: 48, textAlign: 'center' }}>Loading...</div>;
+
+  if (cart.items.length === 0) {
+    return (
+      <div className="container" style={{ padding: 48, textAlign: 'center', maxWidth: 600 }}>
+        <h1>Your Cart is Empty</h1>
+        <p className="muted" style={{ marginBottom: 32 }}>Looks like you haven't added anything to your cart yet.</p>
+        <Link to="/shop" className="btn btn-primary">Continue Shopping</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container layout" style={{ maxWidth: 1000, padding: 28, gridTemplateColumns: '2fr 1fr', gap: 32 }}>
+      <div>
+        <h1>Shopping Cart</h1>
+        <p className="muted">{cart.items.length} items</p>
+
+        <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {cart.items.map((item) => (
+            <div key={item.productId} style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+              <Link to={`/product/${item.product.slug}`}>
+                {item.product.image ? (
+                  <img src={item.product.image} alt={item.product.name} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8 }} />
+                ) : (
+                  <div style={{ width: 100, height: 100, background: '#e2e8f0', borderRadius: 8 }} />
+                )}
+              </Link>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Link to={`/product/${item.product.slug}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 'bold', fontSize: "1rem" }}>
+                    {item.product.name}
+                  </Link>
+                  <span style={{ fontWeight: 'bold' }}>{money(item.product.price * item.quantity)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button 
+                      className="btn" 
+                      style={{ padding: '2px 8px' }}
+                      onClick={() => updateItem(item.productId, Math.max(1, item.quantity - 1))}
+                    >
+                      -
+                    </button>
+                    <span style={{ minWidth: 24, textAlign: 'center' }}>{item.quantity}</span>
+                    <button 
+                      className="btn" 
+                      style={{ padding: '2px 8px' }}
+                      onClick={() => updateItem(item.productId, item.quantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button 
+                    className="btn" 
+                    style={{ color: 'var(--danger)', borderColor: 'var(--danger)', padding: '4px 8px', fontSize: "0.8125rem" }}
+                    onClick={() => removeItem(item.productId)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="panel" style={{ position: 'sticky', top: 80 }}>
+          <h2>Order Summary</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span className="muted">Subtotal (excluding shipping)</span>
+            <span>{money(cart.total)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, paddingTop: 12, borderTop: '1px solid var(--border)', fontWeight: 'bold', fontSize: "1.125rem" }}>
+            <span>Total</span>
+            <span>{money(cart.total)}</span>
+          </div>
+          <button 
+            className="btn btn-primary btn-block" 
+            style={{ padding: '12px', fontSize: "1rem" }}
+            onClick={() => navigate('/checkout')}
+          >
+            Proceed to Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

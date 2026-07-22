@@ -64,7 +64,7 @@ export class CartService {
           slug: p.slug,
           price: Number(p.price),
           stockQuantity: p.stockQuantity,
-          image: p.images[0]?.url || null,
+          image: p.images[0]?.url ? p.images[0].url.replace('.png', '-thumb.png') : null,
         },
         itemTotal,
       };

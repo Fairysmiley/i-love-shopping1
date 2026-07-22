@@ -80,7 +80,7 @@ export function OrderManagementPanel() {
         <tbody>
           {orders.map((o) => (
             <tr key={o.id} style={{ borderBottom: '1px solid var(--border)' }}>
-              <td style={{ padding: 8, fontSize: 14 }}>{o.id}</td>
+              <td style={{ padding: 8, fontSize: "0.875rem" }}>{o.id}</td>
               <td style={{ padding: 8 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
               <td style={{ padding: 8 }}>{money(o.total, o.currency)}</td>
               <td style={{ padding: 8 }}>

@@ -497,7 +497,7 @@ describe('Villi API (e2e)', () => {
         .send({ email: 'admin@villi.test', password: 'Admin!Passw0rd' })
         .expect(401);
       
-      expect(res.body.message).toMatch(/Administrators must enroll in Two-Factor Authentication/i);
+      expect(res.body.message).toMatch(/Administrators and Staff must enroll in Two-Factor Authentication/i);
     });
   });
 

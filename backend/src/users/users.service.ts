@@ -1,17 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { OAuthProvider, Prisma, User } from '@prisma/client';
+import { OAuthProvider, Prisma, User, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { encrypt, decrypt } from '../common/utils/encryption.util';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  async findByEmail(email: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    return this.decryptUser(user);
   }
 
-  findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+  async findById(id: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    return this.decryptUser(user);
   }
 
   async getByIdOrThrow(id: string): Promise<User> {
@@ -20,25 +23,35 @@ export class UsersService {
     return user;
   }
 
-  create(data: Prisma.UserCreateInput): Promise<User> {
-    return this.prisma.user.create({ data: { ...data, email: data.email.toLowerCase() } });
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    const encryptedData = { ...data, email: data.email.toLowerCase() };
+    if (encryptedData.firstName) encryptedData.firstName = encrypt(encryptedData.firstName);
+    if (encryptedData.lastName) encryptedData.lastName = encrypt(encryptedData.lastName);
+    const user = await this.prisma.user.create({ data: encryptedData });
+    return this.decryptUser(user) as User;
   }
 
   async findAll(): Promise<User[]> {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
     });
+    return users.map(u => this.decryptUser(u) as User);
   }
 
-  async updateRole(id: string, role: 'USER' | 'ADMIN'): Promise<User> {
-    return this.prisma.user.update({
+  async updateRole(id: string, role: Role): Promise<User> {
+    const user = await this.prisma.user.update({
       where: { id },
       data: { role },
     });
+    return this.decryptUser(user) as User;
   }
 
-  update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
-    return this.prisma.user.update({ where: { id }, data });
+  async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
+    const updateData = { ...data };
+    if (typeof updateData.firstName === 'string') updateData.firstName = encrypt(updateData.firstName);
+    if (typeof updateData.lastName === 'string') updateData.lastName = encrypt(updateData.lastName);
+    const user = await this.prisma.user.update({ where: { id }, data: updateData });
+    return this.decryptUser(user) as User;
   }
 
   /**
@@ -65,14 +78,14 @@ export class UsersService {
     if (existingLink) return existingLink.user;
 
     const email = params.email.toLowerCase();
-    return this.prisma.$transaction(async (tx) => {
+    const userResult = await this.prisma.$transaction(async (tx) => {
       let user = await tx.user.findUnique({ where: { email } });
       if (!user) {
         user = await tx.user.create({
           data: {
             email,
-            firstName: params.firstName,
-            lastName: params.lastName,
+            firstName: encrypt(params.firstName),
+            lastName: encrypt(params.lastName),
             isEmailVerified: true,
           },
         });
@@ -86,6 +99,7 @@ export class UsersService {
       });
       return user;
     });
+    return this.decryptUser(userResult) as User;
   }
 
   toPublic(user: User) {
@@ -97,6 +111,15 @@ export class UsersService {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
+    };
+  }
+
+  private decryptUser(user: User | null): User | null {
+    if (!user) return null;
+    return {
+      ...user,
+      firstName: decrypt(user.firstName),
+      lastName: decrypt(user.lastName),
     };
   }
 }

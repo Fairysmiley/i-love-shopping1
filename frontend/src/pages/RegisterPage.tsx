@@ -131,7 +131,7 @@ export function RegisterPage() {
             {fieldErrors.password ? (
               <p className="field-error">{fieldErrors.password}</p>
             ) : (
-              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              <p className="muted" style={{ fontSize: "0.75rem", marginTop: 6 }}>
                 At least 10 characters with upper &amp; lowercase, a number and a symbol.
               </p>
             )}

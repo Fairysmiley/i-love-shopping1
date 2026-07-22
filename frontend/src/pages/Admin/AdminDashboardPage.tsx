@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { ProductManagementPanel } from './ProductManagementPanel';
 import { OrderManagementPanel } from './OrderManagementPanel';
 import { UserManagementPanel } from './UserManagementPanel';
+import { ReviewManagementPanel } from './ReviewManagementPanel';
 import { useAuth } from '../../auth/AuthContext';
 import { Navigate } from 'react-router-dom';
 
 export function AdminDashboardPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'users'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'users' | 'reviews'>('products');
 
   if (user?.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
@@ -49,12 +50,23 @@ export function AdminDashboardPage() {
         >
           User Management
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'reviews'}
+          aria-controls="panel-reviews"
+          id="tab-reviews"
+          className={`btn ${activeTab === 'reviews' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('reviews')}
+        >
+          Review Moderation
+        </button>
       </div>
 
       <div className="admin-panel" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'products' && <ProductManagementPanel />}
         {activeTab === 'orders' && <OrderManagementPanel />}
         {activeTab === 'users' && <UserManagementPanel />}
+        {activeTab === 'reviews' && <ReviewManagementPanel />}
       </div>
     </div>
   );

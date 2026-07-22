@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { OAuthButtons } from '../components/OAuthButtons';
@@ -15,6 +15,8 @@ import { markTwoFactorEnabledHint } from '../utils/twoFactorHint';
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const nextRoute = location.state?.next || '/shop';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -49,7 +51,7 @@ export function LoginPage() {
         setNeeds2fa(true);
         markTwoFactorEnabledHint();
       } else {
-        navigate('/shop');
+        navigate(nextRoute);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
@@ -109,7 +111,7 @@ export function LoginPage() {
               {fieldErrors.twoFactorCode && (
                 <p className="field-error">{fieldErrors.twoFactorCode}</p>
               )}
-              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              <p className="muted" style={{ fontSize: "0.75rem", marginTop: 6 }}>
                 Two-factor authentication is enabled on this account. Enter the 6-digit code from
                 your authenticator app, or use a recovery code.
               </p>

@@ -50,7 +50,7 @@ export function LandingHeroArt() {
       </svg>
 
       <div className="landing-art-emblem-wrap">
-        <img src="/hero-emblem.png" alt="" className="landing-art-emblem" width={320} height={320} />
+        <img src="/hero-emblem.png" alt="Villi brand emblem featuring a wolf profile and night sky" className="landing-art-emblem" width={320} height={320} />
         <div className="landing-art-emblem-ring" />
       </div>
     </div>

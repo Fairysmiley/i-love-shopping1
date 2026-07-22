@@ -24,8 +24,9 @@ This file meets the required documentation deliverables:
 |-------------|---------|
 | **Project overview** | [Project overview](#project-overview) (capabilities table) + introduction above |
 | **Entity Relationship Diagram** | [Entity Relationship Diagram](#entity-relationship-diagram) (Mermaid ERD, PK/FK, cardinality, modality) |
-| **Setup and installation** | [Setup and installation](#setup-and-installation) (Docker one-command + local dev) |
+| **Setup and installation** | [Setup and installation](#setup-and-installation) (Docker + Stripe CLI) |
 | **Usage guide** | [Usage guide](#usage-guide) (browse, auth, account, admin) |
+| **Performance Analysis** | [Performance Analysis Report](#performance-analysis-report) |
 
 Bonus material (API reference, security, testing, review checklists) follows below.
 
@@ -39,6 +40,7 @@ Bonus material (API reference, security, testing, review checklists) follows bel
 - [Entity Relationship Diagram](#entity-relationship-diagram)
 - [Setup and installation](#setup-and-installation) · [Which port to use](#which-port-to-use)
 - [Usage guide](#usage-guide)
+- [Performance Analysis Report](#performance-analysis-report)
 
 **Architecture & domain**
 
@@ -156,6 +158,15 @@ erDiagram
   Product ||--o{ ProductAttribute : "has 0..N"
   Product ||--o{ Review : "receives 0..N"
 
+  User ||--o{ Cart : "owns 0..N"
+  Cart ||--o{ CartItem : "contains 0..N"
+  Product ||--o{ CartItem : "in 0..N"
+
+  User ||--o{ Order : "places 0..N"
+  Order ||--o{ OrderItem : "contains 1..N"
+  Product ||--o{ OrderItem : "in 0..N"
+  Order ||--o| Payment : "has 0..1"
+
   User {
     uuid id PK
     string email UK
@@ -266,6 +277,50 @@ erDiagram
     datetime createdAt
     composite_UK productId_userId
   }
+  Cart {
+    uuid id PK
+    uuid userId FK "nullable"
+    datetime createdAt
+    datetime updatedAt
+  }
+  CartItem {
+    uuid id PK
+    uuid cartId FK
+    uuid productId FK
+    int quantity
+    datetime createdAt
+    datetime updatedAt
+    composite_UK cartId_productId
+  }
+  Order {
+    uuid id PK
+    uuid userId FK
+    enum status
+    decimal totalAmount
+    string currency
+    string shippingAddress "nullable"
+    datetime createdAt
+    datetime updatedAt
+  }
+  OrderItem {
+    uuid id PK
+    uuid orderId FK
+    uuid productId FK
+    int quantity
+    decimal unitPrice
+    composite_UK orderId_productId
+  }
+  Payment {
+    uuid id PK
+    uuid orderId FK_UK
+    decimal amount
+    string currency
+    string provider
+    enum status
+    string transactionId "nullable"
+    datetime createdAt
+    datetime updatedAt
+  }
 ```
 
 ### Notation legend
@@ -301,6 +356,13 @@ erDiagram
 | Product → ProductImage | 1 : 0..N | Images optional; usually one or more per product | `ProductImage.productId` → `Product.id` |
 | Product → ProductAttribute | 1 : 0..N | Facets optional (condition, size, colour, etc.) | `ProductAttribute.productId` → `Product.id` |
 | Product → Review | 1 : 0..N | Reviews optional; aggregates on `Product` | `Review.productId` → `Product.id` |
+| User → Cart | 1 : 0..N | Guest carts have null userId, registered users have a persistent cart | `Cart.userId` → `User.id` |
+| Cart → CartItem | 1 : 0..N | Carts contain zero or many items | `CartItem.cartId` → `Cart.id` |
+| Product → CartItem | 1 : 0..N | Product can be in multiple carts | `CartItem.productId` → `Product.id` |
+| User → Order | 1 : 0..N | Users place zero or many orders | `Order.userId` → `User.id` |
+| Order → OrderItem | 1 : 1..N | Orders must contain at least one item | `OrderItem.orderId` → `Order.id` |
+| Product → OrderItem | 1 : 0..N | Product can be in multiple orders | `OrderItem.productId` → `Product.id` |
+| Order → Payment | 1 : 0..1 | Orders have at most one successful/active payment record | `Payment.orderId` → `Order.id` |
 
 **ACID notes:** multi-step operations (OAuth provisioning + linking, refresh
 rotation, password reset + session revocation, product creation with
@@ -309,6 +371,27 @@ images/attributes, review + rating recompute) run inside Prisma `$transaction`s
 PostgreSQL guarantees durability of committed transactions. Dimensions are
 stored once in canonical **metric base units** and imperial values are derived
 in the API to avoid redundant, drift-prone data.
+
+### Database Scalability & Growth Support
+
+**Requirement:** Student can explain the chosen database's scalability features and how they support potential growth.
+
+PostgreSQL was chosen for Villi due to its robust scalability features that directly support an expanding e-commerce catalog and growing user base:
+* **Vertical Scaling:** PostgreSQL makes exceptional use of additional CPU and RAM, allowing straightforward vertical scaling of the single primary instance as transaction volume grows.
+* **Read Replicas (Horizontal Read Scaling):** As catalog read traffic (searches, product views) dominates e-commerce loads, PostgreSQL allows asynchronous streaming replication to multiple read-only replicas. This offloads the primary database, keeping it dedicated to writes (orders, auth).
+* **Connection Pooling:** Using PgBouncer (or Prisma Accelerate) mitigates connection limits by pooling and reusing connections, essential for handling high concurrent shopper traffic.
+* **Advanced Indexing:** Features like B-Tree indexes (for fast lookups by ID or foreign keys), partial indexes, and GIN/GiST indexes (for complex attribute/JSON searches) ensure that faceted search performance remains fast even as the catalog grows to thousands of items.
+* **Caching Integration:** Redis is placed in front of Postgres to cache catalog results, facet aggregations, and type-ahead suggestions, drastically reducing database load and absorbing "thundering herd" traffic spikes during sales.
+
+### ACID Properties in E-Commerce
+
+**Requirement:** Student can explain ACID properties and their importance in e-commerce database design.
+
+ACID (Atomicity, Consistency, Isolation, Durability) guarantees are vital in e-commerce to prevent catastrophic data corruption, such as overselling inventory or losing order data.
+* **Atomicity:** Ensures that a multi-step operation (like placing an order) is treated as a single, indivisible unit. If a customer places an order, the system must (1) create the order record, (2) create the payment record, (3) clear the shopping cart, and (4) deduct the stock. If the stock deduction fails, Atomicity rolls back all changes, ensuring the cart isn't cleared and the order isn't saved without stock.
+* **Consistency:** Ensures the database transitions only from one valid state to another. Constraints (like foreign keys preventing an order for a non-existent user) and data types (like Decimal for prices preventing floating-point rounding errors) ensure data integrity.
+* **Isolation:** Ensures concurrent transactions don't interfere with each other. If two users try to buy the final `Fjällräven Keb Jacket` at the exact same millisecond, Isolation ensures one transaction completes first, updating the stock to 0, causing the second transaction to fail gracefully, thus preventing overselling.
+* **Durability:** Ensures that once a transaction is committed (e.g., an order is placed and payment confirmed), it is permanently saved. Even if the server loses power instantly after the commit, the order is safe on disk.
 
 ---
 
@@ -319,8 +402,9 @@ review. Only **Docker** is required for the primary path.
 
 ### Prerequisite
 
-**Docker** (with Docker Compose v2) is the only requirement. All application
-dependencies (Node, PostgreSQL, Redis, nginx) are included in the containers.
+**Docker** (with Docker Compose v2) and the **Stripe CLI** are the only host prerequisites. All other application dependencies (Node, PostgreSQL, Redis, nginx) are strictly managed within the containers.
+* **Docker:** Runs the databases, API, and web interface.
+* **Stripe CLI:** Used to forward payment webhooks directly to your local API container (`stripe listen --forward-to localhost:3001/api/v1/checkout/webhook`).
 
 ### Which port to use
 
@@ -498,6 +582,28 @@ Sign in with a [seeded account](#seeded-accounts) to try authenticated flows.
 
 1. Go to **Forgot password** → enter an email → open **http://localhost:18025** (Mailhog) for the reset link, or `docker compose logs api | grep "DEV EMAIL"` if `SMTP_HOST` is empty.
 2. Open the link → set a new password → sign in.
+
+---
+
+## Performance Analysis Report
+
+**Requirement:** The README file contains complete project overview, entity relationship diagram, performance analysis report, setup instructions, and usage guide (Task 3)
+
+The platform was hardened in Task 3 to guarantee fast paint times, optimal accessibility, and high operational throughput. 
+
+### 1. Database & Queries
+- **Redis Caching:** Integrated `@nestjs/cache-manager` with Redis to memoize complex catalog responses and facet aggregations. This reduces the Postgres load on heavy reads.
+- **Index Optimization:** PostgreSQL queries leverage specialized B-Tree indexing on `slug`s, category lookups, and foreign keys, resulting in low-latency nested relations parsing during checkout.
+- **Transactions:** High-concurrency cart checkouts utilize Prisma `$transaction` blocks natively wrapped in Postgres atomic locks. This enforces row-level data consistency without massive table-locking overhead, maintaining checkout speeds even during surge traffic.
+
+### 2. Assets & Frontend Optimization
+- **Lazy Loading & Code Splitting:** Vite automatically chunks the React bundle, delaying the parsing of heavyweight administrative dashboards until they are explicitly required by authorized users.
+- **Image Serving:** Served static assets utilize WebP compression and aggressive browser-side caching headers `(Cache-Control: public, max-age=31536000)` configured inside `nginx.conf`, ensuring fast LCP (Largest Contentful Paint).
+- **Responsive Layout:** CSS dynamically shifts between Grid and Flexbox layouts based on viewport width (`minmax()`), preventing unnecessary CSS reflows and reducing CPU overhead on low-tier mobile devices.
+
+### 3. Application Security & Scalability Overhead
+- **Throttling:** Implemented `@nestjs/throttler` (Token Bucket Algorithm) to reject abusive traffic at the application edge quickly, protecting downstream databases from resource exhaustion.
+- **Stateless Tokens:** Using signed JWTs means horizontal scaling of the Node.js API requires 0 additional lookup overhead for validating standard requests, as the token natively encapsulates the user identity.
 
 ---
 

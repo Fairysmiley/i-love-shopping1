@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from './ThemeToggle';
 
 function SearchIcon() {
@@ -45,6 +46,7 @@ function CartIcon() {
 
 export function Navbar() {
   const { user, logout } = useAuth();
+  const { cart, setIsOpen } = useCart();
   const navigate = useNavigate();
   const [term, setTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -155,8 +157,15 @@ export function Navbar() {
           Vil<span>li</span>
         </Link>
 
-        <div className="navbar-actions">
+        <nav aria-label="Main Navigation" className="navbar-actions">
           <ThemeToggle compact />
+
+          <Link to="/about" className="navbar-icon-action" style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: "0.875rem" }}>about</span>
+          </Link>
+          <Link to="/contact" className="navbar-icon-action" style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: "0.875rem" }}>contact</span>
+          </Link>
 
           {user && (
             <button
@@ -197,14 +206,20 @@ export function Navbar() {
                 type="button"
                 className="navbar-cart"
                 aria-label="Shopping cart"
-                title="Cart & checkout arrive in the Commerce phase"
-                onClick={() => undefined}
+                aria-haspopup="dialog"
+                title="View your cart"
+                onClick={() => setIsOpen(true)}
               >
                 <CartIcon />
+                {cart && cart.items.length > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--danger)', color: '#fff', fontSize: "0.625rem", padding: '2px 6px', borderRadius: 10, fontWeight: 'bold' }}>
+                    {cart.items.reduce((acc, item) => acc + item.quantity, 0)}
+                  </span>
+                )}
               </button>
             </>
           )}
-        </div>
+        </nav>
       </div>
 
       {user && searchOpen && (

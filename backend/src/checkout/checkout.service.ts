@@ -1,12 +1,20 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { encrypt } from '../common/utils/encryption.util';
 import { CheckoutDto } from './dto/checkout.dto';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { StripePaymentService } from './stripe-payment.service';
+import { PaymentQueueService } from './payment-queue.service';
 
 @Injectable()
 export class CheckoutService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CheckoutService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stripePayment: StripePaymentService,
+    private readonly paymentQueue: PaymentQueueService
+  ) {}
 
   async processCheckout(userId: string, dto: CheckoutDto) {
     // We wrap everything in an interactive Prisma transaction.
@@ -37,22 +45,11 @@ export class CheckoutService {
       const shippingCost = subtotal > 100 ? 0 : 15.0; // Free shipping over 100 EUR
       const finalTotal = subtotal + shippingCost;
 
-      // 3. Simulate payment transaction
-      if (dto.simulatePaymentFailure) {
-        // We throw an error, which instantly aborts the $transaction.
-        // No stock is deducted, no order is saved.
-        throw new BadRequestException('Payment declined by the payment provider.');
-      }
-
-      // If we reach here, payment "succeeded"
-      const paymentProvider = 'mock_stripe';
-      const transactionId = `txn_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-
-      // 4. Create the Order
+      // 3. Create the Order in PENDING state
       const order = await tx.order.create({
         data: {
           userId,
-          status: OrderStatus.PAID, // Payment succeeded right away
+          status: OrderStatus.PENDING, // Payment not yet confirmed
           totalAmount: finalTotal,
           currency: 'EUR',
           shippingAddress: encrypt(dto.shippingAddress || '123 Fake Street, CA 90210'),
@@ -63,38 +60,90 @@ export class CheckoutService {
               unitPrice: item.product.price,
             })),
           },
-          payment: {
-            create: {
-              amount: finalTotal,
-              currency: 'EUR',
-              provider: paymentProvider,
-              status: PaymentStatus.COMPLETED,
-              transactionId: encrypt(transactionId),
-            },
-          },
         },
-        include: { items: true, payment: true },
+        include: { items: true },
       });
 
-      // 5. Deduct stock safely (preventing overselling)
+      // 4. Deduct stock temporarily (reserved)
       for (const item of cart.items) {
         const updatedProduct = await tx.product.update({
           where: { id: item.productId },
           data: { stockQuantity: { decrement: item.quantity } },
         });
 
-        // Double check for concurrent race condition where decrement makes it negative
         if (updatedProduct.stockQuantity < 0) {
           throw new BadRequestException(`Race condition detected: Oversold product ${updatedProduct.name}`);
         }
       }
 
-      // 6. Clear the cart
+      // 5. Clear the cart
       await tx.cartItem.deleteMany({
         where: { cartId: cart.id },
       });
 
       return order;
+    });
+  }
+
+  async createStripePaymentIntent(amount: number, currency: string, orderId: string) {
+    return this.stripePayment.createPaymentIntent(amount, currency, orderId);
+  }
+
+  async handleStripeWebhook(payload: any) {
+    this.logger.log(`Received Stripe webhook payload: ${payload.type}`);
+    
+    // In Stripe, the intent object is under payload.data.object
+    const intent = payload.data?.object;
+    if (!intent || !intent.metadata?.orderId) return;
+
+    const orderId = intent.metadata.orderId;
+    const status = payload.type === 'payment_intent.succeeded' ? 'succeeded' : 'failed';
+    const errorDetail = payload.data?.error?.message;
+
+    // We process the webhook update transactionally
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true, user: true } });
+      if (!order) {
+        this.logger.error(`Order ${intent.orderId} not found for webhook!`);
+        return;
+      }
+
+      // 1. Update order status
+      const newStatus = status === 'succeeded' ? OrderStatus.PAID : OrderStatus.CANCELLED;
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: newStatus }
+      });
+
+      // 2. Create Payment Record
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          amount: intent.amount / 100, // Convert cents back to main currency unit
+          currency: intent.currency.toUpperCase(),
+          provider: 'stripe',
+          status: status === 'succeeded' ? PaymentStatus.COMPLETED : PaymentStatus.FAILED,
+          transactionId: encrypt(intent.id),
+        }
+      });
+
+      // 3. Revert stock if payment failed
+      if (status === 'failed') {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQuantity: { increment: item.quantity } }
+          });
+        }
+      }
+
+      // 4. Publish to message queue
+      await this.paymentQueue.publishStatusUpdate({
+        orderId: order.id,
+        email: order.user.email,
+        status: status,
+        errorDetail: errorDetail
+      });
     });
   }
 }

@@ -11,6 +11,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { UseGuards } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/review.dto';
 
@@ -18,6 +22,25 @@ import { CreateReviewDto } from './dto/review.dto';
 @Controller('products')
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
+
+  @Get('admin/reviews')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Get all reviews across all products (admin)' })
+  getAllReviews() {
+    return this.reviews.getAllReviews();
+  }
+
+  @Delete('admin/reviews/:reviewId')
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete any review (admin)' })
+  deleteReview(@Param('reviewId') reviewId: string) {
+    return this.reviews.deleteByAdmin(reviewId);
+  }
 
   @Public()
   @Get(':idOrSlug/reviews')

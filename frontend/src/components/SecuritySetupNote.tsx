@@ -31,13 +31,13 @@ export function SecuritySetupNote() {
               Rebuild: <code>docker compose up --build -d web api</code>
             </li>
           </ol>
-          <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+          <p className="muted" style={{ fontSize: "0.75rem", margin: '8px 0 0' }}>
             Full guide: <code>docs/CAPTCHA_AND_2FA_SETUP.md</code> in the repo.
           </p>
         </details>
       )}
       {show2faHint && (
-        <p className="muted" style={{ fontSize: 13, margin: config.recaptchaSiteKey ? 0 : '12px 0 0' }}>
+        <p className="muted" style={{ fontSize: "0.8125rem", margin: config.recaptchaSiteKey ? 0 : '12px 0 0' }}>
           <strong>Optional 2FA:</strong> sign in, then{' '}
           <Link to={user ? '/account#two-factor' : '/login'}>
             {user ? 'Account → Enable 2FA' : 'Account → Enable 2FA (after sign-in)'}

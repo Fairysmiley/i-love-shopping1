@@ -70,8 +70,8 @@ export class AuthService {
     const user = await this.validateCredentials(dto.email, dto.password);
     const isTwoFactorEnabled = await this.twoFactor.isEnabled(user.id);
 
-    if (user.role === 'ADMIN' && !isTwoFactorEnabled) {
-      throw new UnauthorizedException('Administrators must enroll in Two-Factor Authentication before logging in. Please contact another administrator or use a setup token.');
+    if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !isTwoFactorEnabled) {
+      throw new UnauthorizedException('Administrators and Staff must enroll in Two-Factor Authentication before logging in. Please contact another administrator or use a setup token.');
     }
 
     if (isTwoFactorEnabled) {

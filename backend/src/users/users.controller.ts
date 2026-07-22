@@ -60,7 +60,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin: Assign role to user' })
   async updateRole(
     @Param('id') id: string,
-    @Body('role') role: 'USER' | 'ADMIN',
+    @Body('role') role: Role,
   ) {
     const updated = await this.users.updateRole(id, role);
     return this.users.toPublic(updated);

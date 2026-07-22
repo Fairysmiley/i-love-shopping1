@@ -58,7 +58,7 @@ export function Recaptcha({
           {error && <p className="field-error">{error}</p>}
         </>
       ) : (
-        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+        <p className="muted" style={{ fontSize: "0.8125rem", margin: 0 }}>
           CAPTCHA is wired up but not active until you add keys to <code>.env</code> and
           rebuild <code>web</code>. Expand <strong>How to enable CAPTCHA</strong> below, or
           see <code>docs/CAPTCHA_AND_2FA_SETUP.md</code>.

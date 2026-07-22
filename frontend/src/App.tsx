@@ -9,8 +9,17 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { AccountPage } from './pages/AccountPage';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { OrdersPage } from './pages/OrdersPage';
+import { OrderDetailsPage } from './pages/OrderDetailsPage';
+import { CartPage } from './pages/CartPage';
+import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
+import { AboutPage } from './pages/AboutPage';
+import { ContactPage } from './pages/ContactPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminDashboardPage } from './pages/Admin/AdminDashboardPage';
 import { useAuth } from './auth/AuthContext';
+import { CartSidebar } from './cart/CartSidebar';
 import type { ReactNode } from 'react';
 
 function Protected({ children }: { children: ReactNode }) {
@@ -23,33 +32,64 @@ export function App() {
   return (
     <>
       <Navbar />
-      <Routes>
-        <Route path="/" element={<HomeRoute />} />
-        <Route path="/shop" element={<CatalogPage />} />
-        <Route path="/product/:slug" element={<ProductPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-        <Route
-          path="/account"
-          element={
-            <Protected>
-              <AccountPage />
-            </Protected>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <Protected>
-              <AdminDashboardPage />
-            </Protected>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <CartSidebar />
+      <main id="main-content">
+        <Routes>
+          <Route path="/" element={<HomeRoute />} />
+          <Route path="/shop" element={<CatalogPage />} />
+          <Route path="/product/:slug" element={<ProductPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route
+            path="/account"
+            element={
+              <Protected>
+                <AccountPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/checkout"
+            element={
+              <Protected>
+                <CheckoutPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <Protected>
+                <OrdersPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/orders/:id"
+            element={
+              <Protected>
+                <OrderDetailsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <Protected>
+                <AdminDashboardPage />
+              </Protected>
+            }
+          />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/order-confirmation/:id" element={<OrderConfirmationPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </main>
     </>
   );
 }

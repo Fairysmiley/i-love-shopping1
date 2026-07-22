@@ -27,6 +27,7 @@ export function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const fetchGen = useRef(0);
 
   const q = params.get('q') ?? '';
@@ -153,17 +154,17 @@ export function CatalogPage() {
               </button>
             </div>
             {categoriesLoading && flattenCategoryTree(categories).length === 0 && (
-              <p className="muted" style={{ fontSize: 13, margin: '8px 0' }}>
+              <p className="muted" style={{ fontSize: "0.8125rem", margin: '8px 0' }}>
                 Loading categories…
               </p>
             )}
             {categoriesError && flattenCategoryTree(categories).length === 0 && !categoriesLoading && (
-              <p className="muted" style={{ fontSize: 13, margin: '8px 0' }}>
+              <p className="muted" style={{ fontSize: "0.8125rem", margin: '8px 0' }}>
                 Could not load categories.{' '}
                 <button
                   type="button"
                   className="btn"
-                  style={{ padding: '2px 8px', fontSize: 12 }}
+                  style={{ padding: '2px 8px', fontSize: "0.75rem" }}
                   onClick={() => {
                     setCategoriesLoading(true);
                     setCategoriesError(false);
@@ -307,6 +308,24 @@ export function CatalogPage() {
                   : '—'}
           </span>
           <div className="nav-spacer" />
+          <div style={{ display: 'flex', gap: 8, marginRight: 16 }}>
+            <button 
+              className={`btn ${viewMode === 'grid' ? 'btn-primary' : ''}`} 
+              style={{ padding: '6px 10px' }}
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+            >
+              ⊞
+            </button>
+            <button 
+              className={`btn ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+              style={{ padding: '6px 10px' }}
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              ☰
+            </button>
+          </div>
           <label htmlFor="sort-select" className="sr-only">Sort products</label>
           <select id="sort-select" value={sort} onChange={(e) => update((p) => p.set('sort', e.target.value))} style={{ width: 220 }}>
             {SORTS.map((s) => (
@@ -333,7 +352,7 @@ export function CatalogPage() {
         )}
 
         {loading && result && (
-          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+          <p className="muted" style={{ fontSize: "0.8125rem", marginBottom: 12 }}>
             Updating results…
           </p>
         )}
@@ -342,9 +361,11 @@ export function CatalogPage() {
           <p className="muted">No items match your filters. Try widening your search.</p>
         )}
 
-        <div className="product-list">
+        <div className={viewMode === 'grid' ? "product-list" : "product-list-list-view"} style={viewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: 16 } : undefined}>
           {result?.data.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <div key={p.id} style={viewMode === 'list' ? { display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, padding: 16, border: '1px solid var(--border)', borderRadius: 8 } : undefined}>
+              <ProductCard product={p} />
+            </div>
           ))}
         </div>
 

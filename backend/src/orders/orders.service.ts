@@ -19,10 +19,17 @@ export class OrdersService {
       if (filter.endDate) where.createdAt.lte = new Date(filter.endDate);
     }
 
+    const orderBy: any = {};
+    if (filter.sortBy) {
+      orderBy[filter.sortBy] = filter.sortOrder || 'desc';
+    } else {
+      orderBy.createdAt = 'desc';
+    }
+
     const orders = await this.prisma.order.findMany({
       where,
       include: { items: { include: { product: true } }, payment: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
     return orders.map(o => this.decryptOrder(o));
   }
@@ -38,10 +45,17 @@ export class OrdersService {
       if (filter.endDate) where.createdAt.lte = new Date(filter.endDate);
     }
 
+    const orderBy: any = {};
+    if (filter.sortBy) {
+      orderBy[filter.sortBy] = filter.sortOrder || 'desc';
+    } else {
+      orderBy.createdAt = 'desc';
+    }
+
     const orders = await this.prisma.order.findMany({
       where,
       include: { items: { include: { product: true } }, payment: true, user: { select: { email: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
     return orders.map(o => this.decryptOrder(o));
   }

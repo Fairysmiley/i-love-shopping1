@@ -28,7 +28,7 @@ export function UserManagementPanel() {
   const handleRoleChange = async (id: string, role: string) => {
     try {
       await api.patch(`/users/${id}/role`, { role });
-      setUsers(users.map((u) => (u.id === id ? { ...u, role: role as 'USER' | 'ADMIN' } : u)));
+      setUsers(users.map((u) => (u.id === id ? { ...u, role: role as 'USER' | 'ADMIN' | 'SUPPORT' | 'SALES' } : u)));
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Failed to assign role');
     }
@@ -63,6 +63,8 @@ export function UserManagementPanel() {
                 >
                   <option value="USER">User</option>
                   <option value="ADMIN">Admin</option>
+                  <option value="SUPPORT">Support</option>
+                  <option value="SALES">Sales</option>
                 </select>
               </td>
             </tr>

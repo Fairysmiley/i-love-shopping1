@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/review.dto';
@@ -83,6 +83,9 @@ export class ReviewsService {
   async upsertForUser(idOrSlug: string, userId: string, dto: CreateReviewDto) {
     const productId = await this.resolveProductId(idOrSlug);
 
+    // Purchase-verification gating belongs to the Commerce phase (orders),
+    // so for the Foundation any authenticated user may review.
+
     const review = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.review.upsert({
         where: { productId_userId: { productId, userId } },
@@ -164,5 +167,28 @@ export class ReviewsService {
       helpfulVotes: r.helpfulVotes,
       createdAt: r.createdAt,
     };
+  }
+
+  async getAllReviews() {
+    return this.prisma.review.findMany({
+      include: {
+        ...reviewInclude,
+        product: { select: { name: true, slug: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async deleteByAdmin(reviewId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const review = await tx.review.findUnique({
+        where: { id: reviewId },
+        select: { productId: true }
+      });
+      if (!review) throw new NotFoundException('Review not found');
+      
+      await tx.review.delete({ where: { id: reviewId } });
+      await this.recomputeAggregates(tx, review.productId);
+    });
   }
 }

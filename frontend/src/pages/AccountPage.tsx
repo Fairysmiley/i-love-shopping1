@@ -118,14 +118,19 @@ export function AccountPage() {
         <p className="muted" style={{ margin: '4px 0' }}>
           {user?.email} &middot; role: {user?.role}
         </p>
-        <button type="button" className="btn" style={{ marginTop: 14 }} onClick={signOut}>
-          Sign out
-        </button>
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button type="button" className="btn" onClick={() => navigate('/orders')}>
+            View My Orders
+          </button>
+          <button type="button" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }} onClick={signOut}>
+            Sign out
+          </button>
+        </div>
       </div>
 
       <div id="two-factor" className="panel account-2fa-panel" style={{ marginBottom: 18 }}>
         <h2>Two-factor authentication (optional)</h2>
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+        <p className="muted" style={{ marginTop: 0, fontSize: "0.8125rem" }}>
           Off by default. You choose to enable TOTP (Google Authenticator, Authy, etc.) from
           this page — not required to shop.
         </p>
@@ -140,7 +145,7 @@ export function AccountPage() {
           <>
             <p className="muted">Scan this QR code with Google Authenticator or Authy, then enter the code.</p>
             <img className="qr" src={setup.qrCodeDataUrl} alt="2FA QR code for authenticator app" />
-            <p className="muted center" style={{ fontSize: 12 }}>
+            <p className="muted center" style={{ fontSize: "0.75rem" }}>
               Save these one-time recovery codes somewhere safe:
             </p>
             <div className="recovery">

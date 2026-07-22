@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
               Check your inbox (and spam folder).
             </div>
             {config.mailInboxUrl && (
-              <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
+              <p className="muted" style={{ fontSize: "0.8125rem", marginTop: 12 }}>
                 Local dev: open{' '}
                 <a href={config.mailInboxUrl} target="_blank" rel="noreferrer">
                   Mailhog

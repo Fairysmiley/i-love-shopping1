@@ -47,6 +47,10 @@ async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
   if (opts.auth !== false && accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
+  const guestCartId = localStorage.getItem('villi-guest-cart-id');
+  if (guestCartId) {
+    headers['x-guest-cart-id'] = guestCartId;
+  }
 
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const timeoutController = new AbortController();

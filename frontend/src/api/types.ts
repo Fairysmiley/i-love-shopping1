@@ -3,7 +3,7 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'ADMIN' | 'SUPPORT' | 'SALES';
   isEmailVerified: boolean;
   createdAt: string;
 }
@@ -16,6 +16,8 @@ export interface AuthResponse {
 
 export interface ProductImage {
   url: string;
+  thumbnailUrl: string;
+  largeUrl: string;
   altText?: string | null;
   isPrimary: boolean;
 }

@@ -153,12 +153,12 @@ export function ProductReviews({ slug, onChange }: Props) {
             </div>
             {r.body && <p>{r.body}</p>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+              <p className="muted" style={{ fontSize: "0.75rem", margin: 0 }}>
                 {r.author} &middot; {formatDate(r.createdAt)}
               </p>
               <button 
                 className="btn btn-secondary" 
-                style={{ padding: '4px 8px', fontSize: 12 }}
+                style={{ padding: '4px 8px', fontSize: "0.75rem" }}
                 onClick={() => handleHelpful(r.id)}
               >
                 Helpful ({r.helpfulVotes || 0})
