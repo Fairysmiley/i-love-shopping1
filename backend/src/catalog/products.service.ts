@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma, Product } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -7,6 +7,7 @@ import { buildDimensions } from '../common/utils/units';
 import { slugify } from '../common/utils/slug';
 import { ProductQueryDto, ProductSort } from './dto/product-query.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { BulkProductItemDto } from './dto/bulk-product.dto';
 
 const productInclude = {
   category: true,
@@ -253,6 +254,162 @@ export class ProductsService {
     await this.prisma.product.update({ where: { id }, data: { isActive: false } });
   }
 
+  async bulkCreate(items: BulkProductItemDto[]): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const item of items) {
+      try {
+        // Find or create category
+        let category = await this.prisma.category.findUnique({
+          where: { slug: item.categorySlug },
+        });
+
+        if (!category) {
+          errors.push(`Row with SKU ${item.sku}: Category '${item.categorySlug}' not found`);
+          skipped++;
+          continue;
+        }
+
+        // Find or create brand if provided
+        let brandId: string | null = null;
+        if (item.brandName) {
+          const brandSlug = slugify(item.brandName);
+          let brand = await this.prisma.brand.findUnique({
+            where: { slug: brandSlug },
+          });
+
+          if (!brand) {
+            brand = await this.prisma.brand.create({
+              data: {
+                name: item.brandName,
+                slug: brandSlug,
+              },
+            });
+          }
+          brandId = brand.id;
+        }
+
+        // Generate slug from name or use provided slug
+        const slug = item.slug ? await this.uniqueSlug(item.slug) : await this.uniqueSlug(item.name);
+
+        // Check if SKU already exists (upsert logic)
+        const existing = await this.prisma.product.findFirst({
+          where: {
+            OR: [
+              { slug },
+              // Assuming SKU might be stored in a custom field or description
+            ]
+          },
+        });
+
+        if (existing) {
+          // Update existing product
+          const updateData: any = {
+            name: item.name,
+            description: item.description,
+            price: new Prisma.Decimal(item.price),
+            stockQuantity: item.stockQuantity,
+            category: { connect: { id: category.id } },
+            weightGrams: item.weightGrams,
+            lengthMm: item.lengthMm,
+            widthMm: item.widthMm,
+            heightMm: item.heightMm,
+          };
+          if (brandId) {
+            updateData.brand = { connect: { id: brandId } };
+          }
+          await this.prisma.product.update({
+            where: { id: existing.id },
+            data: updateData,
+          });
+        } else {
+          // Create new product - brandId is required for creation, skip if missing
+          if (!brandId) {
+            errors.push(`Row with SKU ${item.sku}: Brand is required for new products`);
+            skipped++;
+            continue;
+          }
+
+          await this.prisma.product.create({
+            data: {
+              name: item.name,
+              slug,
+              description: item.description || '',
+              price: new Prisma.Decimal(item.price),
+              currency: 'EUR',
+              stockQuantity: item.stockQuantity,
+              categoryId: category.id,
+              brandId,
+              weightGrams: item.weightGrams,
+              lengthMm: item.lengthMm,
+              widthMm: item.widthMm,
+              heightMm: item.heightMm,
+            },
+          });
+        }
+
+        imported++;
+      } catch (error) {
+        errors.push(`Row with SKU ${item.sku}: ${error.message}`);
+        skipped++;
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  parseCsvToProducts(csvContent: string): BulkProductItemDto[] {
+    const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length < 2) {
+      throw new BadRequestException('CSV must have a header row and at least one data row');
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+    const required = ['sku', 'name', 'price', 'stockquantity', 'categoryslug'];
+
+    for (const col of required) {
+      if (!headers.includes(col)) {
+        throw new BadRequestException(`Missing required CSV column: ${col}`);
+      }
+    }
+
+    const products: BulkProductItemDto[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx] ?? '';
+      });
+
+      const price = parseFloat(row['price']);
+      const stockQuantity = parseInt(row['stockquantity'], 10);
+
+      if (!row['sku'] || !row['name'] || isNaN(price) || isNaN(stockQuantity)) {
+        throw new BadRequestException(`Invalid data in CSV row ${i + 1}`);
+      }
+
+      products.push({
+        sku: row['sku'],
+        name: row['name'],
+        description: row['description'] || '',
+        slug: row['slug'],
+        price,
+        stockQuantity,
+        categorySlug: row['categoryslug'],
+        brandName: row['brandname'] || row['brand'],
+        weightGrams: row['weightgrams'] ? parseInt(row['weightgrams'], 10) : undefined,
+        lengthMm: row['lengthmm'] ? parseInt(row['lengthmm'], 10) : undefined,
+        widthMm: row['widthmm'] ? parseInt(row['widthmm'], 10) : undefined,
+        heightMm: row['heightmm'] ? parseInt(row['heightmm'], 10) : undefined,
+      });
+    }
+
+    return products;
+  }
+
   private async getOrThrow(id: string): Promise<Product> {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
@@ -286,13 +443,61 @@ export class ProductsService {
       ratingCount: p.ratingCount,
       images: p.images.map((img) => ({
         url: img.url,
-        thumbnailUrl: img.url.replace('.png', '-thumb.png'),
-        largeUrl: img.url.replace('.png', '-large.png'),
+        thumbnailUrl: img.thumbnailUrl || img.url,
+        mediumUrl: img.mediumUrl || img.url,
         altText: img.altText,
         isPrimary: img.isPrimary,
       })),
       attributes: p.attributes.map((a) => ({ name: a.name, value: a.value })),
       createdAt: p.createdAt,
     };
+  }
+
+  /**
+   * Add an image to a product
+   */
+  async addImage(
+    productId: string,
+    data: {
+      url: string;
+      thumbnailUrl?: string;
+      mediumUrl?: string;
+      altText?: string;
+      isPrimary?: boolean;
+    },
+  ) {
+    // Verify product exists
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { images: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${productId} not found`);
+    }
+
+    // If setting as primary, unset other primary images
+    if (data.isPrimary) {
+      await this.prisma.productImage.updateMany({
+        where: { productId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    // Get the next position
+    const maxPosition = product.images.reduce((max, img) => Math.max(max, img.position), -1);
+
+    // Create the new image
+    return this.prisma.productImage.create({
+      data: {
+        productId,
+        url: data.url,
+        thumbnailUrl: data.thumbnailUrl,
+        mediumUrl: data.mediumUrl,
+        altText: data.altText,
+        isPrimary: data.isPrimary ?? false,
+        position: maxPosition + 1,
+      },
+    });
   }
 }

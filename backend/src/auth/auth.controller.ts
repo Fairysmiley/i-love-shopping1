@@ -86,7 +86,8 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.auth.register(dto);
-    const pair = await this.tokens.issuePair(user, this.ctx(req));
+    const twoFactorEnabled = await this.twoFactor.isEnabled(user.id);
+    const pair = await this.tokens.issuePair({ ...user, twoFactorEnabled }, this.ctx(req));
     this.setRefreshCookie(res, pair.refreshToken);
     return {
       accessToken: pair.accessToken,
@@ -109,7 +110,8 @@ export class AuthController {
     if ('requiresTwoFactor' in result) {
       return { requiresTwoFactor: true };
     }
-    const pair = await this.tokens.issuePair(result.user, this.ctx(req));
+    const twoFactorEnabled = await this.twoFactor.isEnabled(result.user.id);
+    const pair = await this.tokens.issuePair({ ...result.user, twoFactorEnabled }, this.ctx(req));
     this.setRefreshCookie(res, pair.refreshToken);
     return {
       accessToken: pair.accessToken,
@@ -261,13 +263,14 @@ export class AuthController {
   private async completeOAuth(profile: OAuthProfile, req: Request, res: Response): Promise<void> {
     const user = await this.users.findOrCreateFromOAuth(profile);
     const webUrl = this.config.get<string>('webPublicUrl');
-    
+
     if (user.role === 'ADMIN') {
       res.redirect(`${webUrl}/login?error=Admins must log in with email and password to complete Two-Factor Authentication.`);
       return;
     }
 
-    const pair = await this.tokens.issuePair(user, this.ctx(req));
+    const twoFactorEnabled = await this.twoFactor.isEnabled(user.id);
+    const pair = await this.tokens.issuePair({ ...user, twoFactorEnabled }, this.ctx(req));
     this.setRefreshCookie(res, pair.refreshToken);
     // Hand the short-lived access token to the SPA via URL fragment (kept out
     // of server logs / Referer headers); the SPA stores it in memory only.

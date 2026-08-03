@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker compose restart:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(chmod:*)",
+      "Bash(docker compose stop:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(docker rmi:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

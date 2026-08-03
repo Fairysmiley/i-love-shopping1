@@ -3,6 +3,7 @@ import { LandingHeroArt } from '../components/LandingHeroArt';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { money } from '../format';
+import { SEO } from '../components/SEO';
 
 interface Product {
   id: string;
@@ -52,6 +53,14 @@ export function LandingPage() {
 
   return (
     <div className="landing">
+      <SEO
+        title="Verified Pre-Loved Nordic Outdoor Apparel"
+        description="Shop authenticated pre-loved outdoor gear from premium Nordic brands like Fjällräven, Haglöfs, and Norrøna. Sustainable, verified, and ready for your next adventure."
+        canonical="https://villi.com/"
+        ogType="website"
+        ogImage="/hero-emblem.png"
+        ogImageAlt="Villi - Pre-loved Nordic outdoor apparel marketplace"
+      />
       <section className="landing-hero">
         <div className="container landing-hero-layout">
           <div className="landing-hero-inner">
@@ -122,7 +131,7 @@ export function LandingPage() {
               {p.images && p.images[0] ? (
                 <img src={p.images[0]} alt={p.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8 }} />
               ) : (
-                <div style={{ width: '100%', aspectRatio: '1/1', background: '#e2e8f0', borderRadius: 8 }} />
+                <div style={{ width: '100%', aspectRatio: '1/1', background: '#e2e8f0', borderRadius: 8 }} role="img" aria-label={`${p.name} - No image available`} />
               )}
               <div>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: "1rem" }}>{p.name}</h3>

@@ -3,12 +3,16 @@ import { ProductManagementPanel } from './ProductManagementPanel';
 import { OrderManagementPanel } from './OrderManagementPanel';
 import { UserManagementPanel } from './UserManagementPanel';
 import { ReviewManagementPanel } from './ReviewManagementPanel';
+import { BulkUploadPanel } from './BulkUploadPanel';
+import { DeliveryOptionsPanel } from './DeliveryOptionsPanel';
 import { useAuth } from '../../auth/AuthContext';
 import { Navigate } from 'react-router-dom';
 
+type AdminTab = 'products' | 'orders' | 'users' | 'reviews' | 'bulk-upload' | 'delivery';
+
 export function AdminDashboardPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'users' | 'reviews'>('products');
+  const [activeTab, setActiveTab] = useState<AdminTab>('products');
 
   if (user?.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
@@ -19,7 +23,7 @@ export function AdminDashboardPage() {
       <h1>Admin Dashboard</h1>
       <p className="muted">Manage the Villi commerce platform.</p>
 
-      <div role="tablist" aria-label="Admin panels" style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+      <div role="tablist" aria-label="Admin panels" style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
         <button
           role="tab"
           aria-selected={activeTab === 'products'}
@@ -28,7 +32,27 @@ export function AdminDashboardPage() {
           className={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('products')}
         >
-          Product Management
+          Products
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'bulk-upload'}
+          aria-controls="panel-bulk-upload"
+          id="tab-bulk-upload"
+          className={`btn ${activeTab === 'bulk-upload' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('bulk-upload')}
+        >
+          Bulk Upload
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'delivery'}
+          aria-controls="panel-delivery"
+          id="tab-delivery"
+          className={`btn ${activeTab === 'delivery' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('delivery')}
+        >
+          Delivery Options
         </button>
         <button
           role="tab"
@@ -38,7 +62,7 @@ export function AdminDashboardPage() {
           className={`btn ${activeTab === 'orders' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('orders')}
         >
-          Order Management
+          Orders
         </button>
         <button
           role="tab"
@@ -48,7 +72,7 @@ export function AdminDashboardPage() {
           className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('users')}
         >
-          User Management
+          Users
         </button>
         <button
           role="tab"
@@ -58,12 +82,14 @@ export function AdminDashboardPage() {
           className={`btn ${activeTab === 'reviews' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('reviews')}
         >
-          Review Moderation
+          Reviews
         </button>
       </div>
 
       <div className="admin-panel" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'products' && <ProductManagementPanel />}
+        {activeTab === 'bulk-upload' && <BulkUploadPanel />}
+        {activeTab === 'delivery' && <DeliveryOptionsPanel />}
         {activeTab === 'orders' && <OrderManagementPanel />}
         {activeTab === 'users' && <UserManagementPanel />}
         {activeTab === 'reviews' && <ReviewManagementPanel />}

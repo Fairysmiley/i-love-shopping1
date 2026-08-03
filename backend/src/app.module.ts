@@ -12,6 +12,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { CartModule } from './cart/cart.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { OrdersModule } from './orders/orders.module';
+import { DeliveryOptionsModule } from './delivery-options/delivery-options.module';
 import { HealthController } from './health.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     CartModule,
     CheckoutModule,
     OrdersModule,
+    DeliveryOptionsModule,
   ],
   controllers: [HealthController],
   providers: [

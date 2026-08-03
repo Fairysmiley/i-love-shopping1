@@ -16,6 +16,7 @@ export interface AccessTokenPayload {
   email: string;
   role: string;
   jti: string;
+  twoFactorEnabled: boolean;
 }
 
 interface RequestContext {
@@ -82,12 +83,13 @@ export class TokensService {
     }
   }
 
-  private signAccessToken(user: Pick<User, 'id' | 'email' | 'role'>, jti: string): string {
+  private signAccessToken(user: Pick<User, 'id' | 'email' | 'role'> & { twoFactorEnabled: boolean }, jti: string): string {
     const payload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       jti,
+      twoFactorEnabled: user.twoFactorEnabled,
     };
     // Secret + expiresIn come from the JwtModule registration.
     return this.jwt.sign(payload);
@@ -95,7 +97,7 @@ export class TokensService {
 
   /** Issues a fresh access + refresh pair, starting a new refresh-token family. */
   async issuePair(
-    user: Pick<User, 'id' | 'email' | 'role'>,
+    user: Pick<User, 'id' | 'email' | 'role'> & { twoFactorEnabled: boolean },
     ctx: RequestContext = {},
     familyId: string = randomUUID(),
   ): Promise<TokenPair> {
@@ -123,7 +125,7 @@ export class TokensService {
     const tokenHash = this.hash(presented);
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: { user: true },
+      include: { user: { include: { twoFactor: true } } },
     });
 
     if (!stored) {
@@ -172,7 +174,10 @@ export class TokensService {
           data: { replacedById: replacement.id },
         });
 
-        const accessToken = this.signAccessToken(stored.user, jti);
+        const accessToken = this.signAccessToken(
+          { ...stored.user, twoFactorEnabled: stored.user.twoFactor?.enabled ?? false },
+          jti,
+        );
         return { accessToken, refreshToken: newRefresh, accessExpiresIn: this.accessTtlSeconds() };
       });
     } catch (err) {

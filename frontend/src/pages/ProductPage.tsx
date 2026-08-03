@@ -5,6 +5,7 @@ import { money } from '../format';
 import { StarRating } from '../components/StarRating';
 import { ProductReviews } from '../components/ProductReviews';
 import { useCart } from '../cart/CartContext';
+import { SEO } from '../components/SEO';
 import type { Product } from '../api/types';
 
 export function ProductPage() {
@@ -38,6 +39,17 @@ export function ProductPage() {
 
   return (
     <div className="container" style={{ padding: 28 }}>
+      <SEO
+        title={product.name}
+        description={product.description}
+        canonical={`https://villi.com/product/${product.slug}`}
+        ogType="product"
+        ogImage={product.images[0]?.url}
+        ogImageAlt={product.images[0]?.altText || product.name}
+        price={product.price}
+        currency={product.currency}
+        availability={product.inStock ? 'instock' : 'outofstock'}
+      />
       <Link to="/shop" className="muted">
         &larr; Back to catalog
       </Link>

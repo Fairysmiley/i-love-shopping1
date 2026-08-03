@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -20,6 +20,12 @@ export class RolesGuard implements CanActivate {
     if (!user || !requiredRoles.includes(user.role as Role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
+
+    // Enforce 2FA for admin, support, and sales roles
+    if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !user.twoFactorEnabled) {
+      throw new UnauthorizedException('Two-Factor Authentication is required for this role. Please enable 2FA and log in again.');
+    }
+
     return true;
   }
 }

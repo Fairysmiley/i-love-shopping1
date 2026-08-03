@@ -36,4 +36,5 @@ backend/prisma/*.db
 tmp/
 /dot-com-retail
 /docs
+/i-love-shopping3
 niche.txt

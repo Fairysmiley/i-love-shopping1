@@ -1,6 +1,13 @@
+import { SEO } from '../components/SEO';
+
 export function AboutPage() {
   return (
     <div className="container" style={{ padding: 28, maxWidth: 800 }}>
+      <SEO
+        title="About Villi"
+        description="Learn about Villi's mission to reduce environmental impact through authenticated pre-loved Nordic outdoor apparel from brands like Fjällräven, Haglöfs, and Norrøna."
+        canonical="https://villi.com/about"
+      />
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
         <h1>About Villi</h1>
         <p className="muted" style={{ fontSize: "1.125rem", maxWidth: 600, margin: '0 auto' }}>
@@ -37,14 +44,22 @@ export function AboutPage() {
         <h2>Meet the Team</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 24 }}>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#94a3b8' }}></div>
+            <img
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect fill='%2394a3b8' width='64' height='64'/%3E%3C/svg%3E"
+              alt="Alex Haglund avatar placeholder"
+              style={{ width: 64, height: 64, borderRadius: '50%' }}
+            />
             <div>
               <h4 style={{ margin: 0 }}>Alex Haglund</h4>
               <p className="muted" style={{ margin: 0, fontSize: "0.8125rem" }}>Founder & CEO</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#94a3b8' }}></div>
+            <img
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect fill='%2394a3b8' width='64' height='64'/%3E%3C/svg%3E"
+              alt="Sofia Nordin avatar placeholder"
+              style={{ width: 64, height: 64, borderRadius: '50%' }}
+            />
             <div>
               <h4 style={{ margin: 0 }}>Sofia Nordin</h4>
               <p className="muted" style={{ margin: 0, fontSize: "0.8125rem" }}>Head of Authentication</p>
@@ -56,10 +71,11 @@ export function AboutPage() {
       <div style={{ textAlign: 'center' }}>
         <h3>Connect with us</h3>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 16 }}>
-          <a href="#" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }}>Instagram</a>
-          <a href="#" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }}>Twitter / X</a>
-          <a href="#" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }}>LinkedIn</a>
+          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="Instagram link - Coming soon">Instagram</button>
+          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="Twitter / X link - Coming soon">Twitter / X</button>
+          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="LinkedIn link - Coming soon">LinkedIn</button>
         </div>
+        <p className="muted" style={{ fontSize: '0.75rem', marginTop: 8 }}>Social media links coming soon</p>
       </div>
     </div>
   );

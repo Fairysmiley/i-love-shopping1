@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SEO } from '../components/SEO';
 
 export function ContactPage() {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
@@ -22,6 +23,11 @@ export function ContactPage() {
 
   return (
     <div className="container" style={{ padding: 28, maxWidth: 600 }}>
+      <SEO
+        title="Contact Support"
+        description="Get help with your order or questions about Villi's authenticated pre-loved Nordic outdoor gear. Our support team is here to help."
+        canonical="https://villi.com/contact"
+      />
       <h1>Contact Support</h1>
       <p className="muted" style={{ marginBottom: 32 }}>Have a question about an order or need help finding specific gear? Let us know below.</p>
       

@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   role: string;
   jti: string;
+  twoFactorEnabled: boolean;
 }
 
 /** Extracts the authenticated user (populated by JwtStrategy) from the request. */

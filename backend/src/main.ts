@@ -12,8 +12,8 @@ import { resolveCorsOrigin } from './cors';
 
 async function bootstrap(): Promise<void> {
   const httpsOptions = {
-    key: fs.readFileSync(path.join(process.cwd(), 'certs/key.pem')),
-    cert: fs.readFileSync(path.join(process.cwd(), 'certs/cert.pem')),
+    key: fs.readFileSync(path.join(process.cwd(), '..', 'certs/key.pem')),
+    cert: fs.readFileSync(path.join(process.cwd(), '..', 'certs/cert.pem')),
   };
 
   const app = await NestFactory.create(AppModule, { cors: false, httpsOptions });

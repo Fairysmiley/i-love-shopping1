@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { flattenCategoryTree, getCachedCategoryTree, loadCategoryTree } from '../api/categoryTree';
 import { ProductCard } from '../components/ProductCard';
 import { StarRating } from '../components/StarRating';
+import { SEO } from '../components/SEO';
 import type { Category, Facets, Paginated, Product } from '../api/types';
 
 const SORTS = [
@@ -137,8 +138,18 @@ export function CatalogPage() {
     });
   };
 
+  const pageTitle = q ? `Search: ${q}` : category ? `Shop ${category}` : 'Shop All Products';
+  const pageDescription = q
+    ? `Search results for "${q}" in authenticated pre-loved Nordic outdoor gear from Fjällräven, Haglöfs, and Norrøna.`
+    : `Browse ${result?.meta.total || ''} authentic pre-loved Nordic outdoor products from premium brands.`;
+
   return (
     <div className="container layout">
+      <SEO
+        title={pageTitle}
+        description={pageDescription}
+        canonical={`https://villi.com/shop${location.search}`}
+      />
       <aside aria-label="Filters">
         <div className="panel">
           <h2 className="sr-only">Filters</h2>

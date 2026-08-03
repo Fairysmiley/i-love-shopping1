@@ -1,0 +1,23 @@
+# Villi - Pre-Loved Nordic Outdoor Apparel
+# robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /account
+Disallow: /cart
+Disallow: /orders
+Disallow: /orders/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /oauth/
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://villi.com/sitemap.xml
