@@ -29,13 +29,9 @@ export function BulkUploadPanel() {
       const formData = new FormData();
       formData.append('file', csvFile);
 
-      const response = await api.post('/products/bulk-csv', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post<BulkUploadResult>('/products/bulk-csv', formData);
 
-      setResult(response.data);
+      setResult(response);
       setCsvFile(null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to upload CSV');
@@ -56,8 +52,8 @@ export function BulkUploadPanel() {
 
     try {
       const products = JSON.parse(jsonText);
-      const response = await api.post('/products/bulk', { products });
-      setResult(response.data);
+      const response = await api.post<BulkUploadResult>('/products/bulk', { products });
+      setResult(response);
       setJsonText('');
     } catch (err: any) {
       if (err instanceof SyntaxError) {

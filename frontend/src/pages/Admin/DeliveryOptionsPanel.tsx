@@ -43,8 +43,8 @@ export function DeliveryOptionsPanel() {
 
   const fetchOptions = async () => {
     try {
-      const response = await api.get('/delivery-options');
-      setOptions(response.data);
+      const response = await api.get<DeliveryOption[]>('/delivery-options');
+      setOptions(response);
     } catch (err: any) {
       setError('Failed to load delivery options');
     } finally {
@@ -98,7 +98,7 @@ export function DeliveryOptionsPanel() {
     }
 
     try {
-      await api.delete(`/delivery-options/${id}`);
+      await api.del(`/delivery-options/${id}`);
       await fetchOptions();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to delete delivery option');

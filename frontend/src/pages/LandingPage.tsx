@@ -10,7 +10,7 @@ interface Product {
   slug: string;
   name: string;
   price: number;
-  images: string[];
+  images: Array<{ url: string; thumbnailUrl: string; altText?: string }>;
   averageRating: number;
 }
 
@@ -43,10 +43,10 @@ export function LandingPage() {
   useEffect(() => {
     // Fetch featured products (top rated) and categories (collections)
     Promise.all([
-      api.get<{ items: Product[] }>('/products?limit=4&sort=rating'),
+      api.get<{ data: Product[] }>('/products?limit=4&sort=rating'),
       api.get<Category[]>('/categories/tree')
     ]).then(([productsData, categoriesData]) => {
-      setFeatured(productsData.items);
+      setFeatured(productsData.data);
       setCollections(categoriesData.slice(0, 4)); // Get top 4 categories
     }).catch(console.error);
   }, []);
@@ -129,7 +129,7 @@ export function LandingPage() {
           {featured.map(p => (
             <div key={p.id} className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }} onClick={() => navigate(`/product/${p.slug}`)}>
               {p.images && p.images[0] ? (
-                <img src={p.images[0]} alt={p.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8 }} />
+                <img src={p.images[0].thumbnailUrl || p.images[0].url} alt={p.images[0].altText || p.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8 }} />
               ) : (
                 <div style={{ width: '100%', aspectRatio: '1/1', background: '#e2e8f0', borderRadius: 8 }} role="img" aria-label={`${p.name} - No image available`} />
               )}

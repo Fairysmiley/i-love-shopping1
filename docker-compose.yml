@@ -82,7 +82,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-Villi <no-reply@villi.test>}
       TWO_FACTOR_APP_NAME: ${TWO_FACTOR_APP_NAME:-Villi}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-to-32-byte-secret!}
       THROTTLE_TTL: ${THROTTLE_TTL:-60}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
       SEED_ON_START: ${SEED_ON_START:-true}
