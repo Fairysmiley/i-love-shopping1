@@ -7,6 +7,8 @@ import {
   clearTwoFactorEnabledHint,
   markTwoFactorEnabledHint,
 } from '../utils/twoFactorHint';
+import { usePageTitle } from '../components/SEO';
+import { AddressBook } from '../components/AddressBook';
 
 interface TwoFactorSetup {
   qrCodeDataUrl: string;
@@ -15,6 +17,7 @@ interface TwoFactorSetup {
 }
 
 export function AccountPage() {
+  usePageTitle('My Account');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
@@ -127,6 +130,8 @@ export function AccountPage() {
           </button>
         </div>
       </div>
+
+      <AddressBook />
 
       <div id="two-factor" className="panel account-2fa-panel" style={{ marginBottom: 18 }}>
         <h2>Two-factor authentication (optional)</h2>

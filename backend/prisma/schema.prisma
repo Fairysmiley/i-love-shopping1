@@ -28,8 +28,14 @@ enum OAuthProvider {
 }
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
+  id    String @id @default(uuid())
+  // AES-256-GCM ciphertext — never queried directly (random IV means two
+  // encryptions of the same address never match). Decrypted by UsersService
+  // before the row leaves the service layer.
+  email String
+  // Deterministic SHA-256 of the lowercased email, purely so login/uniqueness
+  // checks can do an exact-match lookup without ever storing plaintext.
+  emailHash       String   @unique
   // Null for accounts created purely through OAuth.
   passwordHash    String?
   firstName       String
@@ -48,8 +54,23 @@ model User {
   reviewHelpfulVotes ReviewHelpfulVote[]
   carts              Cart[]
   orders             Order[]
+  addresses          Address[]
+}
 
-  @@index([email])
+// A user's saved shipping addresses (account/address-book management).
+// The address fields themselves are encrypted at rest (PII), stored as one
+// AES-256-GCM blob — same approach as Order.shippingAddress.
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  data      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Stores the TOTP shared secret. Separated from User so the secret can be
@@ -298,8 +319,12 @@ enum OrderStatus {
 
 model Order {
   id               String          @id @default(uuid())
-  userId           String
-  user             User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  // Null for guest checkouts — the order is then identified by guestEmail.
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  // Set only for guest checkouts (no account); used for the confirmation
+  // email and the public order-confirmation lookup.
+  guestEmail       String?
   status           OrderStatus     @default(PENDING)
   totalAmount      Decimal         @db.Decimal(12, 2)
   currency         String          @default("EUR")

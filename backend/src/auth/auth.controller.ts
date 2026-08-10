@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { Allow2faSetupScope } from '../common/decorators/allow-2fa-setup-scope.decorator';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
@@ -110,6 +111,16 @@ export class AuthController {
     if ('requiresTwoFactor' in result) {
       return { requiresTwoFactor: true };
     }
+    if ('requiresTwoFactorSetup' in result) {
+      const setup = this.tokens.issueTwoFactorSetupToken(result.user);
+      return {
+        requiresTwoFactorSetup: true,
+        accessToken: setup.accessToken,
+        expiresIn: setup.expiresIn,
+        message:
+          'Administrators and staff must enroll in Two-Factor Authentication. Use this temporary session to finish enrollment, then you will be logged in.',
+      };
+    }
     const twoFactorEnabled = await this.twoFactor.isEnabled(result.user.id);
     const pair = await this.tokens.issuePair({ ...result.user, twoFactorEnabled }, this.ctx(req));
     this.setRefreshCookie(res, pair.refreshToken);
@@ -135,6 +146,7 @@ export class AuthController {
     return { accessToken: pair.accessToken, expiresIn: pair.accessExpiresIn };
   }
 
+  @Allow2faSetupScope()
   @Post('logout')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -175,6 +187,7 @@ export class AuthController {
 
   // ───────────────────── Two-factor authentication ─────────────────────
 
+  @Allow2faSetupScope()
   @Get('2fa/status')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Whether 2FA is enabled for the current user' })
@@ -182,6 +195,7 @@ export class AuthController {
     return { enabled: await this.twoFactor.isEnabled(userId) };
   }
 
+  @Allow2faSetupScope()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('2fa/setup')
   @ApiBearerAuth()
@@ -190,13 +204,35 @@ export class AuthController {
     return this.twoFactor.beginSetup(user.userId, user.email);
   }
 
+  @Allow2faSetupScope()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('2fa/enable')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Confirm and enable 2FA with a TOTP code' })
-  async twoFactorEnable(@CurrentUser('userId') userId: string, @Body() dto: TwoFactorCodeDto) {
-    await this.twoFactor.confirm(userId, dto.code);
+  async twoFactorEnable(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: TwoFactorCodeDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.twoFactor.confirm(user.userId, dto.code);
+
+    if (user.scope === 'twofa_setup') {
+      // Enrollment for a privileged role just completed mid-login — issue
+      // the full session now instead of making them log in a second time.
+      const fullUser = await this.users.findById(user.userId);
+      if (!fullUser) throw new UnauthorizedException('User not found');
+      const pair = await this.tokens.issuePair({ ...fullUser, twoFactorEnabled: true }, this.ctx(req));
+      this.setRefreshCookie(res, pair.refreshToken);
+      return {
+        enabled: true,
+        accessToken: pair.accessToken,
+        expiresIn: pair.accessExpiresIn,
+        user: this.users.toPublic(fullUser),
+      };
+    }
+
     return { enabled: true };
   }
 
@@ -264,8 +300,8 @@ export class AuthController {
     const user = await this.users.findOrCreateFromOAuth(profile);
     const webUrl = this.config.get<string>('webPublicUrl');
 
-    if (user.role === 'ADMIN') {
-      res.redirect(`${webUrl}/login?error=Admins must log in with email and password to complete Two-Factor Authentication.`);
+    if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role)) {
+      res.redirect(`${webUrl}/login?error=Staff accounts must log in with email and password to complete Two-Factor Authentication.`);
       return;
     }
 

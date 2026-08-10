@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ApiError } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { OAuthButtons } from '../components/OAuthButtons';
 import { PasswordInput } from '../components/PasswordInput';
@@ -11,9 +11,17 @@ import {
   validateTwoFactorCode,
 } from '../utils/validation';
 import { markTwoFactorEnabledHint } from '../utils/twoFactorHint';
+import { SEO } from '../components/SEO';
+import type { User } from '../api/types';
+
+interface TwoFactorSetup {
+  qrCodeDataUrl: string;
+  otpauthUrl: string;
+  recoveryCodes: string[];
+}
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, completeTwoFactorSetupLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const nextRoute = location.state?.next || '/shop';
@@ -28,6 +36,12 @@ export function LoginPage() {
     password?: string | null;
     twoFactorCode?: string | null;
   }>({});
+
+  // Mandatory-2FA-enrollment flow (ADMIN/SUPPORT/SALES with no 2FA yet).
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
+  const [setupCode, setSetupCode] = useState('');
+  const [setupCodeError, setSetupCodeError] = useState<string | null>(null);
 
   const validate = () => {
     const errors = { email: validateEmail(email), password: validateLoginPassword(password) };
@@ -50,6 +64,10 @@ export function LoginPage() {
       if ('requiresTwoFactor' in result) {
         setNeeds2fa(true);
         markTwoFactorEnabledHint();
+      } else if ('requiresTwoFactorSetup' in result) {
+        setNeedsSetup(true);
+        const s = await api.post<TwoFactorSetup>('/auth/2fa/setup');
+        setSetup(s);
       } else {
         navigate(nextRoute);
       }
@@ -60,8 +78,78 @@ export function LoginPage() {
     }
   };
 
+  const confirmMandatorySetup = async () => {
+    setError('');
+    const err = validateTwoFactorCode(setupCode);
+    setSetupCodeError(err);
+    if (err) return;
+    setBusy(true);
+    try {
+      const res = await api.post<{ enabled: true; accessToken: string; user: User }>('/auth/2fa/enable', {
+        code: setupCode,
+      });
+      completeTwoFactorSetupLogin(res.accessToken, res.user);
+      markTwoFactorEnabledHint();
+      navigate(nextRoute);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Invalid code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (needsSetup) {
+    return (
+      <div className="auth-wrap">
+        <SEO title="Enable Two-Factor Authentication" description="Finish enrolling in required two-factor authentication for your Villi staff account." noindex />
+        <div className="auth-card">
+          <h1>Enable Two-Factor Authentication</h1>
+          <p className="sub">
+            This account requires Two-Factor Authentication before you can continue.
+          </p>
+          {error && <div className="alert alert-error">{error}</div>}
+          {!setup ? (
+            <p className="muted">Preparing your enrollment…</p>
+          ) : (
+            <>
+              <p className="muted">Scan this QR code with Google Authenticator or Authy, then enter the code.</p>
+              <img className="qr" src={setup.qrCodeDataUrl} alt="2FA QR code for authenticator app" />
+              <p className="muted center" style={{ fontSize: '0.75rem' }}>
+                Save these one-time recovery codes somewhere safe:
+              </p>
+              <div className="recovery">
+                {setup.recoveryCodes.map((c) => (
+                  <div key={c}>{c}</div>
+                ))}
+              </div>
+              <div className="field" style={{ marginTop: 14 }}>
+                <label htmlFor="setup-code">Authentication code</label>
+                <input
+                  id="setup-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  aria-invalid={!!setupCodeError}
+                  placeholder="123456"
+                  value={setupCode}
+                  onChange={(e) => setSetupCode(e.target.value)}
+                  onBlur={() => setSetupCodeError(validateTwoFactorCode(setupCode))}
+                />
+                {setupCodeError && <p className="field-error">{setupCodeError}</p>}
+              </div>
+              <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={confirmMandatorySetup}>
+                {busy ? 'Verifying...' : 'Verify & continue'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-wrap">
+      <SEO title="Sign In" description="Sign in to your Villi account to shop authenticated pre-loved Nordic outdoor apparel and track your orders." noindex />
       <div className="auth-card">
         <h1>Welcome back</h1>
         <p className="sub">Sign in to your Villi account.</p>

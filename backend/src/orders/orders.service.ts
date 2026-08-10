@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { decrypt } from '../common/utils/encryption.util';
 import { OrderFilterDto, UpdateOrderStatusDto } from './dto/order.dto';
@@ -31,7 +36,7 @@ export class OrdersService {
       include: { items: { include: { product: true } }, payment: true },
       orderBy,
     });
-    return orders.map(o => this.decryptOrder(o));
+    return orders.map((o) => this.decryptOrder(o));
   }
 
   async getAllOrders(filter: OrderFilterDto) {
@@ -54,10 +59,14 @@ export class OrdersService {
 
     const orders = await this.prisma.order.findMany({
       where,
-      include: { items: { include: { product: true } }, payment: true, user: { select: { email: true } } },
+      include: {
+        items: { include: { product: true } },
+        payment: true,
+        user: { select: { email: true } },
+      },
       orderBy,
     });
-    return orders.map(o => this.decryptOrder(o));
+    return orders.map((o) => this.decryptOrder(o));
   }
 
   async getOrderById(orderId: string, userId: string, isAdmin: boolean) {
@@ -72,6 +81,42 @@ export class OrdersService {
     return this.decryptOrder(order);
   }
 
+  async getOrderConfirmation(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: { select: { name: true, images: { where: { isPrimary: true }, take: 1 } } },
+          },
+        },
+        deliveryOption: true,
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    return {
+      id: order.id,
+      status: order.status,
+      totalAmount: Number(order.totalAmount),
+      currency: order.currency,
+      createdAt: order.createdAt,
+      deliveryOption: order.deliveryOption
+        ? {
+            name: order.deliveryOption.name,
+            estimatedDaysMin: order.deliveryOption.estimatedDaysMin,
+            estimatedDaysMax: order.deliveryOption.estimatedDaysMax,
+          }
+        : null,
+      items: order.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        product: { name: item.product.name, image: item.product.images[0]?.url ?? null },
+      })),
+    };
+  }
+
   async cancelOrder(orderId: string, userId: string, isAdmin: boolean) {
     // Both user and admin can cancel, but only if PENDING or CONFIRMED
     return this.prisma.$transaction(async (tx) => {
@@ -82,11 +127,14 @@ export class OrdersService {
 
       if (!order) throw new NotFoundException('Order not found');
       if (order.userId !== userId && !isAdmin) throw new ForbiddenException('Access denied');
-      if (order.status === OrderStatus.CANCELLED) throw new BadRequestException('Order is already cancelled');
-      
+      if (order.status === OrderStatus.CANCELLED)
+        throw new BadRequestException('Order is already cancelled');
+
       // We allow cancellation if it hasn't been shipped yet.
       if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAID) {
-         throw new BadRequestException('Order cannot be cancelled at this stage. It may have already shipped.');
+        throw new BadRequestException(
+          'Order cannot be cancelled at this stage. It may have already shipped.',
+        );
       }
 
       const updatedOrder = await tx.order.update({
@@ -112,24 +160,26 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
 
     if (order.status === OrderStatus.CANCELLED && dto.status !== OrderStatus.CANCELLED) {
-      throw new BadRequestException('Cannot change status of a cancelled order. Inventory has already been restored.');
+      throw new BadRequestException(
+        'Cannot change status of a cancelled order. Inventory has already been restored.',
+      );
     }
 
     if (dto.status === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
       // Admin is explicitly cancelling an active order, we must restock!
       return this.prisma.$transaction(async (tx) => {
-         const updatedOrder = await tx.order.update({
-            where: { id: orderId },
-            data: { status: OrderStatus.CANCELLED },
-            include: { items: true },
-         });
-         for (const item of updatedOrder.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-         }
-         return this.decryptOrder(updatedOrder);
+        const updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: { status: OrderStatus.CANCELLED },
+          include: { items: true },
+        });
+        for (const item of updatedOrder.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQuantity: { increment: item.quantity } },
+          });
+        }
+        return this.decryptOrder(updatedOrder);
       });
     }
 
@@ -151,21 +201,21 @@ export class OrdersService {
       if (!order) throw new NotFoundException('Order not found');
       if (!order.payment) throw new BadRequestException('Order has no payment record');
       if (order.payment.status === PaymentStatus.REFUNDED) {
-         throw new BadRequestException('Order payment is already refunded');
+        throw new BadRequestException('Order payment is already refunded');
       }
 
       // If order is not cancelled, cancel it and restore stock natively.
       if (order.status !== OrderStatus.CANCELLED) {
-         await tx.order.update({
-           where: { id: orderId },
-           data: { status: OrderStatus.CANCELLED },
-         });
-         for (const item of order.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-         }
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: OrderStatus.CANCELLED },
+        });
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQuantity: { increment: item.quantity } },
+          });
+        }
       }
 
       // Mark payment as refunded
@@ -174,7 +224,10 @@ export class OrdersService {
         data: { status: PaymentStatus.REFUNDED },
       });
 
-      const finalOrder = await tx.order.findUnique({ where: { id: orderId }, include: { payment: true } });
+      const finalOrder = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { payment: true },
+      });
       return this.decryptOrder(finalOrder);
     });
   }
@@ -183,6 +236,12 @@ export class OrdersService {
     if (!order) return order;
     if (order.shippingAddress) {
       order.shippingAddress = decrypt(order.shippingAddress);
+    }
+    if (order.guestEmail) {
+      order.guestEmail = decrypt(order.guestEmail);
+    }
+    if (order.user && order.user.email) {
+      order.user.email = decrypt(order.user.email);
     }
     if (order.payment && order.payment.transactionId) {
       order.payment.transactionId = decrypt(order.payment.transactionId);

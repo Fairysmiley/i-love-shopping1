@@ -1,7 +1,23 @@
 import { PrismaClient, Prisma, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { encrypt, hashForLookup } from '../src/common/utils/encryption.util';
 
 const prisma = new PrismaClient();
+
+/** Mirrors UsersService's encryption for seed data, so seeded accounts are
+ * stored exactly like accounts created through the real registration flow. */
+function encryptedUser<T extends { email: string; firstName: string; lastName: string }>(
+  input: T,
+): Omit<T, 'email' | 'firstName' | 'lastName'> & { email: string; emailHash: string; firstName: string; lastName: string } {
+  const email = input.email.toLowerCase();
+  return {
+    ...input,
+    email: encrypt(email),
+    emailHash: hashForLookup(email),
+    firstName: encrypt(input.firstName),
+    lastName: encrypt(input.lastName),
+  };
+}
 
 function slugify(input: string): string {
   return input
@@ -18,29 +34,64 @@ async function main(): Promise<void> {
 
   // --- Admin + demo customer ---
   const adminPassword = await argon2.hash('Admin!Passw0rd');
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@villi.test' },
+  await prisma.user.upsert({
+    where: { emailHash: hashForLookup('admin@villi.test') },
     update: {},
-    create: {
+    create: encryptedUser({
       email: 'admin@villi.test',
       passwordHash: adminPassword,
       firstName: 'Site',
       lastName: 'Admin',
       role: Role.ADMIN,
       isEmailVerified: true,
-    },
+    }),
   });
 
   const customerPassword = await argon2.hash('Shopper!Passw0rd');
-  const customer = await prisma.user.upsert({
-    where: { email: 'shopper@villi.test' },
+  await prisma.user.upsert({
+    where: { emailHash: hashForLookup('shopper@villi.test') },
     update: {},
-    create: {
+    create: encryptedUser({
       email: 'shopper@villi.test',
       passwordHash: customerPassword,
       firstName: 'Aino',
       lastName: 'Virtanen',
       isEmailVerified: true,
+    }),
+  });
+
+  // --- Delivery options ---
+  await prisma.deliveryOption.upsert({
+    where: { name: 'Standard Shipping' },
+    update: {},
+    create: {
+      name: 'Standard Shipping',
+      description: 'Delivered by courier within the EU',
+      price: new Prisma.Decimal('4.99'),
+      estimatedDaysMin: 3,
+      estimatedDaysMax: 7,
+    },
+  });
+  await prisma.deliveryOption.upsert({
+    where: { name: 'Express Shipping' },
+    update: {},
+    create: {
+      name: 'Express Shipping',
+      description: 'Priority delivery, next business day where available',
+      price: new Prisma.Decimal('14.99'),
+      estimatedDaysMin: 1,
+      estimatedDaysMax: 2,
+    },
+  });
+  await prisma.deliveryOption.upsert({
+    where: { name: 'Free Pickup' },
+    update: {},
+    create: {
+      name: 'Free Pickup',
+      description: 'Collect from our Helsinki showroom',
+      price: new Prisma.Decimal('0.00'),
+      estimatedDaysMin: 1,
+      estimatedDaysMax: 3,
     },
   });
 
@@ -332,6 +383,9 @@ async function main(): Promise<void> {
         price: new Prisma.Decimal(p.price),
         averageRating: p.rating,
         ratingCount: p.ratingCount,
+        // Re-seeding resets the demo catalog to its pristine one-of-a-kind
+        // state, even if orders placed against it during testing sold out.
+        stockQuantity: 1,
       },
       create: {
         name: p.name,
@@ -378,9 +432,9 @@ async function main(): Promise<void> {
   for (const r of reviewerSeed) {
     reviewers.push(
       await prisma.user.upsert({
-        where: { email: r.email },
+        where: { emailHash: hashForLookup(r.email) },
         update: {},
-        create: { ...r, passwordHash: reviewerPassword, isEmailVerified: true },
+        create: encryptedUser({ ...r, passwordHash: reviewerPassword, isEmailVerified: true }),
       }),
     );
   }
@@ -424,7 +478,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seeded: admin=${admin.email}, customer=${customer.email}, products=${products.length}, reviewers=${reviewers.length}`,
+    `Seeded: admin=admin@villi.test, customer=shopper@villi.test, products=${products.length}, reviewers=${reviewers.length}`,
   );
 }
 

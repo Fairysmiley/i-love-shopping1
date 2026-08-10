@@ -14,6 +14,7 @@ export function ProductPage() {
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
   const [recommended, setRecommended] = useState<Product[]>([]);
+  const [selectedImage, setSelectedImage] = useState(0);
   const { addItem } = useCart();
 
   const load = () => {
@@ -22,6 +23,7 @@ export function ProductPage() {
       .get<Product>(`/products/${slug}`)
       .then((p) => {
         setProduct(p);
+        setSelectedImage(0);
         // Fetch recommendations based on category
         api.get<{items: Product[]}>(`/products?category=${p.category?.slug}&limit=4`)
            .then(res => setRecommended(res.items.filter(item => item.id !== p.id).slice(0, 4)))
@@ -54,11 +56,47 @@ export function ProductPage() {
         &larr; Back to catalog
       </Link>
       <div className="layout product-detail">
-        <img
-          src={product.images[0]?.largeUrl || product.images[0]?.url}
-          alt={product.images[0]?.altText || `Photograph of ${product.name}`}
-          style={{ width: '100%', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-        />
+        <div>
+          <img
+            src={product.images[selectedImage]?.url || product.images[0]?.url}
+            alt={product.images[selectedImage]?.altText || `Photograph of ${product.name}`}
+            style={{ width: '100%', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+          />
+          {product.images.length > 1 && (
+            <div
+              role="tablist"
+              aria-label="Product images"
+              style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}
+            >
+              {product.images.map((img, i) => (
+                <button
+                  key={img.url + i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === selectedImage}
+                  aria-label={`Show image ${i + 1} of ${product.images.length}`}
+                  onClick={() => setSelectedImage(i)}
+                  style={{
+                    padding: 0,
+                    border: i === selectedImage ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    width: 64,
+                    height: 64,
+                    background: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={img.thumbnailUrl || img.url}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div>
           <div className="brand-tag muted">{product.brand.name}</div>
           <h1 style={{ margin: '4px 0' }}>{product.name}</h1>

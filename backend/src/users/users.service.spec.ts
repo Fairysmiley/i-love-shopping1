@@ -26,7 +26,9 @@ describe('UsersService.findOrCreateFromOAuth', () => {
   });
 
   it('returns an existing user when the OAuth link already exists', async () => {
-    const existing = { id: 'u1', email: 'a@b.com' };
+    // Plain (unencrypted-looking) values are fine here — decrypt() passes
+    // through anything without the iv:authTag:ciphertext shape unchanged.
+    const existing = { id: 'u1', email: 'a@b.com', firstName: 'A', lastName: 'B' };
     prisma.oAuthAccount.findUnique.mockResolvedValue({ user: existing });
 
     const user = await service.findOrCreateFromOAuth({
@@ -37,7 +39,9 @@ describe('UsersService.findOrCreateFromOAuth', () => {
       lastName: 'B',
     });
 
-    expect(user).toBe(existing);
+    // The OAuth-link path now decrypts before returning (fixes a pre-existing
+    // bug where it skipped decryption), so this is a new object, not `existing`.
+    expect(user).toEqual(existing);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 

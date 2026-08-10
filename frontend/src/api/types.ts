@@ -17,7 +17,7 @@ export interface AuthResponse {
 export interface ProductImage {
   url: string;
   thumbnailUrl: string;
-  largeUrl: string;
+  mediumUrl: string;
   altText?: string | null;
   isPrimary: boolean;
 }
@@ -65,6 +65,18 @@ export interface Facets {
   brands: { slug: string; name: string; count: number }[];
   attributes: Record<string, Record<string, number>>;
   price: { min: number; max: number };
+}
+
+export interface Address {
+  id: string;
+  label: string | null;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Category {

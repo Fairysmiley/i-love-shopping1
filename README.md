@@ -602,7 +602,7 @@ The platform was hardened in Task 3 to guarantee fast paint times, optimal acces
 - **Responsive Layout:** CSS dynamically shifts between Grid and Flexbox layouts based on viewport width (`minmax()`), preventing unnecessary CSS reflows and reducing CPU overhead on low-tier mobile devices.
 
 ### 3. Application Security & Scalability Overhead
-- **Throttling:** Implemented `@nestjs/throttler` (Token Bucket Algorithm) to reject abusive traffic at the application edge quickly, protecting downstream databases from resource exhaustion.
+- **Throttling:** `@nestjs/throttler`'s guard/decorators backed by a custom Redis-based token-bucket storage (`backend/src/common/throttler/token-bucket-throttler.storage.ts`, atomic via a Lua script) — continuous refill rather than a fixed-window reset, and consistent across API instances since state lives in Redis. See the [Load Test Report](docs/load_test_report.md) for real throughput/latency numbers.
 - **Stateless Tokens:** Using signed JWTs means horizontal scaling of the Node.js API requires 0 additional lookup overhead for validating standard requests, as the token natively encapsulates the user identity.
 
 ---

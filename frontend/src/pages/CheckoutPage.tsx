@@ -7,27 +7,85 @@ import { useAuth } from '../auth/AuthContext';
 import { StripePaymentForm } from '../components/StripePaymentForm';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import { usePageTitle } from '../components/SEO';
+import type { Address as SavedAddress } from '../api/types';
 
 // We initialize Stripe with a dummy test key if VITE_STRIPE_PUBLIC_KEY is missing
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_test_TYooMQauvdEDq54NiTphI7jx');
 
+interface DeliveryOption {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  estimatedDaysMin: number;
+  estimatedDaysMax: number;
+}
+
+interface Address {
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+}
+
+const EMPTY_ADDRESS: Address = { street: '', city: '', postalCode: '', country: '' };
+
 export function CheckoutPage() {
-  const { cart, refreshCart } = useCart();
+  usePageTitle('Checkout');
+  const { cart, refreshCart, updateItem, removeItem } = useCart();
   const navigate = useNavigate();
-  const [shippingAddress, setShippingAddress] = useState('');
+  const [address, setAddress] = useState<Address>(EMPTY_ADDRESS);
+  const [email, setEmail] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('card');
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
+  const [deliveryOptionId, setDeliveryOptionId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
   const { user } = useAuth();
 
   // "For logged-in users, known information is pre-filled in the checkout form. (Task 2)"
   useEffect(() => {
-    if (user) {
-      setShippingAddress(`${user.firstName} ${user.lastName}\n`);
-    }
+    if (!user) return;
+    setEmail(user.email);
+    api
+      .get<SavedAddress[]>('/addresses')
+      .then((addresses) => {
+        setSavedAddresses(addresses);
+        const preferred = addresses.find((a) => a.isDefault) ?? addresses[0];
+        if (preferred) {
+          setSelectedAddressId(preferred.id);
+          setAddress({ street: preferred.street, city: preferred.city, postalCode: preferred.postalCode, country: preferred.country });
+        }
+      })
+      .catch(() => setSavedAddresses([]));
   }, [user]);
+
+  const selectSavedAddress = (id: string) => {
+    setSelectedAddressId(id);
+    if (!id) {
+      setAddress(EMPTY_ADDRESS);
+      return;
+    }
+    const found = savedAddresses.find((a) => a.id === id);
+    if (found) {
+      setAddress({ street: found.street, city: found.city, postalCode: found.postalCode, country: found.country });
+    }
+  };
+
+  useEffect(() => {
+    api
+      .get<DeliveryOption[]>('/delivery-options?activeOnly=true')
+      .then((options) => {
+        setDeliveryOptions(options);
+        if (options.length > 0) setDeliveryOptionId((current) => current || options[0].id);
+      })
+      .catch(() => setDeliveryOptions([]));
+  }, []);
 
   if (!cart || cart.items.length === 0) {
     return (
@@ -39,10 +97,22 @@ export function CheckoutPage() {
     );
   }
 
+  const selectedOption = deliveryOptions.find((o) => o.id === deliveryOptionId);
+  const shippingCost = selectedOption?.price ?? 0;
+  const total = cart.total + shippingCost;
+
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shippingAddress.trim() || shippingAddress.length < 10) {
-      setError('Please enter a valid, complete shipping address');
+    if (!address.street.trim() || !address.city.trim() || !address.postalCode.trim() || !address.country.trim()) {
+      setError('Please fill in your full shipping address.');
+      return;
+    }
+    if (!user && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Please enter a valid email address for your order confirmation.');
+      return;
+    }
+    if (!deliveryOptionId) {
+      setError('Please choose a shipping option.');
       return;
     }
     setError('');
@@ -52,14 +122,16 @@ export function CheckoutPage() {
       // 1. Create PENDING order
       const order = await api.post<{ id: string }>('/checkout', {
         paymentMethodId,
-        shippingAddress,
+        shippingAddress: address,
+        deliveryOptionId,
+        ...(user ? {} : { email }),
       });
       setOrderId(order.id);
 
       // 2. Create Stripe Payment Intent
       const intent = await api.post<{ clientSecret: string, intentId: string }>('/checkout/create-intent', {
         orderId: order.id,
-        amount: cart.total,
+        amount: total,
         currency: 'EUR'
       });
       setClientSecret(intent.clientSecret);
@@ -82,26 +154,110 @@ export function CheckoutPage() {
   return (
     <div className="container" style={{ padding: 28, maxWidth: 800 }}>
       <h1>Checkout</h1>
-      
+
       <div className="layout" style={{ gap: 40, gridTemplateColumns: '1fr 320px', padding: 0 }}>
         <div>
           {!orderId ? (
             <form className="panel" onSubmit={handlePlaceOrder}>
               <h2>Shipping & Payment</h2>
               {error && <div className="alert alert-error">{error}</div>}
-              
+
+              {!user && (
+                <div className="field">
+                  <label htmlFor="guest-email">Email</label>
+                  <input
+                    id="guest-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                  />
+                  <p className="muted" style={{ fontSize: '0.75rem' }}>
+                    We'll send your order confirmation here. <a href="/login">Sign in</a> to check out faster next time.
+                  </p>
+                </div>
+              )}
+
+              {user && savedAddresses.length > 0 && (
+                <div className="field">
+                  <label htmlFor="saved-address">Shipping address</label>
+                  <select
+                    id="saved-address"
+                    value={selectedAddressId}
+                    onChange={(e) => selectSavedAddress(e.target.value)}
+                  >
+                    <option value="">Enter a new address</option>
+                    {savedAddresses.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label ? `${a.label} — ` : ''}
+                        {a.street}, {a.city}
+                        {a.isDefault ? ' (default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="field">
-                <label htmlFor="address">Shipping Address</label>
-                <textarea
-                  id="address"
-                  rows={3}
-                  value={shippingAddress}
-                  onChange={(e) => setShippingAddress(e.target.value)}
-                  placeholder="123 Example St&#10;City, Country 12345"
+                <label htmlFor="street">Street address</label>
+                <input
+                  id="street"
+                  value={address.street}
+                  onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                  placeholder="123 Example St"
                   required
-                  minLength={10}
                 />
-                <p className="muted" style={{ fontSize: "0.75rem" }}>Must be at least 10 characters.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                <div className="field">
+                  <label htmlFor="city">City</label>
+                  <input
+                    id="city"
+                    value={address.city}
+                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                    placeholder="Helsinki"
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="postalCode">Postal code</label>
+                  <input
+                    id="postalCode"
+                    value={address.postalCode}
+                    onChange={(e) => setAddress({ ...address, postalCode: e.target.value })}
+                    placeholder="00100"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="country">Country</label>
+                <input
+                  id="country"
+                  value={address.country}
+                  onChange={(e) => setAddress({ ...address, country: e.target.value })}
+                  placeholder="Finland"
+                  required
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="delivery">Shipping option</label>
+                <select
+                  id="delivery"
+                  value={deliveryOptionId}
+                  onChange={(e) => setDeliveryOptionId(e.target.value)}
+                  required
+                >
+                  {deliveryOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name} — {money(opt.price, 'EUR')} ({opt.estimatedDaysMin}-{opt.estimatedDaysMax} days)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="field">
@@ -117,17 +273,17 @@ export function CheckoutPage() {
               </div>
 
               <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-                {busy ? 'Creating Order...' : `Proceed to Payment (${money(cart.total, 'EUR')})`}
+                {busy ? 'Creating Order...' : `Proceed to Payment (${money(total, 'EUR')})`}
               </button>
             </form>
           ) : (
             <div className="panel">
               <h2>Complete Payment</h2>
               {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
-              
+
               {clientSecret && (
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
-                  <StripePaymentForm 
+                  <StripePaymentForm
                     orderId={orderId}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
@@ -135,7 +291,7 @@ export function CheckoutPage() {
                   />
                 </Elements>
               )}
-              
+
               {busy && <p className="muted center" style={{ marginTop: 16 }}>Processing your payment securely...</p>}
             </div>
           )}
@@ -146,15 +302,56 @@ export function CheckoutPage() {
             <h2 style={{ fontSize: "1.125rem", marginTop: 0 }}>Order Summary</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
               {cart.items.map(item => (
-                <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: "0.875rem" }}>
-                  <span>{item.quantity}x {item.product.name}</span>
-                  <span>{money(item.itemTotal, 'EUR')}</span>
+                <div key={item.productId} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: "0.875rem" }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{item.product.name}</span>
+                    <span>{money(item.itemTotal, 'EUR')}</span>
+                  </div>
+                  {!orderId && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ padding: '0 6px', fontSize: '0.75rem' }}
+                          onClick={() => updateItem(item.productId, Math.max(1, item.quantity - 1))}
+                        >
+                          -
+                        </button>
+                        <span style={{ minWidth: 18, textAlign: 'center' }}>{item.quantity}</span>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ padding: '0 6px', fontSize: '0.75rem' }}
+                          onClick={() => updateItem(item.productId, item.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ color: 'var(--danger)', borderColor: 'var(--danger)', padding: '0 6px', fontSize: '0.7rem' }}
+                        onClick={() => removeItem(item.productId)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: 4 }}>
+              <span className="muted">Subtotal</span>
+              <span>{money(cart.total, 'EUR')}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: 16 }}>
+              <span className="muted">Shipping{selectedOption ? ` (${selectedOption.name})` : ''}</span>
+              <span>{money(shippingCost, 'EUR')}</span>
+            </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>Total</span>
-              <span>{money(cart.total, 'EUR')}</span>
+              <span>{money(total, 'EUR')}</span>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { money } from '../format';
+import { usePageTitle } from '../components/SEO';
 
 interface OrderItem {
   id: string;
@@ -24,6 +25,7 @@ interface Order {
 }
 
 export function OrdersPage() {
+  usePageTitle('My Orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');

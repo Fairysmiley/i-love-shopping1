@@ -7,10 +7,12 @@ import { BulkUploadPanel } from './BulkUploadPanel';
 import { DeliveryOptionsPanel } from './DeliveryOptionsPanel';
 import { useAuth } from '../../auth/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { usePageTitle } from '../../components/SEO';
 
 type AdminTab = 'products' | 'orders' | 'users' | 'reviews' | 'bulk-upload' | 'delivery';
 
 export function AdminDashboardPage() {
+  usePageTitle('Admin Dashboard');
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
 

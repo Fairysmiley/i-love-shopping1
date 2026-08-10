@@ -387,7 +387,7 @@ describe('Villi API (e2e)', () => {
       await api().post('/api/v1/auth/forgot-password').send({ email: resetEmail }).expect(202);
 
       const prisma = app.get(PrismaService);
-      const user = await prisma.user.findUnique({ where: { email: resetEmail } });
+      const user = await app.get(UsersService).findByEmail(resetEmail);
       expect(user).toBeTruthy();
 
       const rawToken = `e2e-reset-${unique}`;
@@ -489,15 +489,63 @@ describe('Villi API (e2e)', () => {
         .expect(401);
     });
 
-    it('enforces mandatory 2FA gateway for ADMIN role', async () => {
+    it('gates ADMIN role behind mandatory 2FA, via a scoped bootstrap token that can only enroll', async () => {
+      // This test enrolls 2FA on the seeded admin as a side effect, which
+      // would make a second run against the same persistent dev DB find the
+      // admin already enrolled — reset first so the test is idempotent.
+      const prisma = app.get(PrismaService);
+      const adminUser = await app.get(UsersService).findByEmail('admin@villi.test');
+      if (adminUser) {
+        await prisma.twoFactorSecret.deleteMany({ where: { userId: adminUser.id } });
+      }
+
       // The seeded admin@villi.test does not have 2FA enabled by default.
-      // Trying to log in should immediately reject with a 401 demanding 2FA enrollment.
-      const res = await api()
+      // Logging in must not return a normal session — only a short-lived,
+      // narrowly-scoped token good for nothing but finishing 2FA enrollment.
+      const login = await api()
         .post('/api/v1/auth/login')
         .send({ email: 'admin@villi.test', password: 'Admin!Passw0rd' })
-        .expect(401);
-      
-      expect(res.body.message).toMatch(/Administrators and Staff must enroll in Two-Factor Authentication/i);
+        .expect(200);
+      expect(login.body.requiresTwoFactorSetup).toBe(true);
+      const setupToken = login.body.accessToken as string;
+      expect(setupToken).toEqual(expect.any(String));
+
+      // The scoped token must NOT be usable for a normal admin action.
+      await api()
+        .get('/api/v1/orders/all')
+        .set('Authorization', `Bearer ${setupToken}`)
+        .expect(403);
+
+      // It IS usable for the 2FA setup/enable endpoints themselves.
+      const setup = await api()
+        .post('/api/v1/auth/2fa/setup')
+        .set('Authorization', `Bearer ${setupToken}`)
+        .expect(201);
+      const adminSecret = secretFromOtpauthUrl(setup.body.otpauthUrl as string);
+      expect(adminSecret.length).toBeGreaterThan(10);
+
+      // Enrolling completes login inline — a full session comes back.
+      const enable = await api()
+        .post('/api/v1/auth/2fa/enable')
+        .set('Authorization', `Bearer ${setupToken}`)
+        .send({ code: authenticator.generate(adminSecret) })
+        .expect(200);
+      expect(enable.body.enabled).toBe(true);
+      const fullToken = enable.body.accessToken as string;
+      expect(fullToken).toEqual(expect.any(String));
+
+      // The full session can now use admin-only routes.
+      await api()
+        .get('/api/v1/orders/all')
+        .set('Authorization', `Bearer ${fullToken}`)
+        .expect(200);
+
+      // Subsequent logins authenticate normally (2FA code required, no more setup gate).
+      const relogin = await api()
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@villi.test', password: 'Admin!Passw0rd' })
+        .expect(200);
+      expect(relogin.body.requiresTwoFactor).toBe(true);
     });
   });
 

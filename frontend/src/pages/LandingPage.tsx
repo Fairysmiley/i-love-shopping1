@@ -55,7 +55,7 @@ export function LandingPage() {
     <div className="landing">
       <SEO
         title="Verified Pre-Loved Nordic Outdoor Apparel"
-        description="Shop authenticated pre-loved outdoor gear from premium Nordic brands like Fjällräven, Haglöfs, and Norrøna. Sustainable, verified, and ready for your next adventure."
+        description="Shop authenticated pre-loved outdoor gear from Nordic brands like Fjällräven, Haglöfs, and Norrøna. Sustainable, verified, and ready for your next adventure."
         canonical="https://villi.com/"
         ogType="website"
         ogImage="/hero-emblem.png"

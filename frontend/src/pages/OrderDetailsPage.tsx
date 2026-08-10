@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { money } from '../format';
+import { usePageTitle } from '../components/SEO';
 
 interface Order {
   id: string;
@@ -28,6 +29,7 @@ interface Order {
 }
 
 export function OrderDetailsPage() {
+  usePageTitle('Order Details');
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');

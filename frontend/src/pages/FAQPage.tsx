@@ -127,7 +127,7 @@ export function FAQPage() {
     <div className="container" style={{ padding: 28, maxWidth: 900 }}>
       <SEO
         title="Frequently Asked Questions"
-        description="Find answers to common questions about Villi's authenticated pre-loved Nordic outdoor apparel, shipping, returns, and more."
+        description="Find answers to common questions about Villi's authenticated pre-loved Nordic outdoor apparel: shipping, returns, sizing, and authenticity checks explained."
         canonical="https://villi.com/faq"
       />
       <div style={{ textAlign: 'center', marginBottom: 48 }}>

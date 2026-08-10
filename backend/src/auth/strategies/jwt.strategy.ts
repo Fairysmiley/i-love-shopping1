@@ -31,6 +31,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       role: payload.role,
       jti: payload.jti,
       twoFactorEnabled: payload.twoFactorEnabled,
+      // Tokens issued before this field existed default to 'full' so
+      // existing sessions keep working through the rollout.
+      scope: payload.scope ?? 'full',
     };
   }
 }

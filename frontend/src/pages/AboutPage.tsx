@@ -5,7 +5,7 @@ export function AboutPage() {
     <div className="container" style={{ padding: 28, maxWidth: 800 }}>
       <SEO
         title="About Villi"
-        description="Learn about Villi's mission to reduce environmental impact through authenticated pre-loved Nordic outdoor apparel from brands like Fjällräven, Haglöfs, and Norrøna."
+        description="Learn about Villi's mission to cut environmental impact through authenticated pre-loved Nordic outdoor apparel from Fjällräven, Haglöfs, Norrøna, and more."
         canonical="https://villi.com/about"
       />
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -71,11 +71,34 @@ export function AboutPage() {
       <div style={{ textAlign: 'center' }}>
         <h3>Connect with us</h3>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 16 }}>
-          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="Instagram link - Coming soon">Instagram</button>
-          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="Twitter / X link - Coming soon">Twitter / X</button>
-          <button className="btn" style={{ background: 'transparent', border: '1px solid var(--border)', cursor: 'not-allowed', opacity: 0.6 }} disabled aria-label="LinkedIn link - Coming soon">LinkedIn</button>
+          <a
+            className="btn"
+            style={{ background: 'transparent', border: '1px solid var(--border)' }}
+            href="https://instagram.com/villi.outdoor"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Instagram
+          </a>
+          <a
+            className="btn"
+            style={{ background: 'transparent', border: '1px solid var(--border)' }}
+            href="https://x.com/villi_outdoor"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Twitter / X
+          </a>
+          <a
+            className="btn"
+            style={{ background: 'transparent', border: '1px solid var(--border)' }}
+            href="https://linkedin.com/company/villi-outdoor"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            LinkedIn
+          </a>
         </div>
-        <p className="muted" style={{ fontSize: '0.75rem', marginTop: 8 }}>Social media links coming soon</p>
       </div>
     </div>
   );

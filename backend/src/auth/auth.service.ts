@@ -63,17 +63,21 @@ export class AuthService {
   }
 
   /**
-   * Validates credentials and, when 2FA is enabled, the TOTP code. Returns the
-   * user on success, or signals that a second factor is still required.
+   * Validates credentials and, when 2FA is enabled, the TOTP code. Returns
+   * the user on success, signals that a second factor is still required, or
+   * — for a privileged role that has never enrolled in 2FA — signals that
+   * enrollment must happen now (the controller issues a narrowly-scoped
+   * setup token for this, rather than a hard lockout with no way back in).
    */
-  async login(dto: LoginDto): Promise<{ user: User } | { requiresTwoFactor: true }> {
+  async login(
+    dto: LoginDto,
+  ): Promise<{ user: User } | { requiresTwoFactor: true } | { requiresTwoFactorSetup: true; user: User }> {
     const user = await this.validateCredentials(dto.email, dto.password);
     const isTwoFactorEnabled = await this.twoFactor.isEnabled(user.id);
 
-    // TEMPORARILY DISABLED FOR DEVELOPMENT - Re-enable in production!
-    // if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !isTwoFactorEnabled) {
-    //   throw new UnauthorizedException('Administrators and Staff must enroll in Two-Factor Authentication before logging in. Please contact another administrator or use a setup token.');
-    // }
+    if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !isTwoFactorEnabled) {
+      return { requiresTwoFactorSetup: true, user };
+    }
 
     if (isTwoFactorEnabled) {
       if (!dto.twoFactorCode) {

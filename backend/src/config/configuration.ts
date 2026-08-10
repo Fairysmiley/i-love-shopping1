@@ -5,6 +5,7 @@ export interface AppConfig {
   webPublicUrl: string;
   databaseUrl: string;
   redis: { host: string; port: number; url: string };
+  rabbitmq: { url: string };
   jwt: {
     accessSecret: string;
     refreshSecret: string;
@@ -24,6 +25,7 @@ export interface AppConfig {
     user: string;
     password: string;
     from: string;
+    supportInbox: string;
   };
   twoFactorAppName: string;
   throttle: { ttl: number; limit: number };
@@ -39,6 +41,9 @@ export default (): AppConfig => ({
     host: process.env.REDIS_HOST ?? 'localhost',
     port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  },
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL ?? 'amqp://localhost:5672',
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? 'dev_access_secret',
@@ -80,6 +85,7 @@ export default (): AppConfig => ({
     user: process.env.SMTP_USER ?? '',
     password: process.env.SMTP_PASSWORD ?? '',
     from: process.env.MAIL_FROM ?? 'Villi <no-reply@villi.test>',
+    supportInbox: process.env.SUPPORT_INBOX_EMAIL ?? '',
   },
   twoFactorAppName: process.env.TWO_FACTOR_APP_NAME ?? 'Villi',
   throttle: {

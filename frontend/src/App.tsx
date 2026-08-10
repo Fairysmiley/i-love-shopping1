@@ -16,10 +16,13 @@ import { CartPage } from './pages/CartPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
+import { TermsPage } from './pages/TermsPage';
+import { FAQPage } from './pages/FAQPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminDashboardPage } from './pages/Admin/AdminDashboardPage';
 import { useAuth } from './auth/AuthContext';
 import { CartSidebar } from './cart/CartSidebar';
+import { Footer } from './components/Footer';
 import type { ReactNode } from 'react';
 
 function Protected({ children }: { children: ReactNode }) {
@@ -52,14 +55,8 @@ export function App() {
               </Protected>
             }
           />
-          <Route
-            path="/checkout"
-            element={
-              <Protected>
-                <CheckoutPage />
-              </Protected>
-            }
-          />
+          {/* Not wrapped in <Protected> — checkout supports guest and logged-in users. */}
+          <Route path="/checkout" element={<CheckoutPage />} />
           <Route
             path="/orders"
             element={
@@ -87,10 +84,13 @@ export function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/faq" element={<FAQPage />} />
           <Route path="/order-confirmation/:id" element={<OrderConfirmationPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
+      <Footer />
     </>
   );
 }

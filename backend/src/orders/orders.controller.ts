@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Patch, Query, UseGuards } from '@ne
 import { OrdersService } from './orders.service';
 import { OrderFilterDto, UpdateOrderStatusDto } from './dto/order.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -13,6 +14,19 @@ export class OrdersController {
   @Get()
   async getUserOrders(@CurrentUser() user: any, @Query() filter: OrderFilterDto) {
     return this.ordersService.getUserOrders(user.userId, filter);
+  }
+
+  /**
+   * Safe, no-auth summary for the order-confirmation page. Guests have no
+   * account/session to authenticate the full `/orders/:id` view with, so
+   * this route deliberately omits address/payment details and is reachable
+   * with only the order id (an unguessable UUID just handed back by
+   * checkout) — the same tradeoff as `createPaymentIntent` in checkout.
+   */
+  @Public()
+  @Get(':id/confirmation')
+  async getOrderConfirmation(@Param('id') id: string) {
+    return this.ordersService.getOrderConfirmation(id);
   }
 
   @Get('all')

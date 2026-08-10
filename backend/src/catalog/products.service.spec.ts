@@ -79,13 +79,15 @@ describe('ProductsService.toPublic (product data model shape)', () => {
 
   it('maps images and faceted attributes', () => {
     const dto = service.toPublic(fullProduct);
-    expect(dto.images).toEqual([{ 
-      url: 'https://x/y.jpg', 
-      altText: 'jacket', 
-      isPrimary: true,
-      largeUrl: 'https://x/y.jpg',
-      thumbnailUrl: 'https://x/y.jpg',
-    }]);
+    expect(dto.images).toEqual([
+      {
+        url: 'https://x/y.jpg',
+        altText: 'jacket',
+        isPrimary: true,
+        thumbnailUrl: 'https://x/y.jpg',
+        mediumUrl: 'https://x/y.jpg',
+      },
+    ]);
     expect(dto.attributes).toEqual([
       { name: 'condition', value: 'Like New' },
       { name: 'size', value: 'L' },

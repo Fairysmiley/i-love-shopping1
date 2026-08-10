@@ -1,32 +1,68 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { CheckoutService } from './checkout.service';
-import { CheckoutDto } from './dto/checkout.dto';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+  RawBodyRequest,
+} from '@nestjs/common';
+import { Request } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { Req } from '@nestjs/common';
+import { CheckoutService } from './checkout.service';
+import { CheckoutDto } from './dto/checkout.dto';
 
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
 
-  @Post()
-  async processCheckout(@CurrentUser() user: any, @Body() dto: CheckoutDto) {
-    return this.checkoutService.processCheckout(user.userId, dto);
+  private extractCtx(req: Request, user: any) {
+    const userId = user?.userId;
+    const guestId = req.headers['x-guest-cart-id'] as string | undefined;
+    return { userId, guestId };
   }
 
+  @Public()
+  @Post()
+  async processCheckout(@Req() req: Request, @CurrentUser() user: any, @Body() dto: CheckoutDto) {
+    const { userId, guestId } = this.extractCtx(req, user);
+    return this.checkoutService.processCheckout({ userId, guestId, email: dto.email }, dto);
+  }
+
+  @Public()
   @Post('create-intent')
-  async createPaymentIntent(@CurrentUser() user: any, @Body() dto: { orderId: string, amount: number, currency: string }) {
-    const intent = await this.checkoutService.createStripePaymentIntent(dto.amount, dto.currency, dto.orderId);
+  async createPaymentIntent(
+    @Req() req: Request,
+    @CurrentUser() user: any,
+    @Body() dto: { orderId: string; amount: number; currency: string },
+  ) {
+    const { userId } = this.extractCtx(req, user);
+    await this.checkoutService.assertOrderAccess(dto.orderId, userId);
+    const intent = await this.checkoutService.createStripePaymentIntent(
+      dto.amount,
+      dto.currency,
+      dto.orderId,
+    );
     return { clientSecret: intent.client_secret, intentId: intent.id };
   }
 
   @Public()
   @Post('webhook')
-  async paymentWebhook(@Req() req: any) {
-    // In a real environment, you'd use req.rawBody and stripe-signature header to verify
-    // the webhook payload. For this implementation, we will pass the parsed body directly
-    // since the stripe verification might fail in sandbox without proper raw body middleware.
-    await this.checkoutService.handleStripeWebhook(req.body);
+  async paymentWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('stripe-signature') signature: string,
+  ) {
+    if (!req.rawBody || !signature) {
+      throw new BadRequestException('Missing Stripe signature or raw payload.');
+    }
+    let event;
+    try {
+      event = this.checkoutService.verifyWebhookSignature(signature, req.rawBody);
+    } catch {
+      throw new BadRequestException('Invalid Stripe webhook signature.');
+    }
+    await this.checkoutService.handleStripeWebhook(event);
     return { received: true };
   }
 }

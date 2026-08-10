@@ -42,6 +42,23 @@ services:
     expose:
       - '6379'
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    # 5672 (AMQP) is internal-only. Management UI (15672) is published for
+    # inspecting the payment-status queue / dead-letter queue during review.
+    ports:
+      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+    expose:
+      - '5672'
+
   api:
     build:
       context: ./backend
@@ -50,6 +67,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       mailhog:
         condition: service_started
@@ -60,6 +79,9 @@ services:
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:5173}
       DATABASE_URL: postgresql://${POSTGRES_USER:-villi}:${POSTGRES_PASSWORD:-villi_dev_password}@postgres:5432/${POSTGRES_DB:-villi}?schema=public
       REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access_secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900s}
@@ -96,6 +118,7 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3001/api/v1}
+        VITE_STRIPE_PUBLIC_KEY: ${VITE_STRIPE_PUBLIC_KEY:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_GOOGLE_OAUTH_ENABLED: ${VITE_GOOGLE_OAUTH_ENABLED:-false}
         VITE_GITHUB_OAUTH_ENABLED: ${VITE_GITHUB_OAUTH_ENABLED:-false}
@@ -132,14 +155,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       NODE_ENV: test
       DATABASE_URL: postgresql://${POSTGRES_USER:-villi}:${POSTGRES_PASSWORD:-villi_dev_password}@postgres:5432/${POSTGRES_DB:-villi}?schema=public
       REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      STRIPE_WEBHOOK_SECRET: whsec_test_secret_for_e2e
       JWT_ACCESS_SECRET: test_access_secret
       JWT_REFRESH_SECRET: test_refresh_secret
       JWT_ACCESS_TTL: 900s
       JWT_REFRESH_TTL: 7d
+      # Must match the `api` service's key — anything this container seeds or
+      # encrypts (e.g. `npm run prisma:seed`) has to be decryptable by the
+      # live API, which uses this same env var.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-to-32-byte-secret!}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -157,3 +188,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  rabbitmqdata:

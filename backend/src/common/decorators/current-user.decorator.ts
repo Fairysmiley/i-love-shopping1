@@ -6,6 +6,7 @@ export interface AuthUser {
   role: string;
   jti: string;
   twoFactorEnabled: boolean;
+  scope: 'full' | 'twofa_setup';
 }
 
 /** Extracts the authenticated user (populated by JwtStrategy) from the request. */

@@ -1,10 +1,33 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../cart/CartContext';
+import { api } from '../api/client';
 import { money } from '../format';
+import { usePageTitle } from '../components/SEO';
+import type { Product } from '../api/types';
 
 export function CartPage() {
+  usePageTitle('Shopping Cart');
   const { cart, updateItem, removeItem } = useCart();
   const navigate = useNavigate();
+  const [related, setRelated] = useState<Product[]>([]);
+
+  // "Incorporate a section for related or recommended products based on the
+  // items in the cart." (Task 2) — recommend from the first item's category.
+  useEffect(() => {
+    if (!cart || cart.items.length === 0) {
+      setRelated([]);
+      return;
+    }
+    const cartProductIds = new Set(cart.items.map((i) => i.productId));
+    api
+      .get<Product>(`/products/${cart.items[0].product.slug}`)
+      .then((product) =>
+        api.get<{ items: Product[] }>(`/products?category=${product.category?.slug}&limit=8`),
+      )
+      .then((res) => setRelated(res.items.filter((p) => !cartProductIds.has(p.id)).slice(0, 4)))
+      .catch(() => setRelated([]));
+  }, [cart?.items.length, cart?.items[0]?.productId]);
 
   if (!cart) return <div className="container" style={{ padding: 48, textAlign: 'center' }}>Loading...</div>;
 
@@ -19,7 +42,8 @@ export function CartPage() {
   }
 
   return (
-    <div className="container layout" style={{ maxWidth: 1000, padding: 28, gridTemplateColumns: '2fr 1fr', gap: 32 }}>
+    <div className="container" style={{ maxWidth: 1000, padding: 28 }}>
+    <div className="layout" style={{ gridTemplateColumns: '2fr 1fr', gap: 32, padding: 0 }}>
       <div>
         <h1>Shopping Cart</h1>
         <p className="muted">{cart.items.length} items</p>
@@ -93,6 +117,35 @@ export function CartPage() {
           </button>
         </div>
       </div>
+    </div>
+
+    {related.length > 0 && (
+      <div style={{ marginTop: 48 }}>
+        <h2>You might also like</h2>
+        <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+          {related.map((p) => (
+            <Link
+              to={`/product/${p.slug}`}
+              key={p.id}
+              className="panel"
+              style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+            >
+              {p.images && p.images[0] ? (
+                <img
+                  src={p.images[0].url}
+                  alt={p.name}
+                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, marginBottom: 12 }}
+                />
+              ) : (
+                <div style={{ width: '100%', aspectRatio: '1/1', background: '#e2e8f0', borderRadius: 8, marginBottom: 12 }} />
+              )}
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>{p.name}</h3>
+              <span style={{ fontWeight: 'bold' }}>{money(p.price)}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    )}
     </div>
   );
 }

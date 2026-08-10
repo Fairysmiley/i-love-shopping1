@@ -5,7 +5,7 @@ export function TermsPage() {
     <div className="container" style={{ padding: 28, maxWidth: 800 }}>
       <SEO
         title="Terms of Service"
-        description="Read Villi's Terms of Service for our authenticated pre-loved Nordic outdoor apparel marketplace."
+        description="Read Villi's Terms of Service and Privacy Policy covering accounts, orders, payments, and data use across our pre-loved Nordic outdoor apparel marketplace."
         canonical="https://villi.com/terms"
         noindex={true}
       />

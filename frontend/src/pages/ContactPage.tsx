@@ -1,14 +1,26 @@
 import { useState } from 'react';
 import { SEO } from '../components/SEO';
+import { api, ApiError } from '../api/client';
 
 export function ContactPage() {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setStatus('submitting');
-    // Simulate API call
-    setTimeout(() => setStatus('success'), 1000);
+    try {
+      await api.post('/contact', { name, email, subject, message }, { auth: false });
+      setStatus('success');
+    } catch (err) {
+      setStatus('idle');
+      setError(err instanceof ApiError ? err.message : 'Failed to send your message. Please try again.');
+    }
   };
 
   if (status === 'success') {
@@ -25,24 +37,40 @@ export function ContactPage() {
     <div className="container" style={{ padding: 28, maxWidth: 600 }}>
       <SEO
         title="Contact Support"
-        description="Get help with your order or questions about Villi's authenticated pre-loved Nordic outdoor gear. Our support team is here to help."
+        description="Get help with your order or ask a question about Villi's authenticated pre-loved Nordic outdoor gear. Our support team replies within 24 hours, every day."
         canonical="https://villi.com/contact"
       />
       <h1>Contact Support</h1>
       <p className="muted" style={{ marginBottom: 32 }}>Have a question about an order or need help finding specific gear? Let us know below.</p>
-      
+
+      {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+
       <form onSubmit={handleSubmit} className="panel">
         <div className="field">
           <label htmlFor="name">Full Name</label>
-          <input id="name" type="text" required placeholder="Jane Doe" />
+          <input
+            id="name"
+            type="text"
+            required
+            placeholder="Jane Doe"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div className="field">
           <label htmlFor="email">Email Address</label>
-          <input id="email" type="email" required placeholder="jane@example.com" />
+          <input
+            id="email"
+            type="email"
+            required
+            placeholder="jane@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
         <div className="field">
           <label htmlFor="subject">Subject</label>
-          <select id="subject" required>
+          <select id="subject" required value={subject} onChange={(e) => setSubject(e.target.value)}>
             <option value="">Select a topic...</option>
             <option value="order">Order Inquiry</option>
             <option value="product">Product Question</option>
@@ -52,7 +80,15 @@ export function ContactPage() {
         </div>
         <div className="field">
           <label htmlFor="message">Message</label>
-          <textarea id="message" required rows={5} placeholder="How can we help you today?"></textarea>
+          <textarea
+            id="message"
+            required
+            rows={5}
+            minLength={5}
+            placeholder="How can we help you today?"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
         </div>
         <button type="submit" className="btn btn-primary btn-block" disabled={status === 'submitting'}>
           {status === 'submitting' ? 'Sending...' : 'Send Message'}

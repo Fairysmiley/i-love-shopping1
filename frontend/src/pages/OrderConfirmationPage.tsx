@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { money } from '../format';
+import { useAuth } from '../auth/AuthContext';
+import { usePageTitle } from '../components/SEO';
 
 interface Order {
   id: string;
   status: string;
   totalAmount: number;
   currency: string;
-  shippingAddress: string;
   createdAt: string;
+  deliveryOption: { name: string; estimatedDaysMin: number; estimatedDaysMax: number } | null;
   items: {
     id: string;
     quantity: number;
@@ -22,13 +24,16 @@ interface Order {
 }
 
 export function OrderConfirmationPage() {
+  usePageTitle('Order Confirmation');
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
-    api.get<Order>(`/orders/${id}`)
+    // Public confirmation summary — works for guest and logged-in checkouts alike.
+    api.get<Order>(`/orders/${id}/confirmation`)
       .then(setOrder)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -37,9 +42,9 @@ export function OrderConfirmationPage() {
   if (loading) return <div className="container" style={{ padding: 48, textAlign: 'center' }}>Loading confirmation...</div>;
   if (!order) return <div className="container" style={{ padding: 48, textAlign: 'center' }}>Order not found.</div>;
 
-  // Calculate an estimated delivery date (e.g. 5 days from creation)
+  // Estimated delivery date, based on the chosen shipping option's max days.
   const deliveryDate = new Date(order.createdAt);
-  deliveryDate.setDate(deliveryDate.getDate() + 5);
+  deliveryDate.setDate(deliveryDate.getDate() + (order.deliveryOption?.estimatedDaysMax ?? 5));
 
   return (
     <div className="container" style={{ maxWidth: 800, padding: 48, textAlign: 'center' }}>
@@ -78,7 +83,9 @@ export function OrderConfirmationPage() {
       </div>
 
       <Link to="/shop" className="btn btn-primary">Continue Shopping</Link>
-      <Link to={`/orders/${order.id}`} className="btn" style={{ marginLeft: 16 }}>View Details</Link>
+      {user && (
+        <Link to={`/orders/${order.id}`} className="btn" style={{ marginLeft: 16 }}>View Details</Link>
+      )}
     </div>
   );
 }

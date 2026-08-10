@@ -97,20 +97,7 @@ export function Navbar() {
     return () => document.removeEventListener('keydown', onKey);
   }, [searchOpen]);
 
-  useEffect(() => {
-    if (!user) {
-      setSearchOpen(false);
-      setTerm('');
-      setSuggestOpen(false);
-      setActiveIndex(-1);
-    }
-  }, [user]);
-
   const submit = (value: string) => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
     setSuggestOpen(false);
     setSearchOpen(false);
     setActiveIndex(-1);
@@ -167,24 +154,23 @@ export function Navbar() {
             <span style={{ fontSize: "0.875rem" }}>contact</span>
           </Link>
 
-          {user && (
-            <button
-              type="button"
-              className="navbar-icon-action"
-              aria-label="Search products"
-              aria-expanded={searchOpen}
-              onClick={() => (searchOpen ? setSearchOpen(false) : openSearch())}
-            >
-              <SearchIcon />
-              <span>search</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="navbar-icon-action"
+            aria-label="Search products"
+            aria-expanded={searchOpen}
+            onClick={() => (searchOpen ? setSearchOpen(false) : openSearch())}
+          >
+            <SearchIcon />
+            <span>search</span>
+          </button>
 
-          {user && (
+          <Link to="/shop" className="navbar-icon-action">
+            <span>shop</span>
+          </Link>
+
+          {user ? (
             <>
-              <Link to="/shop" className="navbar-icon-action">
-                <span>shop</span>
-              </Link>
               <Link to="/account" className="navbar-icon-action">
                 <UserIcon />
                 <span>{user.firstName}</span>
@@ -202,27 +188,32 @@ export function Navbar() {
               >
                 <span>sign out</span>
               </button>
-              <button
-                type="button"
-                className="navbar-cart"
-                aria-label="Shopping cart"
-                aria-haspopup="dialog"
-                title="View your cart"
-                onClick={() => setIsOpen(true)}
-              >
-                <CartIcon />
-                {cart && cart.items.length > 0 && (
-                  <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--danger)', color: '#fff', fontSize: "0.625rem", padding: '2px 6px', borderRadius: 10, fontWeight: 'bold' }}>
-                    {cart.items.reduce((acc, item) => acc + item.quantity, 0)}
-                  </span>
-                )}
-              </button>
             </>
+          ) : (
+            <Link to="/login" className="navbar-icon-action">
+              <UserIcon />
+              <span>sign in</span>
+            </Link>
           )}
+          <button
+            type="button"
+            className="navbar-cart"
+            aria-label="Shopping cart"
+            aria-haspopup="dialog"
+            title="View your cart"
+            onClick={() => setIsOpen(true)}
+          >
+            <CartIcon />
+            {cart && cart.items.length > 0 && (
+              <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--danger)', color: '#fff', fontSize: "0.625rem", padding: '2px 6px', borderRadius: 10, fontWeight: 'bold' }}>
+                {cart.items.reduce((acc, item) => acc + item.quantity, 0)}
+              </span>
+            )}
+          </button>
         </nav>
       </div>
 
-      {user && searchOpen && (
+      {searchOpen && (
         <div className="navbar-search-panel" ref={boxRef}>
           <div className="container">
             <div className="search navbar-search-field">

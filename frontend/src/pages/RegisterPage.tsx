@@ -7,6 +7,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { config } from '../config';
 import { Recaptcha } from '../components/Recaptcha';
 import { SecuritySetupNote } from '../components/SecuritySetupNote';
+import { SEO } from '../components/SEO';
 import {
   hasNoErrors,
   validateCaptchaToken,
@@ -76,6 +77,12 @@ export function RegisterPage() {
 
   return (
     <div className="auth-wrap">
+      <SEO
+        title="Create Your Account"
+        description="Create a free Villi account to shop authenticated pre-loved Nordic outdoor apparel from Fjällräven, Haglöfs, and Norrøna, track orders, and save your addresses."
+        canonical="https://villi.com/register"
+        noindex
+      />
       <div className="auth-card">
         <h1>Create your account</h1>
         <p className="sub">Join Villi in seconds.</p>

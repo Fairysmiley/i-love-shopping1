@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { config } from '../config';
 import { validateEmail } from '../utils/validation';
+import { SEO } from '../components/SEO';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -30,6 +31,7 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="auth-wrap">
+      <SEO title="Forgot Password" description="Request a secure password reset link for your Villi account." noindex />
       <div className="auth-card">
         <h1>Reset password</h1>
         <p className="sub">We&apos;ll email you a secure reset link.</p>

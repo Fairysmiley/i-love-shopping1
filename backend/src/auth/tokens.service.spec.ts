@@ -37,7 +37,7 @@ function makePrisma() {
 
 describe('TokensService (JWT handling + refresh rotation)', () => {
   const jwt = new JwtService({ secret: SECRET, signOptions: { expiresIn: '900s' } });
-  const user = { id: 'user-1', email: 'a@b.com', role: Role.USER };
+  const user = { id: 'user-1', email: 'a@b.com', role: Role.USER, twoFactorEnabled: false };
 
   let prisma: ReturnType<typeof makePrisma>;
   let service: TokensService;

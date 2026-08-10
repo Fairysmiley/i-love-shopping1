@@ -16,7 +16,10 @@ async function bootstrap(): Promise<void> {
     cert: fs.readFileSync(path.join(process.cwd(), '..', 'certs/cert.pem')),
   };
 
-  const app = await NestFactory.create(AppModule, { cors: false, httpsOptions });
+  // rawBody: true keeps the original request buffer around (req.rawBody) so
+  // the Stripe webhook route can verify the signature against the exact
+  // bytes Stripe signed, even though the global pipe also parses it as JSON.
+  const app = await NestFactory.create(AppModule, { cors: false, httpsOptions, rawBody: true });
   const config = app.get(ConfigService);
 
   // API-first: a stable, versioned, documented surface.

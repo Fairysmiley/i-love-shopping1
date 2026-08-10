@@ -17,6 +17,12 @@ export interface AccessTokenPayload {
   role: string;
   jti: string;
   twoFactorEnabled: boolean;
+  /**
+   * 'full' is a normal session. 'twofa_setup' is issued only mid mandatory-
+   * 2FA-enrollment (ADMIN/SUPPORT/SALES logging in for the first time) and is
+   * restricted by TwoFactorScopeGuard to the 2FA setup/enable/logout routes.
+   */
+  scope: 'full' | 'twofa_setup';
 }
 
 interface RequestContext {
@@ -83,16 +89,37 @@ export class TokensService {
     }
   }
 
-  private signAccessToken(user: Pick<User, 'id' | 'email' | 'role'> & { twoFactorEnabled: boolean }, jti: string): string {
+  private signAccessToken(
+    user: Pick<User, 'id' | 'email' | 'role'> & { twoFactorEnabled: boolean },
+    jti: string,
+    scope: 'full' | 'twofa_setup' = 'full',
+  ): string {
     const payload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       jti,
       twoFactorEnabled: user.twoFactorEnabled,
+      scope,
     };
     // Secret + expiresIn come from the JwtModule registration.
     return this.jwt.sign(payload);
+  }
+
+  /**
+   * Issues a short-lived, narrowly-scoped access token for a privileged user
+   * (ADMIN/SUPPORT/SALES) who must enroll in 2FA before they get a real
+   * session. No refresh token is created — this isn't a session, just enough
+   * access to call the 2FA setup/enable endpoints and finish enrolling.
+   */
+  issueTwoFactorSetupToken(user: Pick<User, 'id' | 'email' | 'role'>): { accessToken: string; expiresIn: number } {
+    const jti = randomUUID();
+    const expiresIn = 300; // 5 minutes — just long enough to scan a QR code and enter a code.
+    const accessToken = this.jwt.sign(
+      { sub: user.id, email: user.email, role: user.role, jti, twoFactorEnabled: false, scope: 'twofa_setup' } satisfies AccessTokenPayload,
+      { expiresIn },
+    );
+    return { accessToken, expiresIn };
   }
 
   /** Issues a fresh access + refresh pair, starting a new refresh-token family. */

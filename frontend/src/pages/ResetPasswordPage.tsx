@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { PasswordInput } from '../components/PasswordInput';
 import { validateNewPassword } from '../utils/validation';
+import { SEO } from '../components/SEO';
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -32,6 +33,7 @@ export function ResetPasswordPage() {
 
   return (
     <div className="auth-wrap">
+      <SEO title="Reset Password" description="Choose a new password for your Villi account." noindex />
       <div className="auth-card">
         <h1>Choose a new password</h1>
         <p className="sub">Enter a strong new password for your account.</p>

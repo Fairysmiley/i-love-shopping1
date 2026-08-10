@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
+import { SEO } from '../components/SEO';
 
 export function NotFoundPage() {
   return (
     <div className="container" style={{ padding: '64px 28px', textAlign: 'center', maxWidth: 600 }}>
+      <SEO title="Page Not Found" description="The page you're looking for doesn't exist or has moved." noindex />
       <h1 style={{ fontSize: "4.5rem", margin: '0 0 16px 0', color: 'var(--primary)' }}>404</h1>
       <h2 style={{ margin: '0 0 16px 0' }}>Page Not Found</h2>
       <p className="muted" style={{ marginBottom: 32, fontSize: "1.125rem" }}>

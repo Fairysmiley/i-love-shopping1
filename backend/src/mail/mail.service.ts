@@ -2,6 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Sends transactional email via SMTP. When SMTP is not configured (dev),
  * messages are logged to the console so flows remain testable offline.
@@ -12,12 +21,14 @@ export class MailService implements OnModuleInit {
   private transporter: nodemailer.Transporter | null = null;
   private from!: string;
   private webUrl!: string;
+  private supportInbox!: string;
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit(): void {
     this.from = this.config.get<string>('mail.from')!;
     this.webUrl = this.config.get<string>('webPublicUrl')!;
+    this.supportInbox = this.config.get<string>('mail.supportInbox') || this.from;
     const host = this.config.get<string>('mail.host');
     if (host) {
       const user = this.config.get<string>('mail.user') ?? '';
@@ -58,6 +69,51 @@ export class MailService implements OnModuleInit {
       to,
       'Welcome to Villi',
       `<p>Hi ${firstName}, welcome to Villi — verified pre-loved Nordic outdoor apparel. Your account is ready.</p>`,
+    );
+  }
+
+  async sendOrderConfirmation(to: string, orderId: string): Promise<void> {
+    if (!to) return;
+    const link = `${this.webUrl}/order-confirmation/${orderId}`;
+    await this.send(
+      to,
+      `Order Confirmation - ${orderId}`,
+      `<p>Thank you for your purchase! Your order has been successfully paid and is being processed.</p>
+       <p>Order reference: <strong>${orderId}</strong></p>
+       <p><a href="${link}">View your order confirmation</a>.</p>`,
+    );
+  }
+
+  async sendPaymentFailed(to: string, orderId: string, errorDetail?: string): Promise<void> {
+    if (!to) return;
+    await this.send(
+      to,
+      `Payment Failed - ${orderId}`,
+      `<p>There was an issue processing your payment for order <strong>${orderId}</strong>.</p>
+       <p>Reason: ${errorDetail ?? 'Unknown'}</p>
+       <p>Your items have been released back into stock. Please try again.</p>`,
+    );
+  }
+
+  /** Forwards a Contact/Support form submission to the support inbox, and
+   * sends the submitter a confirmation that it was received. */
+  async sendContactMessage(input: { name: string; email: string; subject: string; message: string }): Promise<void> {
+    await this.send(
+      this.supportInbox,
+      `[Contact] ${input.subject} — ${input.name}`,
+      `<p>New contact form submission:</p>
+       <p><strong>Name:</strong> ${escapeHtml(input.name)}</p>
+       <p><strong>Email:</strong> ${escapeHtml(input.email)}</p>
+       <p><strong>Subject:</strong> ${escapeHtml(input.subject)}</p>
+       <p><strong>Message:</strong></p>
+       <p>${escapeHtml(input.message).replace(/\n/g, '<br/>')}</p>`,
+    );
+    await this.send(
+      input.email,
+      'We received your message — Villi Support',
+      `<p>Hi ${escapeHtml(input.name)}, thanks for reaching out — our support team will get back to you within 24 hours.</p>
+       <p>For your records, here's what you sent us:</p>
+       <p>${escapeHtml(input.message).replace(/\n/g, '<br/>')}</p>`,
     );
   }
 }

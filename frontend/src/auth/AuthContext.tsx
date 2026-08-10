@@ -18,6 +18,9 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   applyTokenFromOAuth: (token: string) => Promise<void>;
+  /** Finishes a mandatory-2FA-enrollment login: applies the full session
+   * returned by POST /auth/2fa/enable once enrollment is confirmed. */
+  completeTwoFactorSetupLogin: (accessToken: string, user: User) => void;
 }
 
 interface RegisterInput {
@@ -28,7 +31,7 @@ interface RegisterInput {
   captchaToken?: string;
 }
 
-type LoginOutcome = { ok: true } | { requiresTwoFactor: true };
+type LoginOutcome = { ok: true } | { requiresTwoFactor: true } | { requiresTwoFactorSetup: true };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -59,13 +62,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback<AuthContextValue['login']>(
     async (email, password, twoFactorCode) => {
-      const res = await api.post<AuthResponse | { requiresTwoFactor: true }>('/auth/login', {
-        email,
-        password,
-        twoFactorCode,
-      });
+      const res = await api.post<
+        AuthResponse | { requiresTwoFactor: true } | { requiresTwoFactorSetup: true; accessToken: string }
+      >('/auth/login', { email, password, twoFactorCode });
       if ('requiresTwoFactor' in res) {
         return { requiresTwoFactor: true };
+      }
+      if ('requiresTwoFactorSetup' in res) {
+        // A privileged role with no 2FA enrolled yet — this token can only
+        // call the 2FA setup/enable endpoints (enforced server-side), so
+        // hold it in memory while the login page walks through enrollment.
+        setAccessToken(res.accessToken);
+        return { requiresTwoFactorSetup: true };
       }
       setAccessToken(res.accessToken);
       setUser(res.user);
@@ -73,6 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const completeTwoFactorSetupLogin = useCallback((accessToken: string, user: User) => {
+    setAccessToken(accessToken);
+    setUser(user);
+  }, []);
 
   const register = useCallback<AuthContextValue['register']>(async (input) => {
     const res = await api.post<AuthResponse>('/auth/register', input);
@@ -101,8 +114,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, login, register, logout, refreshProfile: loadProfile, applyTokenFromOAuth }),
-    [user, loading, login, register, logout, loadProfile, applyTokenFromOAuth],
+    () => ({
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      refreshProfile: loadProfile,
+      applyTokenFromOAuth,
+      completeTwoFactorSetupLogin,
+    }),
+    [user, loading, login, register, logout, loadProfile, applyTokenFromOAuth, completeTwoFactorSetupLogin],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OAuthProvider, Prisma, User, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { encrypt, decrypt } from '../common/utils/encryption.util';
+import { encrypt, decrypt, hashForLookup } from '../common/utils/encryption.util';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const emailHash = hashForLookup(email.toLowerCase());
+    const user = await this.prisma.user.findUnique({ where: { emailHash } });
     return this.decryptUser(user);
   }
 
@@ -23,8 +24,13 @@ export class UsersService {
     return user;
   }
 
-  async create(data: Prisma.UserCreateInput): Promise<User> {
-    const encryptedData = { ...data, email: data.email.toLowerCase() };
+  async create(data: Omit<Prisma.UserCreateInput, 'emailHash'>): Promise<User> {
+    const normalizedEmail = data.email.toLowerCase();
+    const encryptedData: Prisma.UserCreateInput = {
+      ...data,
+      email: encrypt(normalizedEmail),
+      emailHash: hashForLookup(normalizedEmail),
+    };
     if (encryptedData.firstName) encryptedData.firstName = encrypt(encryptedData.firstName);
     if (encryptedData.lastName) encryptedData.lastName = encrypt(encryptedData.lastName);
     const user = await this.prisma.user.create({ data: encryptedData });
@@ -47,7 +53,12 @@ export class UsersService {
   }
 
   async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
-    const updateData = { ...data };
+    const updateData: Prisma.UserUpdateInput = { ...data };
+    if (typeof updateData.email === 'string') {
+      const normalizedEmail = updateData.email.toLowerCase();
+      updateData.email = encrypt(normalizedEmail);
+      updateData.emailHash = hashForLookup(normalizedEmail);
+    }
     if (typeof updateData.firstName === 'string') updateData.firstName = encrypt(updateData.firstName);
     if (typeof updateData.lastName === 'string') updateData.lastName = encrypt(updateData.lastName);
     const user = await this.prisma.user.update({ where: { id }, data: updateData });
@@ -75,15 +86,17 @@ export class UsersService {
       },
       include: { user: true },
     });
-    if (existingLink) return existingLink.user;
+    if (existingLink) return this.decryptUser(existingLink.user) as User;
 
     const email = params.email.toLowerCase();
+    const emailHash = hashForLookup(email);
     const userResult = await this.prisma.$transaction(async (tx) => {
-      let user = await tx.user.findUnique({ where: { email } });
+      let user = await tx.user.findUnique({ where: { emailHash } });
       if (!user) {
         user = await tx.user.create({
           data: {
-            email,
+            email: encrypt(email),
+            emailHash,
             firstName: encrypt(params.firstName),
             lastName: encrypt(params.lastName),
             isEmailVerified: true,
@@ -118,6 +131,7 @@ export class UsersService {
     if (!user) return null;
     return {
       ...user,
+      email: decrypt(user.email),
       firstName: decrypt(user.firstName),
       lastName: decrypt(user.lastName),
     };
