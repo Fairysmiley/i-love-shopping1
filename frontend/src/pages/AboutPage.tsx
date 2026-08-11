@@ -46,22 +46,22 @@ export function AboutPage() {
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <img
               src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect fill='%2394a3b8' width='64' height='64'/%3E%3C/svg%3E"
-              alt="Alex Haglund avatar placeholder"
+              alt="Tony Nieminen avatar placeholder"
               style={{ width: 64, height: 64, borderRadius: '50%' }}
             />
             <div>
-              <h4 style={{ margin: 0 }}>Alex Haglund</h4>
+              <h4 style={{ margin: 0 }}>Tony Nieminen</h4>
               <p className="muted" style={{ margin: 0, fontSize: "0.8125rem" }}>Founder & CEO</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <img
               src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect fill='%2394a3b8' width='64' height='64'/%3E%3C/svg%3E"
-              alt="Sofia Nordin avatar placeholder"
+              alt="Joni Kostia avatar placeholder"
               style={{ width: 64, height: 64, borderRadius: '50%' }}
             />
             <div>
-              <h4 style={{ margin: 0 }}>Sofia Nordin</h4>
+              <h4 style={{ margin: 0 }}>Joni Kostia</h4>
               <p className="muted" style={{ margin: 0, fontSize: "0.8125rem" }}>Head of Authentication</p>
             </div>
           </div>

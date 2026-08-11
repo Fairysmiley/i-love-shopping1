@@ -22,6 +22,12 @@ export function CatalogPage() {
   const [params, setParams] = useSearchParams();
   const [result, setResult] = useState<Paginated<Product> | null>(null);
   const [facets, setFacets] = useState<Facets | null>(null);
+  // The full, unfiltered set of filterable brands/attributes for the current
+  // category — used to decide what to RENDER, so filter sections never
+  // disappear just because the current filter combination happens to match
+  // zero items for some brand/attribute (a live-count issue, not a "this
+  // filter doesn't exist" issue). `facets` (above) still drives the live counts.
+  const [allFacets, setAllFacets] = useState<Facets | null>(null);
   const [categories, setCategories] = useState<Category[]>(getCachedCategoryTree);
   const [categoriesLoading, setCategoriesLoading] = useState(() => getCachedCategoryTree().length === 0);
   const [categoriesError, setCategoriesError] = useState(false);
@@ -74,6 +80,27 @@ export function CatalogPage() {
         if (active) setCategoriesLoading(false);
       });
 
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // The available filter structure is global — fetched once, unscoped by
+  // category or any other active filter. It must NOT depend on `category`:
+  // scoping it (e.g. `?category=shell-jackets`) would drop any brand/attribute
+  // that has zero products in that category from the list entirely, including
+  // one the user already has checked — leaving a stale filter silently active
+  // with no checkbox left to uncheck it (the exact "disappearing filter" bug,
+  // just triggered by category instead of another facet). `facets` (below)
+  // still supplies the live, filter-aware counts.
+  useEffect(() => {
+    let active = true;
+    api
+      .get<Facets>('/products/facets')
+      .then((f) => {
+        if (active) setAllFacets(f);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -228,54 +255,70 @@ export function CatalogPage() {
             />
           </div>
 
-          {facets && facets.brands.length > 0 && (
+          {allFacets && allFacets.brands.length > 0 && (
             <>
               <h3>Brand</h3>
               <div className="facet-group">
-                {facets.brands.map((b) => (
-                  <div className="facet-row" key={b.slug}>
-                    <label style={{ margin: 0, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={brands.includes(b.slug)}
-                        onChange={() => toggleBrand(b.slug)}
-                        style={{ width: 'auto', marginRight: 8 }}
-                      />
-                      {b.name}
-                    </label>
-                    <span className="count">{b.count}</span>
-                  </div>
-                ))}
+                {allFacets.brands.map((b) => {
+                  // Live count for the current filter combination; 0 (not
+                  // hidden) when nothing currently matches this brand.
+                  const liveCount = facets?.brands.find((fb) => fb.slug === b.slug)?.count ?? 0;
+                  return (
+                    <div className="facet-row" key={b.slug}>
+                      <label style={{ margin: 0, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={brands.includes(b.slug)}
+                          onChange={() => toggleBrand(b.slug)}
+                          style={{ width: 'auto', marginRight: 8 }}
+                        />
+                        {b.name}
+                      </label>
+                      <span className="count">{liveCount}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
 
           <h3>Rating</h3>
           <div className="facet-group">
-            {[4, 3, 2, 1].map((r) => (
-              <div className="facet-row" key={r}>
-                <label style={{ margin: 0, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="minRating"
-                    checked={minRating === String(r)}
-                    onChange={() => update((p) => p.set('minRating', String(r)))}
-                    style={{ width: 'auto', marginRight: 8 }}
-                  />
-                  <StarRating value={r} /> &amp; up
-                </label>
-              </div>
-            ))}
+            {[4, 3, 2, 1].map((r) => {
+              // Products display Math.round(averageRating) stars (see
+              // StarRating), so "N stars & up" must match anything that
+              // ROUNDS to N or more — not just averageRating >= N exactly —
+              // or a product visibly shown as N stars can vanish the moment
+              // this exact filter is applied. N-0.5 is the rounding boundary.
+              const threshold = r - 0.5;
+              return (
+                <div className="facet-row" key={r}>
+                  <label style={{ margin: 0, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="minRating"
+                      checked={minRating === String(threshold)}
+                      onChange={() => update((p) => p.set('minRating', String(threshold)))}
+                      style={{ width: 'auto', marginRight: 8 }}
+                    />
+                    <StarRating value={r} /> &amp; up
+                  </label>
+                </div>
+              );
+            })}
           </div>
 
-          {facets &&
-            Object.entries(facets.attributes).map(([name, values]) => (
+          {allFacets &&
+            Object.entries(allFacets.attributes).map(([name, values]) => (
               <div key={name}>
                 <h3>{name}</h3>
                 <div className="facet-group">
-                  {Object.entries(values).map(([value, count]) => {
+                  {Object.entries(values).map(([value]) => {
                     const token = `${name}:${value}`;
                     const active = params.getAll('attributes').includes(token);
+                    // Live count for the current filter combination; 0 (not
+                    // hidden) when nothing currently matches this value.
+                    const liveCount = facets?.attributes[name]?.[value] ?? 0;
                     return (
                       <div className="facet-row" key={value}>
                         <label style={{ margin: 0, cursor: 'pointer' }}>
@@ -295,7 +338,7 @@ export function CatalogPage() {
                           />
                           {value}
                         </label>
-                        <span className="count">{count}</span>
+                        <span className="count">{liveCount}</span>
                       </div>
                     );
                   })}

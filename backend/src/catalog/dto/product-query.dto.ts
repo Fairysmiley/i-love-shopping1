@@ -3,7 +3,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   Min,
@@ -56,11 +55,15 @@ export class ProductQueryDto extends PaginationQueryDto {
   @Min(0)
   maxPrice?: number;
 
-  @ApiPropertyOptional({ minimum: 1, description: 'Minimum average rating' })
+  @ApiPropertyOptional({
+    minimum: 0.5,
+    description:
+      'Minimum average rating. Accepts half-star values (e.g. 3.5) so "N stars & up" filters ' +
+      'can match the same rounding the UI displays (Math.round) rather than only exact integers.',
+  })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @Min(0.5)
   minRating?: number;
 
   @ApiPropertyOptional({

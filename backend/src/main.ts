@@ -1,6 +1,7 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -19,8 +20,18 @@ async function bootstrap(): Promise<void> {
   // rawBody: true keeps the original request buffer around (req.rawBody) so
   // the Stripe webhook route can verify the signature against the exact
   // bytes Stripe signed, even though the global pipe also parses it as JSON.
-  const app = await NestFactory.create(AppModule, { cors: false, httpsOptions, rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    cors: false,
+    httpsOptions,
+    rawBody: true,
+  });
   const config = app.get(ConfigService);
+
+  // Serves admin-uploaded product images from ImageService's uploadDir
+  // (backend/uploads/products/<id>-{thumbnail,medium,full}.webp) at the plain
+  // /uploads/... URLs ImageService.processProductImage() already returns —
+  // unversioned, since this is static middleware, not a controller route.
+  app.useStaticAssets(path.join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   // API-first: a stable, versioned, documented surface.
   app.setGlobalPrefix('api', { exclude: [] });

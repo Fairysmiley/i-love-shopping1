@@ -178,17 +178,6 @@ a:focus-visible {
 .navbar-cart:hover {
   background: var(--primary-600);
 }
-.navbar-search-panel {
-  border-top: 1px solid var(--border);
-  background: var(--navbar-bg);
-  backdrop-filter: blur(10px);
-  padding: 12px 0 16px;
-}
-.navbar-search-field {
-  max-width: 640px;
-  margin: 0 auto;
-}
-
 /* Search + suggestions */
 .search {
   position: relative;
@@ -196,6 +185,37 @@ a:focus-visible {
 }
 .search input {
   width: 100%;
+}
+
+/* Always-visible header search bar (not gated behind a toggle) */
+.navbar-search {
+  flex: 1 1 auto;
+  min-width: 140px;
+  max-width: 480px;
+  margin: 0 4px;
+}
+.navbar-search svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.navbar-search input {
+  padding-left: 38px;
+}
+@media (max-width: 860px) {
+  .navbar-inner {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .navbar-search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0;
+  }
 }
 .suggestions {
   position: absolute;

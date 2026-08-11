@@ -88,12 +88,12 @@ Villi is a **single-store B2C** marketplace: one business operates the catalog a
 | **Customers are consumers** | Shoppers register with role `USER`, browse the public catalog, and (in Project 2) will check out as individuals — not as business accounts or wholesalers. |
 | **Business → Consumer flow** | Products are listed by the platform (admin-managed catalog). There is no multi-vendor seller portal, B2B pricing tier, or purchase-order workflow in Foundation. |
 | **Public storefront** | React SPA: search, facets, product detail, reviews — oriented at individual buyers. |
-| **Curated retail positioning** | Pre-loved, one-of-a-kind Nordic outdoor apparel (`niche.txt`); `stockQuantity` is typically **1** per listing (consumer buys a unique item). |
+| **Curated retail positioning** | Pre-loved, one-of-a-kind Nordic outdoor apparel (Fjällräven, Haglöfs, Norrøna, etc.); `stockQuantity` is typically **1** per listing (consumer buys a unique item). |
 | **Consumer accounts** | `User` model for shoppers; `ADMIN` for platform staff only — not a separate “merchant” entity. |
 
 **Not in scope (by design):** B2B wholesale, marketplace sellers onboarding, corporate billing, or multi-tenant vendor stores (aligned with Project 1 Foundation; commerce features arrive in Project 2).
 
-More detail: [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md).
+More detail: [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 
 ---
 
@@ -138,8 +138,9 @@ about while leaving clean seams to extract services later if needed.
 **Requirement:** An ERD showing **entities**, **attributes**, **relationships**,
 **primary keys (PK)**, **foreign keys (FK)**, **cardinality**, and **modality**.
 
-Source of truth: `backend/prisma/schema.prisma`. Full tables and relationship
-matrix: [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md).
+Source of truth: `backend/prisma/schema.prisma`. Every entity, attribute,
+and PK/FK/UK marker is in the diagram below; relationship cardinality +
+modality is in the table that follows it.
 
 ### Diagram (Crow’s foot notation)
 
@@ -441,8 +442,9 @@ Detached mode prints URLs when ready. Foreground: `./start.sh` (URLs shown befor
 | `API_HOST_PORT` | `3001` | API container only |
 
 If you change `PROXY_HOST_PORT`, also set `API_PUBLIC_URL`, `WEB_PUBLIC_URL`, and
-`VITE_API_BASE_URL=/api/v1` for that origin, update OAuth callback URLs, and run
-`docker compose up --build -d api web proxy`. See [`docs/OAUTH_SETUP.md`](docs/OAUTH_SETUP.md).
+`VITE_API_BASE_URL=/api/v1` for that origin, update the matching `GOOGLE_CALLBACK_URL` /
+`GITHUB_CALLBACK_URL` / `FACEBOOK_CALLBACK_URL` in `.env`, and run
+`docker compose up --build -d api web proxy`.
 
 **Split-port mode** (optional): browse `:5173` with `VITE_API_BASE_URL=http://localhost:3001/api/v1`
 and matching OAuth callbacks on `:3001` — do not mix with the `:8080` defaults.
@@ -511,12 +513,12 @@ ngrok http 8080
 > `.env`. When left blank, CAPTCHA enforcement is skipped and emails are logged
 > to the API container console so every flow remains testable locally.
 >
-> **Step-by-step CAPTCHA + 2FA:** see [`docs/CAPTCHA_AND_2FA_SETUP.md`](docs/CAPTCHA_AND_2FA_SETUP.md).
+> **Step-by-step CAPTCHA + 2FA:** see [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 > CAPTCHA needs Google keys + `docker compose up --build -d web`. **2FA is already built in**
 > — sign in → **Account** → **Enable 2FA** (not on the register page).
 >
 > **Password-reset email (Mailhog):** Docker runs [Mailhog](http://localhost:18025) by default.
-> See [`docs/MAIL_SETUP.md`](docs/MAIL_SETUP.md). Merge `SMTP_HOST=mailhog` from `.env.example` if your `.env` still logs to the console only.
+> **Password-reset email:** caught by [Mailhog](http://localhost:18025) in Docker by default. Merge `SMTP_HOST=mailhog` from `.env.example` if your `.env` still logs to the console only.
 
 ### Local development (without Docker)
 
@@ -563,7 +565,7 @@ Sign in with a [seeded account](#seeded-accounts) to try authenticated flows.
 5. **Account page** (`/account#two-factor`) — enable/disable optional TOTP 2FA
    (scan the QR with Google Authenticator/Authy and save recovery codes), export
    your data, or delete your account (GDPR). Setup guide:
-   [`docs/CAPTCHA_AND_2FA_SETUP.md`](docs/CAPTCHA_AND_2FA_SETUP.md).
+   [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 6. **Admin** — sign in as the admin to create/update products, categories, and
    brands via the API (admin-guarded endpoints; see Swagger).
 
@@ -690,7 +692,7 @@ integration/security tests.
 | **Unit tests** | Done | **34** (`src/**/*.spec.ts`) | `cd backend && npm test` — JWT, auth DTO validation, CAPTCHA, product DTO/model, dimensions. No DB. |
 | **API integration tests** | Done | **32** e2e (`test/app.e2e-spec.ts`) | Real HTTP + PostgreSQL: auth register/login, catalog CRUD/list/facets, token rotation, reviews. `npm run test:e2e` or Docker below. |
 | **Security tests** | Done | Unit DTO + **6** e2e in `security:` block | Malformed/extra fields, SQLi-style login/search/path, admin guard. Run `npx jest test/app.e2e-spec.ts -t security`. |
-| **Auth + catalog coverage** | Done | Both domains in unit and e2e | See matrix in [`docs/TASK1_TESTING.md`](docs/TASK1_TESTING.md). |
+| **Auth + catalog coverage** | Done | Both domains in unit and e2e | See matrix in [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md). |
 | **Explain & demo** | Done | Oral script in testing doc | Walk through one unit file + one e2e block; run `docker compose --profile test run --rm e2e`. |
 
 **Explain to a reviewer:** Unit tests prove isolated logic (tokens, validation, product shape). E2e tests boot the full API and hit Postgres so endpoints and persistence are real. Security tests send malicious strings and assert safe status codes (400/401/404) and an intact database.
@@ -747,14 +749,14 @@ Use this when a reviewer checks the six authentication deliverables. Each item i
 
 | Criterion | Status | Where | How to demonstrate |
 |-----------|--------|-------|-------------------|
-| **Email-password + OAuth** | Done | Email: `POST /auth/register`, `POST /auth/login`. OAuth: `GET /auth/oauth/google`, `GET /auth/oauth/github` + callbacks; `findOrCreateFromOAuth()` links providers to existing emails. UI: `/register`, `/login` + `OAuthButtons.tsx`. E2E: *auth flow* + *OAuth authentication methods*. | Register/sign in with email. OAuth: set `GOOGLE_*` / `GITHUB_*` + `VITE_*_OAUTH_ENABLED=true` per `docs/OAUTH_SETUP.md`, rebuild `web`, then **Continue with Google/GitHub**. |
+| **Email-password + OAuth** | Done | Email: `POST /auth/register`, `POST /auth/login`. OAuth: `GET /auth/oauth/google`, `GET /auth/oauth/github` + callbacks; `findOrCreateFromOAuth()` links providers to existing emails. UI: `/register`, `/login` + `OAuthButtons.tsx`. E2E: *auth flow* + *OAuth authentication methods*. | Register/sign in with email. OAuth: set `GOOGLE_*` / `GITHUB_*` + `VITE_*_OAUTH_ENABLED=true` in `.env`, rebuild `web`, then **Continue with Google/GitHub**. |
 | **Access token in memory** | Done | `frontend/src/api/client.ts` (`let accessToken` module variable); `AuthContext` calls `setAccessToken` only — never `localStorage`/`sessionStorage` for JWT | DevTools → Application → Local Storage: no access token. After login, API calls send `Authorization: Bearer …` from memory; reload tab loses access until `/auth/refresh` restores session via cookie. |
 | **Refresh rotation (single-use)** | Done | `backend/src/auth/tokens.service.ts` `rotate()` — marks old token `revokedAt` + `replacedById`, issues new cookie | Automated: `docker compose --profile test run --rm e2e` → test *"rotates the refresh token and rejects reuse of the old one"*. Manual: login → call `POST /auth/refresh` twice with the **first** cookie → second call returns **401**; reusing a rotated token burns the family. |
 | **Revocation (access + refresh)** | Done | Refresh: `revokeRefreshToken` on logout; access: Redis denylist by `jti` in `jwt.strategy.ts` + `auth.controller.ts` `logout()` | E2E test *"revokes tokens on logout"*. After logout, `GET /users/me` with old bearer → **401**; `POST /auth/refresh` with old cookie → **401**. |
-| **Password reset via email** | Done | `POST /auth/forgot-password`, `POST /auth/reset-password`; `mail.service.ts`; **Mailhog** in Docker (`docs/MAIL_SETUP.md`) | `/forgot-password` → **http://localhost:18025** (Mailhog) or API `[DEV EMAIL]` logs → `/reset-password?token=…` |
+| **Password reset via email** | Done | `POST /auth/forgot-password`, `POST /auth/reset-password`; `mail.service.ts`; **Mailhog** in Docker | `/forgot-password` → **http://localhost:18025** (Mailhog) or API `[DEV EMAIL]` logs → `/reset-password?token=…` |
 | **Client + server validation** | Done | Server: `backend/src/auth/dto/auth.dto.ts` + global `ValidationPipe`. Client: `frontend/src/utils/validation.ts` on Login, Register, Forgot, Reset (+ 2FA step on Login) | Submit empty/weak fields → inline errors before request; server still returns **400** if client is bypassed. |
 
-More detail: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md).
+More detail: [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 
 ## CAPTCHA & 2FA review criteria (task1)
 
@@ -762,9 +764,9 @@ More detail: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md).
 |-----------|--------|-------|-------------------|
 | **CAPTCHA on registration** | Done | `Recaptcha.tsx` on `/register`; `auth.service.ts` calls `CaptchaService.verify()`; `captcha.service.spec.ts` | With keys in `.env`: widget on register, cannot submit until checked. Without keys: note on form + server skips (dev). Unit tests cover enforce/skip logic. |
 | **Optional user-enabled 2FA** | Done | `/account` → Enable 2FA; `two-factor.service.ts` (TOTP + recovery codes); login 2FA step on `/login` | Enable on Account → sign out → login asks for code. Disabled by default; user opts in and can disable later. |
-| **Manual security tests** | Done | `docs/MANUAL_SECURITY_TESTS.md` | CAPTCHA, OAuth, 2FA, rotation, revocation checklists for reviewers. |
+| **Manual security tests** | Done | Manual test checklist below | CAPTCHA, OAuth, 2FA, rotation, revocation checklists for reviewers. |
 
-Full walkthrough: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md) §7–8.
+Full walkthrough: [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 
 ## Catalog review criteria (task1)
 
@@ -776,7 +778,7 @@ Full walkthrough: [`docs/TASK1_AUTH_REVIEW.md`](docs/TASK1_AUTH_REVIEW.md) §7�
 | **Sorting** | Done | `ProductSort` enum: relevance, price_asc, price_desc, rating | Sort dropdown on catalog; e2e tests for price + rating. |
 | **Product images** | Done | `frontend/public/products/*.png`; `ProductImage` URLs; nginx `/products/` | Images on cards; `curl -I http://localhost:5173/products/keb-shell.png` → 200. |
 
-Full walkthrough: [`docs/TASK1_CATALOG.md`](docs/TASK1_CATALOG.md).
+Full walkthrough: [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
 
 ---
 
@@ -785,7 +787,7 @@ Full walkthrough: [`docs/TASK1_CATALOG.md`](docs/TASK1_CATALOG.md).
 | Criterion | Status | Where | How to demonstrate |
 |-----------|--------|-------|-------------------|
 | **B2C e-commerce model** | Done | Consumer `USER` role, public catalog, platform-operated inventory, no seller/B2B entities | README [B2C e-commerce model](#b2c-e-commerce-model); browse as shopper; explain Villi sells to individuals. |
-| **ERD (full)** | Done | README [Entity Relationship Diagram](#entity-relationship-diagram) + [`docs/TASK1_B2C_ERD.md`](docs/TASK1_B2C_ERD.md) | Mermaid diagram with entities/attributes/PK/FK; relationship table with **cardinality** and **modality**; matches `prisma/schema.prisma`. |
+| **ERD (full)** | Done | README [Entity Relationship Diagram](#entity-relationship-diagram) | Mermaid diagram with entities/attributes/PK/FK; relationship table with **cardinality** and **modality**; matches `prisma/schema.prisma`. |
 
 ---
 
@@ -860,12 +862,13 @@ third-party flows that are hard to fully automate):
 
 ## Review resources
 
-A complete oral exam script with talking points for every task1.txt checklist item is in
-[`docs/REVIEW_TALKING_POINTS.md`](docs/REVIEW_TALKING_POINTS.md). It covers:
+[`docs/review-guide-part-1.md`](docs/review-guide-part-1.md) answers every
+`task1.txt` checklist item in order, each with a code reference and a
+self-testable or verbal demonstration — including the oral-exam topics:
 
-- **JWT** — header/payload/signature, token lifecycle, how to decode a live token.
-- **ACID** — walk-through of a Prisma `$transaction` for token rotation.
+- **JWT** — header/payload/signature, token lifecycle, live claim structure.
+- **ACID** — walk-through of a Prisma `$transaction` for checkout stock deduction and token rotation.
 - **Architecture** — why modular monolith for Foundation, extraction path to microservices.
 - **Scalability** — indexes, Redis cache, horizontal API replicas.
-- **Search** — `buildWhere()` walkthrough, Postgres `LIKE`/`ilike`, facet counts.
+- **Search** — `buildWhere()` walkthrough, Postgres `ILIKE`, facet counts.
 - **Testing** — unit vs e2e strategy, how to run and demo each suite live.

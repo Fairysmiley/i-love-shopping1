@@ -7,7 +7,7 @@ import { ThemeToggle } from './ThemeToggle';
 
 function SearchIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
       <path d="M20 20l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
@@ -51,10 +51,8 @@ export function Navbar() {
   const [term, setTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const suggestId = 'navbar-suggestions';
 
   useEffect(() => {
@@ -76,6 +74,8 @@ export function Navbar() {
     return () => clearTimeout(handle);
   }, [term]);
 
+  // Close the suggestions dropdown on outside click — the search input
+  // itself always stays visible, only the suggestion list toggles.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
@@ -87,25 +87,10 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
-  useEffect(() => {
-    if (!searchOpen) return;
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSearchOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [searchOpen]);
-
   const submit = (value: string) => {
     setSuggestOpen(false);
-    setSearchOpen(false);
     setActiveIndex(-1);
     navigate(`/shop?q=${encodeURIComponent(value)}`);
-  };
-
-  const openSearch = () => {
-    setSearchOpen(true);
   };
 
   const signOut = async () => {
@@ -144,6 +129,47 @@ export function Navbar() {
           Vil<span>li</span>
         </Link>
 
+        {/* Always visible/active — not gated behind a toggle button. */}
+        <div className="navbar-search search" ref={boxRef}>
+          <SearchIcon />
+          <input
+            id="navbar-search-input"
+            type="search"
+            placeholder="Search pre-loved gear, brands, sizes…"
+            aria-label="Search products"
+            aria-autocomplete="list"
+            aria-controls={suggestOpen && suggestions.length > 0 ? suggestId : undefined}
+            aria-activedescendant={activeIndex >= 0 ? `${suggestId}-${activeIndex}` : undefined}
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length && setSuggestOpen(true)}
+          />
+          {suggestOpen && suggestions.length > 0 && (
+            <div className="suggestions" role="listbox" id={suggestId}>
+              {suggestions.map((s, i) => (
+                <button
+                  key={s}
+                  id={`${suggestId}-${i}`}
+                  type="button"
+                  role="option"
+                  aria-selected={i === activeIndex}
+                  style={
+                    i === activeIndex
+                      ? { background: 'var(--primary)', color: '#fff' }
+                      : undefined
+                  }
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onMouseLeave={() => setActiveIndex(-1)}
+                  onClick={() => submit(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <nav aria-label="Main Navigation" className="navbar-actions">
           <ThemeToggle compact />
 
@@ -153,17 +179,6 @@ export function Navbar() {
           <Link to="/contact" className="navbar-icon-action" style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontSize: "0.875rem" }}>contact</span>
           </Link>
-
-          <button
-            type="button"
-            className="navbar-icon-action"
-            aria-label="Search products"
-            aria-expanded={searchOpen}
-            onClick={() => (searchOpen ? setSearchOpen(false) : openSearch())}
-          >
-            <SearchIcon />
-            <span>search</span>
-          </button>
 
           <Link to="/shop" className="navbar-icon-action">
             <span>shop</span>
@@ -212,54 +227,6 @@ export function Navbar() {
           </button>
         </nav>
       </div>
-
-      {searchOpen && (
-        <div className="navbar-search-panel" ref={boxRef}>
-          <div className="container">
-            <div className="search navbar-search-field">
-              <input
-                ref={inputRef}
-                id="navbar-search-input"
-                type="search"
-                placeholder="Search pre-loved gear, brands, sizes…"
-                aria-label="Search products"
-                aria-autocomplete="list"
-                aria-controls={suggestOpen && suggestions.length > 0 ? suggestId : undefined}
-                aria-activedescendant={
-                  activeIndex >= 0 ? `${suggestId}-${activeIndex}` : undefined
-                }
-                value={term}
-                onChange={(e) => setTerm(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => suggestions.length && setSuggestOpen(true)}
-              />
-              {suggestOpen && suggestions.length > 0 && (
-                <div className="suggestions" role="listbox" id={suggestId}>
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={s}
-                      id={`${suggestId}-${i}`}
-                      type="button"
-                      role="option"
-                      aria-selected={i === activeIndex}
-                      style={
-                        i === activeIndex
-                          ? { background: 'var(--primary)', color: '#fff' }
-                          : undefined
-                      }
-                      onMouseEnter={() => setActiveIndex(i)}
-                      onMouseLeave={() => setActiveIndex(-1)}
-                      onClick={() => submit(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
