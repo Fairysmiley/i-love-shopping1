@@ -84,7 +84,18 @@
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8080/uploads/products/verify-test-full.webp)",
       "Bash(curl -s http://localhost:8080/uploads/products/verify-test-full.webp)",
       "Bash(curl -sk -o /dev/null -w \"%{http_code}\\\\n\" https://localhost:3001/api/products/facets)",
-      "Bash(curl -sk -o /dev/null -w \"%{http_code}\\\\n\" https://localhost:3001/api/v1/products/facets)"
+      "Bash(curl -sk -o /dev/null -w \"%{http_code}\\\\n\" https://localhost:3001/api/v1/products/facets)",
+      "Bash(curl -sk \"https://localhost:3001/api/v1/products?q=Trollveggen\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/products/embla-vest.png)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/products/embla-vest.png)",
+      "Bash(curl -s -o /dev/null -w \"embla-vest.png via proxy -> %{http_code}\\\\n\" http://localhost:8080/products/embla-vest.png)",
+      "Bash(curl -s -o /dev/null -w \"vide-rain-jacket.jpg via proxy -> %{http_code}\\\\n\" http://localhost:8080/products/vide-rain-jacket.jpg)",
+      "Bash(curl -s -o /dev/null -w \"singi-hoodie.png via proxy -> %{http_code}\\\\n\" http://localhost:8080/products/singi-hoodie.png)",
+      "Bash(grep -n \"{ name: 'colour', value: '\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
+      "Bash(grep -n \"{ name: 'material', value: '\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
+      "Bash(awk *)",
+      "Bash(grep -c \"{ name: 'material', value: '\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
+      "Bash(sed -i \"/{ name: 'material', value: '/d\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)"
     ]
   }
 }

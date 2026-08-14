@@ -165,6 +165,21 @@ export function CatalogPage() {
     });
   };
 
+  const hasActiveFilters = Boolean(
+    category || brands.length || minPrice || maxPrice || minRating || params.getAll('attributes').length,
+  );
+
+  const clearAllFilters = () => {
+    update((p) => {
+      p.delete('category');
+      p.delete('brands');
+      p.delete('minPrice');
+      p.delete('maxPrice');
+      p.delete('minRating');
+      p.delete('attributes');
+    });
+  };
+
   const pageTitle = q ? `Search: ${q}` : category ? `Shop ${category}` : 'Shop All Products';
   const pageDescription = q
     ? `Search results for "${q}" in authenticated pre-loved Nordic outdoor gear from Fjällräven, Haglöfs, and Norrøna.`
@@ -180,6 +195,16 @@ export function CatalogPage() {
       <aside aria-label="Filters">
         <div className="panel">
           <h2 className="sr-only">Filters</h2>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="btn"
+              style={{ padding: '4px 10px', width: '100%', marginBottom: 12 }}
+              onClick={clearAllFilters}
+            >
+              Clear all filters
+            </button>
+          )}
           <h3>Categories</h3>
           <div className="facet-group">
             <div className="facet-row">
@@ -240,6 +265,7 @@ export function CatalogPage() {
           <h3>Price</h3>
           <div className="facet-group" style={{ display: 'flex', gap: 8 }}>
             <input
+              key={minPrice}
               type="number"
               aria-label="Minimum price"
               placeholder="Min"
@@ -247,6 +273,7 @@ export function CatalogPage() {
               onBlur={(e) => update((p) => (e.target.value ? p.set('minPrice', e.target.value) : p.delete('minPrice')))}
             />
             <input
+              key={maxPrice}
               type="number"
               aria-label="Maximum price"
               placeholder="Max"

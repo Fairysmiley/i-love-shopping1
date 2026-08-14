@@ -153,7 +153,7 @@ async function main(): Promise<void> {
     weightGrams: number;
     // Packed dimensions in mm
     dims: [number, number, number];
-    // Faceted attributes: condition + size + material + colour + authenticity etc.
+    // Faceted attributes: condition + size + colour + gender + authenticity etc.
     attributes: { name: string; value: string }[];
     rating: number;
     ratingCount: number;
@@ -174,8 +174,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Ocean Blue' },
-        { name: 'material', value: 'Recycled Polyester' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.8,
@@ -195,8 +194,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'One Size' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Frost Green' },
-        { name: 'material', value: 'Vinylon F' },
+        { name: 'colour', value: 'Green' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.6,
@@ -216,8 +214,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Like New' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Navy / Aqua' },
-        { name: 'material', value: 'Recycled Down 800fp' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.9,
@@ -238,7 +235,6 @@ async function main(): Promise<void> {
         { name: 'size', value: 'S' },
         { name: 'gender', value: 'Womens' },
         { name: 'colour', value: 'Black' },
-        { name: 'material', value: 'Polartec Power Grid' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.5,
@@ -259,7 +255,6 @@ async function main(): Promise<void> {
         { name: 'size', value: 'XL' },
         { name: 'gender', value: 'Mens' },
         { name: 'colour', value: 'Black' },
-        { name: 'material', value: 'Polyamide / PrimaLoft' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.3,
@@ -279,8 +274,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'EU 50' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Dark Olive' },
-        { name: 'material', value: 'Polycotton' },
+        { name: 'colour', value: 'Green' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.7,
@@ -300,8 +294,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Like New' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Light Grey' },
-        { name: 'material', value: 'Recycled Nylon' },
+        { name: 'colour', value: 'Grey' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.6,
@@ -321,8 +314,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Slate Teal' },
-        { name: 'material', value: 'Softshell Stretch' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.8,
@@ -342,8 +334,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Excellent' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Raven' },
-        { name: 'material', value: 'Recycled Polyamide / Cutan' },
+        { name: 'colour', value: 'Black' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.9,
@@ -363,8 +354,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'S' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Turquoise / Black' },
-        { name: 'material', value: 'DrymaxX Polyester' },
+        { name: 'colour', value: 'Blue / Black' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.4,
@@ -385,8 +375,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'EU 48' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Dark Grey' },
-        { name: 'material', value: 'G-1000 Eco' },
+        { name: 'colour', value: 'Grey' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.6,
@@ -406,8 +395,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Mountain Blue' },
-        { name: 'material', value: 'G-1000 HeavyDuty Eco' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.7,
@@ -427,8 +415,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: '35L' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'True Black' },
-        { name: 'material', value: 'Recycled Nylon' },
+        { name: 'colour', value: 'Black' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.5,
@@ -448,8 +435,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Like New' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Heather Grey' },
-        { name: 'material', value: 'Brushed Polyester Fleece' },
+        { name: 'colour', value: 'Grey' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.4,
@@ -469,8 +455,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Forest Green' },
-        { name: 'material', value: '3-Layer Ripstop' },
+        { name: 'colour', value: 'Green' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.5,
@@ -490,8 +475,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: '28L' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Kakhi Green' },
-        { name: 'material', value: 'Ripstop Polyester' },
+        { name: 'colour', value: 'Green' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.3,
@@ -511,8 +495,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Excellent' },
         { name: 'size', value: 'S' },
         { name: 'gender', value: 'Womens' },
-        { name: 'colour', value: 'Navy' },
-        { name: 'material', value: 'Recycled Down 700fp' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.6,
@@ -532,8 +515,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Very Good' },
         { name: 'size', value: 'M' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Slate Teal' },
-        { name: 'material', value: 'Polartec Fleece' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.7,
@@ -553,8 +535,7 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Excellent' },
         { name: 'size', value: 'L' },
         { name: 'gender', value: 'Mens' },
-        { name: 'colour', value: 'Raven' },
-        { name: 'material', value: 'Organic Hemp Blend' },
+        { name: 'colour', value: 'Black' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.8,
@@ -574,13 +555,215 @@ async function main(): Promise<void> {
         { name: 'condition', value: 'Good' },
         { name: 'size', value: '25L' },
         { name: 'gender', value: 'Unisex' },
-        { name: 'colour', value: 'Tarn Blue' },
-        { name: 'material', value: 'Recycled Polyamide' },
+        { name: 'colour', value: 'Blue' },
         { name: 'authenticity', value: 'Verified' },
       ],
       rating: 4.2,
       ratingCount: 9,
       image: '/products/malta-backpack.png',
+    },
+    // --- Lower/mid-rated listings (same brands & categories as above) —
+    // gives the rating facet an honest 2–5 star spread instead of every
+    // item clustering at 4.2+, so "N stars & up" filtering is meaningful.
+    {
+      name: 'Fjällräven Räven 28 Backpack',
+      description:
+        'Classic 28L pack in G-1000 canvas. Pre-loved, fair condition; frayed webbing on one shoulder strap and a re-stitched seam, priced accordingly.',
+      price: 39.0,
+      categoryId: backpacks.id,
+      brand: 'Fjällräven',
+      weightGrams: 950,
+      dims: [480, 300, 200],
+      attributes: [
+        { name: 'condition', value: 'Fair' },
+        { name: 'size', value: 'One Size' },
+        { name: 'gender', value: 'Unisex' },
+        { name: 'colour', value: 'Green' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 2.2,
+      ratingCount: 13,
+      image: '/products/raven-backpack.png',
+    },
+    {
+      name: 'Haglöfs Vide Rain Jacket',
+      description:
+        'Packable 2-layer rain shell. Pre-loved, fair condition; DWR mostly worn off (still watertight, beads poorly) and a light scuff on the hood.',
+      price: 32.0,
+      categoryId: shellJackets.id,
+      brand: 'Haglöfs',
+      weightGrams: 310,
+      dims: [260, 210, 80],
+      attributes: [
+        { name: 'condition', value: 'Fair' },
+        { name: 'size', value: 'M' },
+        { name: 'gender', value: 'Womens' },
+        { name: 'colour', value: 'Blue' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 2.6,
+      ratingCount: 16,
+      image: '/products/vide-rain-jacket.jpg',
+    },
+    {
+      name: 'Luhta Revontuli Down Gilet',
+      description:
+        'Sleeveless down gilet for layering. Pre-loved, good condition; some down clumping after wash but still noticeably warm.',
+      price: 45.0,
+      categoryId: insulation.id,
+      brand: 'Luhta',
+      weightGrams: 220,
+      dims: [230, 190, 90],
+      attributes: [
+        { name: 'condition', value: 'Good' },
+        { name: 'size', value: 'S' },
+        { name: 'gender', value: 'Womens' },
+        { name: 'colour', value: 'Red' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 3.1,
+      ratingCount: 11,
+      image: '/products/revontuli-vest.png',
+    },
+    {
+      name: 'Sasta Ahma Fleece Pullover',
+      description:
+        'Heavyweight bonded fleece pullover. Pre-loved, good condition; noticeable pilling across the torso from regular wear but fully functional.',
+      price: 28.0,
+      categoryId: fleece.id,
+      brand: 'Sasta',
+      weightGrams: 480,
+      dims: [280, 220, 70],
+      attributes: [
+        { name: 'condition', value: 'Good' },
+        { name: 'size', value: 'XL' },
+        { name: 'gender', value: 'Mens' },
+        { name: 'colour', value: 'Grey' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 2.8,
+      ratingCount: 8,
+      image: '/products/ahma-fleece.png',
+    },
+    {
+      name: 'Halti Vantaa Softshell Trousers',
+      description:
+        'Everyday softshell hiking trousers. Pre-loved, very good condition; slight fading at the knees from sun exposure, no rips or repairs.',
+      price: 42.0,
+      categoryId: trousers.id,
+      brand: 'Halti',
+      weightGrams: 410,
+      dims: [310, 240, 60],
+      attributes: [
+        { name: 'condition', value: 'Very Good' },
+        { name: 'size', value: 'M' },
+        { name: 'gender', value: 'Unisex' },
+        { name: 'colour', value: 'Grey' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 3.4,
+      ratingCount: 14,
+      image: '/products/vantaa-trousers.png',
+    },
+    {
+      name: 'Peak Performance Anima Backpack 20L',
+      description:
+        'Everyday 20L city/trail crossover pack. Pre-loved, very good condition; light scuffing on the base panel only.',
+      price: 49.0,
+      categoryId: backpacks.id,
+      brand: 'Peak Performance',
+      weightGrams: 520,
+      dims: [420, 280, 150],
+      attributes: [
+        { name: 'condition', value: 'Very Good' },
+        { name: 'size', value: '20L' },
+        { name: 'gender', value: 'Unisex' },
+        { name: 'colour', value: 'Black' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 3.7,
+      ratingCount: 10,
+      image: '/products/anima-backpack.png',
+    },
+    {
+      name: 'Norrøna Trollveggen Shell Jacket',
+      description:
+        'Technical 3-layer mountaineering shell. Pre-loved, fair condition; seam tape starting to delaminate at one cuff, still weatherproof elsewhere — priced to reflect the repair needed.',
+      price: 165.0,
+      categoryId: shellJackets.id,
+      brand: 'Norrøna',
+      weightGrams: 480,
+      dims: [330, 270, 85],
+      attributes: [
+        { name: 'condition', value: 'Fair' },
+        { name: 'size', value: 'L' },
+        { name: 'gender', value: 'Mens' },
+        { name: 'colour', value: 'Blue' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 2.4,
+      ratingCount: 19,
+      image: '/products/trollveggen-shell.png',
+    },
+    {
+      name: 'Klättermusen Embla Insulated Vest',
+      description:
+        'Hemp-blend insulated vest, built to last. Pre-loved, good condition; a couple of small marks near the zip, structurally sound throughout.',
+      price: 88.0,
+      categoryId: insulation.id,
+      brand: 'Klättermusen',
+      weightGrams: 260,
+      dims: [240, 200, 90],
+      attributes: [
+        { name: 'condition', value: 'Good' },
+        { name: 'size', value: 'M' },
+        { name: 'gender', value: 'Womens' },
+        { name: 'colour', value: 'Red' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 3.9,
+      ratingCount: 12,
+      image: '/products/embla-vest.png',
+    },
+    {
+      name: 'Fjällräven Singi Fleece Hoodie',
+      description:
+        'Zip-through fleece hoodie in recycled wool blend. Pre-loved, good condition; light bobbling on the cuffs, everything else holding up well.',
+      price: 55.0,
+      categoryId: fleece.id,
+      brand: 'Fjällräven',
+      weightGrams: 460,
+      dims: [290, 230, 75],
+      attributes: [
+        { name: 'condition', value: 'Good' },
+        { name: 'size', value: 'S' },
+        { name: 'gender', value: 'Womens' },
+        { name: 'colour', value: 'Red / Black' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 3.3,
+      ratingCount: 17,
+      image: '/products/singi-hoodie.png',
+    },
+    {
+      name: 'Haglöfs Vassi Hiking Trousers',
+      description:
+        'Budget-friendly hiking trousers, well used. Pre-loved, fair condition; visible wear at the hems and a small patched tear on the left thigh.',
+      price: 19.0,
+      categoryId: trousers.id,
+      brand: 'Haglöfs',
+      weightGrams: 390,
+      dims: [300, 230, 55],
+      attributes: [
+        { name: 'condition', value: 'Fair' },
+        { name: 'size', value: 'L' },
+        { name: 'gender', value: 'Mens' },
+        { name: 'colour', value: 'Black' },
+        { name: 'authenticity', value: 'Verified' },
+      ],
+      rating: 2.0,
+      ratingCount: 7,
+      image: '/products/vassi-trousers.png',
     },
   ];
 
@@ -591,7 +774,12 @@ async function main(): Promise<void> {
     const product = await prisma.product.upsert({
       where: { slug },
       update: {
+        description: p.description,
         price: new Prisma.Decimal(p.price),
+        weightGrams: p.weightGrams,
+        lengthMm: p.dims[0],
+        widthMm: p.dims[1],
+        heightMm: p.dims[2],
         averageRating: p.rating,
         ratingCount: p.ratingCount,
         // Re-seeding resets the demo catalog to its pristine one-of-a-kind
@@ -619,10 +807,16 @@ async function main(): Promise<void> {
       },
     });
 
-    // Keep images in sync on re-seed (upsert.update can't replace relations).
+    // Keep images + attributes in sync on re-seed (upsert.update can't
+    // replace relations — this is why editing an existing product's colour/
+    // size/material in this file previously had no effect on re-seed).
     await prisma.productImage.deleteMany({ where: { productId: product.id } });
     await prisma.productImage.create({
       data: { productId: product.id, url: p.image, altText: p.name, isPrimary: true, position: 0 },
+    });
+    await prisma.productAttribute.deleteMany({ where: { productId: product.id } });
+    await prisma.productAttribute.createMany({
+      data: p.attributes.map((a) => ({ productId: product.id, name: a.name, value: a.value })),
     });
 
     createdProducts.push({ id: product.id, rating: p.rating });
@@ -650,13 +844,31 @@ async function main(): Promise<void> {
     );
   }
 
-  const comments = [
-    { title: 'Exactly as described', body: 'Condition matched the listing perfectly. Authentication gave me real confidence buying pre-loved.' },
-    { title: 'Great find', body: 'Barely any wear and so much warmth for the weight. Would buy pre-loved here again.' },
-    { title: 'Solid quality', body: 'Classic Nordic build. A couple of tiny marks as noted, otherwise excellent.' },
-    { title: 'Very happy', body: 'Fast handling and the gear is genuinely as good as new. Highly recommend.' },
-    { title: 'Good but runs snug', body: 'Quality is top-notch; sizing is a touch slim, factor that in when ordering.' },
-  ];
+  // Keyed by the review's own star rating (not the loop index) so the
+  // wording actually matches the score — a 1-2 star review used to be able
+  // to draw "Exactly as described" / "Very happy" off the old flat list.
+  const commentsByRating: Record<1 | 2 | 3 | 4 | 5, { title: string; body: string }[]> = {
+    5: [
+      { title: 'Exactly as described', body: 'Condition matched the listing perfectly. Authentication gave me real confidence buying pre-loved.' },
+      { title: 'Perfect condition', body: 'Genuinely looks unworn. Could not be happier with this find.' },
+    ],
+    4: [
+      { title: 'Great find', body: 'Barely any wear and so much warmth for the weight. Would buy pre-loved here again.' },
+      { title: 'Very happy', body: 'Fast handling and the gear is genuinely as good as new. Highly recommend.' },
+    ],
+    3: [
+      { title: 'Does the job', body: 'Condition is about what I expected for the price. Nothing special, but functional.' },
+      { title: 'Fair for the price', body: 'A few marks not mentioned in the listing, but wearable and priced accordingly.' },
+    ],
+    2: [
+      { title: 'More wear than listed', body: 'Condition was rougher than the photos suggested. Usable, but I would have paid less knowing this upfront.' },
+      { title: 'Some disappointment', body: 'The described flaw was worse in person than expected. Still wearable, but manage your expectations.' },
+    ],
+    1: [
+      { title: 'Not what I expected', body: 'Wear was significantly beyond what "fair condition" implied. Would not buy this listing again.' },
+      { title: 'Needs better disclosure', body: 'The damage noted in the description turned out to be more serious in person.' },
+    ],
+  };
 
   for (const cp of createdProducts) {
     // Idempotent re-seed: clear and regenerate this product's reviews.
@@ -665,10 +877,14 @@ async function main(): Promise<void> {
     const target = Math.round(cp.rating); // 1..5
     const count = 3 + (Math.round(cp.rating * 10) % 3); // 3–5 reviews
     for (let i = 0; i < count && i < reviewers.length; i++) {
-      // Spread ratings around the target so the average stays believable.
+      // Spread ratings around the target so the average stays believable —
+      // clamped to 1..5, not floored at 3, so low-target items (fair-
+      // condition listings) actually get low reviews instead of every
+      // product's real average being dragged back up into the 3+ range.
       const offset = i === 0 ? 0 : i % 2 === 0 ? 0 : -1;
-      const rating = Math.min(5, Math.max(3, target + offset));
-      const c = comments[i % comments.length];
+      const rating = Math.min(5, Math.max(1, target + offset)) as 1 | 2 | 3 | 4 | 5;
+      const bank = commentsByRating[rating];
+      const c = bank[i % bank.length];
       await prisma.review.create({
         data: { productId: cp.id, userId: reviewers[i].id, rating, title: c.title, body: c.body },
       });
