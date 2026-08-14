@@ -182,7 +182,7 @@ erDiagram
   }
   TwoFactorSecret {
     uuid id PK
-    uuid userId FK_UK
+    uuid userId FK "unique, one row per user"
     string secret
     bool enabled
     string_array recoveryCodes
@@ -191,11 +191,10 @@ erDiagram
   }
   OAuthAccount {
     uuid id PK
-    enum provider
-    string providerAccountId
+    enum provider UK "composite with providerAccountId"
+    string providerAccountId UK "composite with provider"
     uuid userId FK
     datetime createdAt
-    composite_UK provider_providerAccountId
   }
   RefreshToken {
     uuid id PK
@@ -263,20 +262,18 @@ erDiagram
   }
   ProductAttribute {
     uuid id PK
-    uuid productId FK
-    string name
+    uuid productId FK "composite with name"
+    string name UK "composite with productId"
     string value
-    composite_UK productId_name
   }
   Review {
     uuid id PK
-    uuid productId FK
-    uuid userId FK
+    uuid productId FK "composite with userId"
+    uuid userId FK "composite with productId"
     int rating
     string title "nullable"
     string body "nullable"
     datetime createdAt
-    composite_UK productId_userId
   }
   Cart {
     uuid id PK
@@ -286,12 +283,11 @@ erDiagram
   }
   CartItem {
     uuid id PK
-    uuid cartId FK
-    uuid productId FK
+    uuid cartId FK "composite with productId"
+    uuid productId FK "composite with cartId"
     int quantity
     datetime createdAt
     datetime updatedAt
-    composite_UK cartId_productId
   }
   Order {
     uuid id PK
@@ -305,15 +301,14 @@ erDiagram
   }
   OrderItem {
     uuid id PK
-    uuid orderId FK
-    uuid productId FK
+    uuid orderId FK "composite with productId"
+    uuid productId FK "composite with orderId"
     int quantity
     decimal unitPrice
-    composite_UK orderId_productId
   }
   Payment {
     uuid id PK
-    uuid orderId FK_UK
+    uuid orderId FK "unique, one row per order"
     decimal amount
     string currency
     string provider
