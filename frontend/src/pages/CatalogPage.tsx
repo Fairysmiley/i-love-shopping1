@@ -442,11 +442,9 @@ export function CatalogPage() {
           <p className="muted">No items match your filters. Try widening your search.</p>
         )}
 
-        <div className={viewMode === 'grid' ? "product-list" : "product-list-list-view"} style={viewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: 16 } : undefined}>
+        <div className={viewMode === 'grid' ? "product-grid" : "product-list"}>
           {result?.data.map((p) => (
-            <div key={p.id} style={viewMode === 'list' ? { display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, padding: 16, border: '1px solid var(--border)', borderRadius: 8 } : undefined}>
-              <ProductCard product={p} />
-            </div>
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
 

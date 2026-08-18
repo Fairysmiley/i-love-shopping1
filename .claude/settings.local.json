@@ -95,7 +95,26 @@
       "Bash(grep -n \"{ name: 'material', value: '\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
       "Bash(awk *)",
       "Bash(grep -c \"{ name: 'material', value: '\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
-      "Bash(sed -i \"/{ name: 'material', value: '/d\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)"
+      "Bash(sed -i \"/{ name: 'material', value: '/d\" /home/cutebutzaiko/i-love-shopping/backend/prisma/seed.ts)",
+      "Bash(npx --yes -p @mermaid-js/mermaid-cli mmdc --version)",
+      "Bash(npx --yes -p @mermaid-js/mermaid-cli mmdc -i /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/erd.mmd -o /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/erd.svg)",
+      "Bash(npx --yes -p @mermaid-js/mermaid-cli mmdc -i /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/flow.mmd -o /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/flow.svg)",
+      "Bash(npx --yes -p @mermaid-js/mermaid-cli mmdc -i /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/flow2.mmd -o /tmp/claude-1000/-home-cutebutzaiko-i-love-shopping/16ea158f-9dab-4cd7-a79d-3191273e4b8d/scratchpad/flow2.svg)",
+      "Bash(npx --yes tsc --noEmit -p backend/tsconfig.json)",
+      "Bash(cd *)",
+      "Bash(curl -sk -X POST http://localhost:8080/api/v1/auth/forgot-password -H 'Content-Type: application/json' -d '{\"email\":\"shopper@villi.test\"}' -w '\\\\nHTTP %{http_code}\\\\n')",
+      "Bash(curl -sk -X POST http://localhost:5173/api/v1/auth/forgot-password -H 'Content-Type: application/json' -d '{\"email\":\"shopper@villi.test\"}' -w '\\\\nHTTP %{http_code}\\\\n')",
+      "Bash(docker volume *)",
+      "Bash(curl -sk -X POST http://localhost:8080/api/v1/auth/forgot-password -H 'Content-Type: application/json' -d '{\"email\":\"admin@villi.test\"}' -w '\\\\nHTTP %{http_code}\\\\n')",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npx --yes playwright install chromium --with-deps)",
+      "Bash(npx --yes playwright install chromium)",
+      "Bash(npm init *)",
+      "Bash(node shot.mjs)",
+      "Bash(ngrok config *)",
+      "Bash(./docs/ngrok.sh *)",
+      "Bash(nohup ngrok http 8080 --log=stdout)",
+      "Bash(echo \"NGROK_PID=$!\")"
     ]
   }
 }
