@@ -9,6 +9,16 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
+if [ ! -f certs/key.pem ] || [ ! -f certs/cert.pem ]; then
+  echo "[start] No local HTTPS cert found — generating a self-signed one (certs/key.pem, certs/cert.pem)."
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "[start] Error: openssl is not installed. Install it, or run ./ngrok/generate-dev-certs.sh manually." >&2
+    exit 1
+  fi
+  mkdir -p certs
+  openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj "/CN=localhost" >/dev/null 2>&1
+fi
+
 # Load host port overrides from .env (safe subset — no eval of arbitrary values).
 if [ -f .env ]; then
   set -a
@@ -56,7 +66,7 @@ if [ "$DETACHED" = true ]; then
   docker compose up --build "$@"
   print_urls
   echo "[start] Running in background. Stop with: docker compose down"
-  echo "[start] Remote demo via ngrok: ./ngrok.sh"
+  echo "[start] Remote demo via ngrok: ./ngrok/ngrok.sh"
 else
   print_urls
   echo "[start] Starting (Ctrl+C to stop). URLs above stay valid once containers are healthy."

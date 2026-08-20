@@ -16,6 +16,36 @@ attributes buyers can filter on, with stock fixed at one unit per item.
 > admin dashboards, accessibility & perf hardening) build on top of this
 > Foundation. See [Roadmap](#roadmap).
 
+## Quick start (for reviewers)
+
+**Prerequisite: Docker Desktop (running).** Nothing else to install for local review.
+
+```bash
+git clone <this-repo>
+cd i-love-shopping1
+./start.sh
+```
+
+That's it. On first run this automatically:
+- copies `.env.example` → `.env`,
+- generates a self-signed local HTTPS cert (`certs/key.pem`, `certs/cert.pem`),
+- builds and starts every service (Postgres, Redis, RabbitMQ, Mailhog, API, web, proxy),
+- applies database migrations and seeds sample data.
+
+Then open **http://localhost:8080** and sign in with the seeded accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@villi.test` | `Admin!Passw0rd` |
+| Customer | `shopper@villi.test` | `Shopper!Passw0rd` |
+
+**Not required for review:** OAuth (Google/GitHub/Facebook), Stripe keys, and reCAPTCHA are all
+left blank in `.env.example` on purpose — those integrations are skipped/disabled without keys, and
+every other flow (accounts, catalog, 2FA, password reset via [Mailhog](http://localhost:18025))
+works fully without them. See [Setup and installation](#setup-and-installation) if you need to
+configure any of those, or [Share with remote reviewers (ngrok)](#share-with-remote-reviewers-ngrok)
+to hand a reviewer a public URL instead of running it themselves.
+
 ### README deliverables (Project 1)
 
 This file meets the required documentation deliverables:
@@ -24,7 +54,7 @@ This file meets the required documentation deliverables:
 |-------------|---------|
 | **Project overview** | [Project overview](#project-overview) (capabilities table) + introduction above |
 | **Entity Relationship Diagram** | [Entity Relationship Diagram](#entity-relationship-diagram) (Mermaid ERD, PK/FK, cardinality, modality) |
-| **Setup and installation** | [Setup and installation](#setup-and-installation) (Docker + Stripe CLI) |
+| **Setup and installation** | [Setup and installation](#setup-and-installation) (Docker only — see [Quick start](#quick-start-for-reviewers)) |
 | **Usage guide** | [Usage guide](#usage-guide) (browse, auth, account, admin) |
 | **Performance Analysis** | [Performance Analysis Report](#performance-analysis-report) |
 
@@ -36,6 +66,7 @@ Bonus material (API reference, security, testing, review checklists) follows bel
 
 **Core (required)**
 
+- [Quick start (for reviewers)](#quick-start-for-reviewers)
 - [Project overview](#project-overview)
 - [Entity Relationship Diagram](#entity-relationship-diagram)
 - [Setup and installation](#setup-and-installation) · [Which port to use](#which-port-to-use)
@@ -398,9 +429,13 @@ review. Only **Docker** is required for the primary path.
 
 ### Prerequisite
 
-**Docker** (with Docker Compose v2) and the **Stripe CLI** are the only host prerequisites. All other application dependencies (Node, PostgreSQL, Redis, nginx) are strictly managed within the containers.
-* **Docker:** Runs the databases, API, and web interface.
-* **Stripe CLI:** Used to forward payment webhooks directly to your local API container (`stripe listen --forward-to localhost:3001/api/v1/checkout/webhook`).
+**Docker** (with Docker Compose v2) is the only host prerequisite for running and reviewing the
+app — see [Quick start](#quick-start-for-reviewers). All other application dependencies (Node,
+PostgreSQL, Redis, nginx, a self-signed HTTPS cert) are provisioned automatically inside/alongside
+the containers by `./start.sh`; nothing else to install.
+
+The **Stripe CLI** is only needed if you want to exercise the payment-webhook flow locally:
+* **Stripe CLI:** Forwards payment webhooks to your local API container (`stripe listen --forward-to localhost:3001/api/v1/checkout/webhook`). Not required to browse, sign in, or review the catalog.
 
 ### Which port to use
 
@@ -450,14 +485,16 @@ and matching OAuth callbacks on `:3001` — do not mix with the `:8080` defaults
 ./start.sh
 ```
 
-This copies `.env.example` to `.env` if missing, then builds and starts
-PostgreSQL, Redis, the API, the web app, and the **proxy** on port **8080**.
-On first boot the API container automatically applies migrations and seeds sample data.
+This copies `.env.example` to `.env` if missing, generates a self-signed local
+HTTPS cert (`certs/key.pem`, `certs/cert.pem`) if missing, then builds and starts
+PostgreSQL, Redis, RabbitMQ, Mailhog, the API, the web app, and the **proxy** on
+port **8080**. On first boot the API container automatically applies migrations
+and seeds sample data. All of this is idempotent — safe to re-run any time.
 
-Equivalently:
+Equivalently (if you want to skip the `.env`/cert bootstrapping, e.g. because
+you already have both):
 
 ```bash
-cp .env.example .env
 docker compose up --build -d api web proxy
 ```
 
@@ -481,9 +518,23 @@ Auth refresh cookies require the browser to talk to **one origin** for both the
 SPA and `/api/v1`. A small **nginx proxy** (`proxy/nginx.conf`, port **8080**)
 routes `/` → web and `/api/` → API so ngrok can expose a single HTTPS URL.
 
+This is **local maintainer tooling, not needed by reviewers** — it's how the repo
+owner can hand out a public URL as a fallback, e.g. so reviewers can exercise
+OAuth without configuring their own credentials. The `ngrok/` folder is
+gitignored and not part of a fresh clone; reviewers should use
+[Quick start](#quick-start-for-reviewers) instead.
+
+**One-time setup** (skip if `ngrok` is already installed and authenticated on this machine):
+
 ```bash
-# Install ngrok and configure your authtoken first: https://ngrok.com/download
-./ngrok.sh
+./ngrok/install-ngrok.sh                     # installs the ngrok CLI (Debian/Ubuntu apt repo)
+ngrok config add-authtoken <your-authtoken>  # from https://dashboard.ngrok.com/get-started/your-authtoken
+```
+
+Then, every time you want a tunnel:
+
+```bash
+./ngrok/ngrok.sh
 ```
 
 This starts Docker (including the proxy), opens an ngrok tunnel to port 8080,
@@ -810,7 +861,7 @@ third-party flows that are hard to fully automate):
 ```
 .
 ├── proxy/nginx.conf          # unified gateway (/ → web, /api → api)
-├── ngrok.sh                  # remote demo via single HTTPS origin
+├── ngrok/                    # maintainer-only: remote demo tunnel (gitignored)
 ├── docker-compose.yml        # postgres + redis + api + web + proxy
 ├── start.sh                  # one-command build & run
 ├── .env.example              # all configuration (12-factor)
