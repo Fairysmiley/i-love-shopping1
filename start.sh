@@ -12,7 +12,7 @@ fi
 if [ ! -f certs/key.pem ] || [ ! -f certs/cert.pem ]; then
   echo "[start] No local HTTPS cert found — generating a self-signed one (certs/key.pem, certs/cert.pem)."
   if ! command -v openssl >/dev/null 2>&1; then
-    echo "[start] Error: openssl is not installed. Install it, or run ./ngrok/generate-dev-certs.sh manually." >&2
+    echo "[start] Error: openssl is not installed. Install it, or run ./scripts/generate-dev-certs.sh manually." >&2
     exit 1
   fi
   mkdir -p certs
@@ -66,7 +66,7 @@ if [ "$DETACHED" = true ]; then
   docker compose up --build "$@"
   print_urls
   echo "[start] Running in background. Stop with: docker compose down"
-  echo "[start] Remote demo via ngrok: ./ngrok/ngrok.sh"
+  echo "[start] Remote demo via ngrok: ./scripts/ngrok.sh"
 else
   print_urls
   echo "[start] Starting (Ctrl+C to stop). URLs above stay valid once containers are healthy."

@@ -202,7 +202,7 @@ a:focus-visible {
   color: var(--muted);
   pointer-events: none;
 }
-.navbar-search input {
+.navbar-search input[type='search'] {
   padding-left: 38px;
 }
 @media (max-width: 860px) {

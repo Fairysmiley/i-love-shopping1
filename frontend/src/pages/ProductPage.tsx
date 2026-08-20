@@ -98,7 +98,11 @@ export function ProductPage() {
           )}
         </div>
         <div>
-          <div className="brand-tag muted">{product.brand.name}</div>
+          <div className="brand-tag muted">
+            {product.brand.name}
+            {' · '}
+            <Link to={`/shop?category=${product.category.slug}`}>{product.category.name}</Link>
+          </div>
           <h1 style={{ margin: '4px 0' }}>{product.name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0' }}>
             {product.attributes.find((a) => a.name === 'authenticity') && (
@@ -125,7 +129,7 @@ export function ProductPage() {
           </p>
           <p>
             <span className={`badge ${product.inStock ? '' : 'out'}`}>
-              {product.inStock ? 'Available — one-of-a-kind' : 'Sold'}
+              {product.inStock ? `Available — ${product.stockQuantity} in stock` : 'Sold'}
             </span>
           </p>
           <p>{product.description}</p>
@@ -133,6 +137,14 @@ export function ProductPage() {
           <h2 className="muted">Specifications</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
+              <tr>
+                <td className="muted" style={{ padding: '6px 0' }}>
+                  Product ID
+                </td>
+                <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                  {product.id}
+                </td>
+              </tr>
               {product.attributes.map((a) => (
                 <tr key={a.name}>
                   <td className="muted" style={{ padding: '6px 0', textTransform: 'capitalize' }}>

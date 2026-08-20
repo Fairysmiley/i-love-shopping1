@@ -14,20 +14,6 @@ function SearchIcon() {
   );
 }
 
-function UserIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M5 20c1.5-3.5 4.5-5 7-5s5.5 1.5 7 5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function CartIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -173,11 +159,11 @@ export function Navbar() {
         <nav aria-label="Main Navigation" className="navbar-actions">
           <ThemeToggle compact />
 
-          <Link to="/about" className="navbar-icon-action" style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: "0.875rem" }}>about</span>
+          <Link to="/about" className="navbar-icon-action">
+            <span>about</span>
           </Link>
-          <Link to="/contact" className="navbar-icon-action" style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: "0.875rem" }}>contact</span>
+          <Link to="/contact" className="navbar-icon-action">
+            <span>contact</span>
           </Link>
 
           <Link to="/shop" className="navbar-icon-action">
@@ -187,7 +173,6 @@ export function Navbar() {
           {user ? (
             <>
               <Link to="/account" className="navbar-icon-action">
-                <UserIcon />
                 <span>{user.firstName}</span>
               </Link>
               {user.role === 'ADMIN' && (
@@ -206,7 +191,6 @@ export function Navbar() {
             </>
           ) : (
             <Link to="/login" className="navbar-icon-action">
-              <UserIcon />
               <span>sign in</span>
             </Link>
           )}

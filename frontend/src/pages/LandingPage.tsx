@@ -14,12 +14,6 @@ interface Product {
   averageRating: number;
 }
 
-interface Category {
-  id: string;
-  slug: string;
-  name: string;
-}
-
 const HIGHLIGHTS = [
   {
     title: 'Verified authenticity',
@@ -37,18 +31,13 @@ const HIGHLIGHTS = [
 
 export function LandingPage() {
   const [featured, setFeatured] = useState<Product[]>([]);
-  const [collections, setCollections] = useState<Category[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch featured products (top rated) and categories (collections)
-    Promise.all([
-      api.get<{ data: Product[] }>('/products?limit=4&sort=rating'),
-      api.get<Category[]>('/categories/tree')
-    ]).then(([productsData, categoriesData]) => {
-      setFeatured(productsData.data);
-      setCollections(categoriesData.slice(0, 4)); // Get top 4 categories
-    }).catch(console.error);
+    // Fetch featured products (top rated)
+    api.get<{ data: Product[] }>('/products?limit=4&sort=rating')
+      .then((productsData) => setFeatured(productsData.data))
+      .catch(console.error);
   }, []);
 
   return (
@@ -104,27 +93,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="container landing-section" style={{ padding: '48px 24px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: 32 }}>Featured Collections</h2>
-        <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          {collections.map(c => (
-            <div 
-              key={c.id} 
-              className="panel" 
-              style={{ textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s', padding: 24 }}
-              onClick={() => navigate(`/shop?category=${c.slug}`)}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              <h3 style={{ margin: 0, fontSize: "1.125rem" }}>{c.name}</h3>
-              <p className="muted" style={{ fontSize: "0.8125rem", marginTop: 8 }}>Explore gear &rarr;</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="container landing-section" style={{ padding: '0 24px 64px 24px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: 32 }}>Trending Gear</h2>
+      <section className="container landing-section" style={{ padding: '48px 24px 64px 24px' }}>
+        
         <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
           {featured.map(p => (
             <div key={p.id} className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }} onClick={() => navigate(`/product/${p.slug}`)}>

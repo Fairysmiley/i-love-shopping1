@@ -93,6 +93,7 @@ echo "════════════════════════�
 echo "  Share with reviewers:"
 echo "    App:     $PUBLIC_URL"
 echo "    Swagger: ${PUBLIC_URL}/api/docs"
+echo "    Mailhog: ${PUBLIC_URL}/mailhog/  (password-reset emails)"
 echo "    Admin:   admin@villi.test / Admin!Passw0rd"
 echo "    Shopper: shopper@villi.test / Shopper!Passw0rd"
 echo ""
