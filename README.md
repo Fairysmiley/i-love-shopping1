@@ -1,18 +1,21 @@
-# Villi — B2C E-commerce Platform (Project 1: Foundation)
+# Villi — B2C E-commerce Platform (Projects 1–2: Foundation + Commerce)
 
 Villi is a Business-to-Consumer **curated marketplace for verified,
 authenticated pre-loved Finnish/Nordic design high-end outdoor apparel** (e.g.
 Fjällräven, Haglöfs, Luhta, Sasta, Norrøna, Klättermusen). This repository
-implements **Project 1 — Foundation**: secure user accounts, an
+implements **Project 1 — Foundation** (secure user accounts, an
 ACID-compliant relational database, and a searchable, faceted product
-catalog. It's built API-first and runs end-to-end with a single Docker command.
+catalog) and **Project 2 — Commerce** (guest + persistent carts, a
+single-page checkout, real Stripe payments, async order/payment status via
+RabbitMQ, and order management with cancellation + refunds). It's built
+API-first and runs end-to-end with a single Docker command.
 
 Because every item is **pre-loved and one-of-a-kind**, each listing carries an
 authenticity status, a condition grade, and a size — all faceted attributes
 buyers can filter on, with stock fixed at one unit per item.
 
-> Projects 2 (Commerce) and 3 (Experience) build on top of this Foundation.
-> See [Roadmap](docs/REFERENCE.md#roadmap).
+> Project 3 (Experience — admin dashboards, accessibility & performance
+> hardening) builds on top of this. See [Roadmap](docs/REFERENCE.md#roadmap).
 
 ## Table of contents
 
@@ -37,9 +40,15 @@ cd i-love-shopping1
 cp .env.example .env
 ```
 
-**Before running `./start.sh`, set real credentials in `.env` for CAPTCHA and
-OAuth.** `STRIPE_*` keys are part of Project 2 — leave them blank.
-
+**Before running `./start.sh`, set real credentials in `.env` for CAPTCHA,
+OAuth, and Stripe** (see tables below), **and install the
+[Stripe CLI](https://docs.stripe.com/stripe-cli)** — it's the one extra host
+prerequisite alongside Docker (task2.txt: *"Docker and payment simulation
+CLI are the only prerequisites"*). Without a real `STRIPE_SECRET_KEY`,
+checkout fails outright at the payment step; without the CLI forwarding
+webhooks, an otherwise-successful charge never flips `Order.status` off
+`PENDING` — see [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup)
+below.
 
 ### CAPTCHA and OAuth
 
@@ -53,6 +62,45 @@ Only **one** working OAuth provider is needed to satisfy the "email-password
 + OAuth" requirement — Google or GitHub, whichever is faster for you to
 register.
 
+### Payments and Stripe CLI setup
+
+**Real Stripe test-mode keys are required** — checkout creates a real
+`PaymentIntent` server-side, and the placeholder value in `.env.example`
+isn't a working key (there's no such thing as a safe *shared* default for a
+secret key, unlike a publishable key). Get free test-mode keys from
+[dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys)
+and set both in `.env`:
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+VITE_STRIPE_PUBLIC_KEY=pk_test_...
+```
+
+(`VITE_STRIPE_PUBLIC_KEY` needs `web` rebuilt after — `docker compose up -d --build web`.)
+
+That covers creating the charge. The *confirmation* side needs one more
+step: Stripe confirms the charge to the browser instantly, but our backend
+only learns about it (and flips `Order.status` from `PENDING` to `PAID`,
+sends the confirmation email, and publishes to RabbitMQ) via a **webhook**.
+Locally, that means running the [Stripe CLI](https://docs.stripe.com/stripe-cli)
+— install it, `stripe login` once, then:
+
+```bash
+stripe listen --forward-to localhost:8080/api/v1/checkout/webhook
+```
+
+Paste the `whsec_...` it prints into `STRIPE_WEBHOOK_SECRET` in `.env`, then
+restart `api` (`docker compose up -d api`). Leave `stripe listen` running in
+a separate terminal for the whole review session. Use Stripe's
+[test cards](https://docs.stripe.com/testing#cards) to exercise specific
+outcomes — `4242 4242 4242 4242` (success), `4000 0000 0000 9995`
+(insufficient funds), `4000 0000 0000 0069` (expired card),
+`4000 0000 0000 0002` (generic decline).
+
+If `stripe listen` isn't running, checkout still completes and the order is
+created — but the confirmation page will sit in "Confirming your payment…"
+indefinitely (by design: it reflects real `Order.status`, it never fakes
+success), since the webhook that would settle it never arrives.
 
 ```bash
 ./start.sh
@@ -87,18 +135,21 @@ Accounts (email/password), catalog, 2FA, and password reset (via
 
 ## Project overview
 
-**Villi** is a B2C e-commerce **Foundation** for a curated pre-loved outdoor
-apparel shop. Shoppers browse and search a product catalog; the platform
-handles **accounts** (registration, login, JWT sessions, optional 2FA) and a
-**relational catalog** (categories, brands, facets, reviews) backed by
-PostgreSQL. Commerce (cart, checkout, payments) and the full admin UI are
-planned in later projects.
+**Villi** is a B2C e-commerce platform for a curated pre-loved outdoor
+apparel shop. Shoppers browse and search a product catalog, add items to a
+cart that survives as a guest or a signed-in user, and check out through a
+single-page flow with real Stripe payments, async order-status updates via
+RabbitMQ, and full order management (filtering, cancellation, refunds). The
+full admin UI is planned for Project 3.
 
 | Capability | Summary |
 |---|---|
 | **Accounts & auth** | Email/password + OAuth (Google, GitHub), CAPTCHA on signup, JWT access + rotating refresh tokens, token revocation, password reset, optional TOTP 2FA. |
 | **Database** | PostgreSQL (relational, ACID) via Prisma. Transactions for multi-step writes, FKs/constraints for integrity. |
 | **Catalog** | Full product model, nested category browse, faceted search, sort by relevance/price/rating, static images. |
+| **Cart** | Redis-backed guest cart (temporary, keyed by an anonymous id) + Postgres-backed persistent cart for signed-in users, merged automatically on login. Live totals, out-of-stock guards. |
+| **Checkout & payments** | Single-page checkout (address + delivery + payment), prefilled for signed-in users. Stripe `PaymentElement` — card data never touches our backend. Order status (`PENDING`/`PAID`/`CANCELLED`) driven by a real Stripe webhook → RabbitMQ → consumer round-trip, with retry + dead-letter handling. |
+| **Orders** | Filter by date/status, detailed order view, cancellation for unprocessed orders, real Stripe refunds, automatic inventory restock. |
 | **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape, per-IP rate limiting. |
 | **Ops** | Fully containerized; one command builds + runs the whole stack. |
 | **Business model** | **B2C** — Villi sells directly to individual consumers; see [B2C e-commerce model](docs/REFERENCE.md#b2c-e-commerce-model). |
@@ -134,8 +185,10 @@ erDiagram
   User ||--o{ Cart : "owns 0..N"
   Cart ||--o{ CartItem : "contains 0..N"
   Product ||--o{ CartItem : "in 0..N"
+  User ||--o{ Address : "saves 0..N"
 
-  User ||--o{ Order : "places 0..N"
+  User ||--o{ Order : "places 0..N (nullable — guest orders have no user)"
+  DeliveryOption ||--o{ Order : "ships 0..N"
   Order ||--o{ OrderItem : "contains 1..N"
   Product ||--o{ OrderItem : "in 0..N"
   Order ||--o| Payment : "has 0..1"
@@ -261,13 +314,33 @@ erDiagram
     datetime createdAt
     datetime updatedAt
   }
-  Order {
+  Address {
     uuid id PK
     uuid userId FK
-    enum status
+    string label "nullable"
+    string data "encrypted JSON: street/city/postalCode/country/phone"
+    bool isDefault
+    datetime createdAt
+    datetime updatedAt
+  }
+  DeliveryOption {
+    uuid id PK
+    string name UK
+    string description "nullable"
+    decimal price
+    int estimatedDaysMin
+    int estimatedDaysMax
+    bool isActive
+  }
+  Order {
+    uuid id PK
+    uuid userId FK "nullable — null for guest checkouts"
+    string guestEmail "nullable, encrypted — set only for guest checkouts"
+    enum status "PENDING | PAID | SHIPPED | DELIVERED | CANCELLED"
     decimal totalAmount
     string currency
-    string shippingAddress "nullable"
+    string shippingAddress "encrypted JSON, nullable"
+    uuid deliveryOptionId FK "nullable"
     datetime createdAt
     datetime updatedAt
   }
@@ -284,8 +357,8 @@ erDiagram
     decimal amount
     string currency
     string provider
-    enum status
-    string transactionId "nullable"
+    enum status "PENDING | COMPLETED | FAILED | REFUNDED"
+    string transactionId "nullable, encrypted — Stripe PaymentIntent id"
     datetime createdAt
     datetime updatedAt
   }
@@ -321,19 +394,22 @@ erDiagram
 | User → Cart | 1 : 0..N | Guest carts have null userId | `Cart.userId` → `User.id` |
 | Cart → CartItem | 1 : 0..N | Carts contain zero or many items | `CartItem.cartId` → `Cart.id` |
 | Product → CartItem | 1 : 0..N | Product can be in multiple carts | `CartItem.productId` → `Product.id` |
-| User → Order | 1 : 0..N | Users place zero or many orders | `Order.userId` → `User.id` |
+| User → Address | 1 : 0..N | Saved address book; zero or many per user | `Address.userId` → `User.id` |
+| User → Order | 1 : 0..N | `userId` is nullable — guest checkouts have no user, identified by `guestEmail` instead | `Order.userId` → `User.id` |
+| DeliveryOption → Order | 1 : 0..N | Nullable; `SetNull` if the option is later removed | `Order.deliveryOptionId` → `DeliveryOption.id` |
 | Order → OrderItem | 1 : 1..N | Orders must contain at least one item | `OrderItem.orderId` → `Order.id` |
 | Product → OrderItem | 1 : 0..N | Product can be in multiple orders | `OrderItem.productId` → `Product.id` |
-| Order → Payment | 1 : 0..1 | At most one successful/active payment | `Payment.orderId` → `Order.id` |
+| Order → Payment | 1 : 0..1 | At most one payment record per order | `Payment.orderId` → `Order.id` |
 
 ACID/transaction notes and DB scalability rationale: [`docs/REFERENCE.md`](docs/REFERENCE.md#acid-properties-in-e-commerce).
 
+---
 
-### Stripe (Project 2)
+## Setup and installation
 
-| Integration | Where to get credentials | `.env` variables |
-|---|---|---|
-| **Stripe** (checkout payment — Project 2, not this Foundation review) | [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys) for test-mode keys; run `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` (Stripe CLI) and paste the printed `whsec_...` | `STRIPE_SECRET_KEY`, `VITE_STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET` |
+Covered in full in [Quick start](#quick-start-for-reviewers) above — Docker,
+`.env` setup, CAPTCHA/OAuth, and the Stripe CLI webhook step. Two more `.env`
+values worth knowing about even though the defaults work out of the box:
 
 - `ENCRYPTION_KEY` — AES-256-GCM key for encrypted user fields, **must be
   exactly 32 characters**. The example value works for local dev; generate a
@@ -344,7 +420,9 @@ ACID/transaction notes and DB scalability rationale: [`docs/REFERENCE.md`](docs/
   shared/public deployment.
 
 
-**Without Docker:** Node 20+, PostgreSQL, and Redis running locally, then:
+**Without Docker:** Node 20+, PostgreSQL, Redis, and RabbitMQ running locally
+(the payment/order-status queue needs it — checkout works without Docker
+only if RabbitMQ is reachable at `RABBITMQ_URL`), then:
 ```bash
 cd backend && npm install && cp ../.env.example .env  # adjust DATABASE_URL/REDIS_URL
 npx prisma migrate deploy && npm run prisma:seed && npm run start:dev  # :3001
@@ -364,23 +442,59 @@ sign in with a seeded account.
    leave a 1–5 star review (one per product). Ratings are computed live.
 3. **Register / sign in** — email+password or OAuth; CAPTCHA shown if
    configured. Access token lives only in memory, never localStorage.
-4. **Account page** — enable/disable optional TOTP 2FA, export data, or
-   delete your account (GDPR).
-5. **Admin** — sign in as admin to manage products/categories/brands (Project 2).
+4. **Account page** — enable/disable optional TOTP 2FA, export data, save
+   addresses, or delete your account (GDPR).
+5. **Admin** — sign in as admin to manage products/categories/brands.
+
+### Cart, checkout & payments
+
+6. **Cart** — add items from any product page or the shop grid; the cart
+   icon shows a live count. Update quantities or remove items directly in
+   the cart drawer — totals recalculate immediately. Adding more than the
+   current stock is rejected with an explicit "only N in stock" message,
+   not a silent clamp. **As a guest**, the cart is kept in Redis under an
+   anonymous id stored in `localStorage`; sign in and it merges automatically
+   into your persistent (Postgres-backed) cart, capped at each product's
+   current stock.
+7. **Checkout** — one page: shipping address (street/city/postal
+   code/country/phone, validated both client- and server-side), a shipping
+   option, and payment. Signed-in users get their email and default saved
+   address prefilled. The order summary stays editable (quantity/remove)
+   until you place the order.
+8. **Payment** — Stripe's `PaymentElement` renders inline; your card number
+   never reaches our backend. Use any [Stripe test card](https://docs.stripe.com/testing#cards)
+   to see a specific outcome (success, insufficient funds, expired card,
+   generic decline). **Requires real `STRIPE_SECRET_KEY`/`VITE_STRIPE_PUBLIC_KEY`
+   in `.env` and `stripe listen` running** — see
+   [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup).
+9. **Order confirmation** — after payment, the page polls briefly and shows
+   one of three real states: a green confirmation once `Order.status` is
+   `PAID`, an honest "confirming your payment…" while the webhook is still
+   in flight, or a clear failure screen if the charge was declined — never a
+   false "success" before the backend has actually confirmed it.
+10. **My orders** — filter by date range and status; open an order for full
+    details (items, address, payment status, delivery estimate). Cancel any
+    order that's still `PENDING` or `PAID`; cancelling a `PAID` order issues
+    a real Stripe refund and restocks inventory automatically.
 
 **Quick reviewer walkthrough:**
 
 | Step | Action |
 |------|--------|
 | 1 | `./start.sh -d` — wait until API, web, and proxy are up |
-| 2 | Open **http://localhost:8080** — browse catalog, use facets and sort |
-| 3 | Open a product — images, specs (metric + imperial), reviews |
-| 4 | Sign in as `shopper@villi.test` / `Shopper!Passw0rd` |
-| 5 | Account → optional 2FA; API docs at http://localhost:3001/api/docs |
-| 6 | Run tests: `docker compose --profile test run --rm e2e` |
+| 2 | In a separate terminal: `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` |
+| 3 | Open **http://localhost:8080** — browse catalog, use facets and sort |
+| 4 | Add a product to cart as a guest, then sign in — watch it merge |
+| 5 | Sign in as `shopper@villi.test` / `Shopper!Passw0rd` |
+| 6 | Check out with test card `4242 4242 4242 4242` → confirmation page flips to PAID within a couple seconds |
+| 7 | Try `4000 0000 0000 9995` (insufficient funds) on a second order — watch the order end up `CANCELLED` and stock revert |
+| 8 | My Orders → open the paid order → Cancel → confirm the refund + restock |
+| 9 | Account → optional 2FA; API docs at http://localhost:3001/api/docs |
+| 10 | Run tests: `docker compose --profile test run --rm e2e` |
 
 **Password reset demo:** Forgot password → enter an email → open
 [Mailhog](http://localhost:18025) for the reset link → set a new password.
+Order confirmation / payment-failed emails land in Mailhog the same way.
 
 For more detailed review:
 - [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md) — step-by-step

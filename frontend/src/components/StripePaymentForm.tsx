@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
-import { api } from '../api/client';
 
 export interface StripePaymentFormProps {
-  orderId: string;
   onSuccess: () => void;
   onError: (error: string) => void;
   onProcessing: (isProcessing: boolean) => void;
 }
 
-export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }: StripePaymentFormProps) {
+export function StripePaymentForm({ onSuccess, onError, onProcessing }: StripePaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [errorMessage, setErrorMessage] = useState('');
@@ -31,21 +29,11 @@ export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }:
       onError(error.message || 'Payment failed');
       onProcessing(false);
     } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-      // In test mode without webhooks, we can simulate the webhook callback
-      // But we mapped our backend to receive raw webhooks so Stripe handles it if connected!
-      // However, if the user doesn't have stripe CLI forwarding webhooks, the order won't update.
-      // We will optimisticly call onSuccess so the UI proceeds.
-      
-      // Let's manually ping the webhook with a dummy payload just in case the user doesn't have Stripe CLI running
-      try {
-        await api.post('/checkout/webhook', {
-          type: 'payment_intent.succeeded',
-          data: { object: { metadata: { orderId }, amount: paymentIntent.amount, currency: paymentIntent.currency, id: paymentIntent.id } }
-        });
-      } catch (err) {
-        // Ignore, the real webhook might have succeeded
-      }
-
+      // Stripe has confirmed the charge, but Order.status only becomes PAID once
+      // our backend's webhook handler processes the async callback (see the
+      // Stripe CLI note in the README) — the confirmation page itself polls for
+      // that, so we just hand off; we never forge a webhook call from the
+      // browser, since that would mean shipping a webhook secret to the client.
       onProcessing(false);
       onSuccess();
     } else {

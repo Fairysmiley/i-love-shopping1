@@ -19,6 +19,33 @@ export interface CheckoutContext {
   email?: string;
 }
 
+interface StripeLastPaymentError {
+  code?: string;
+  decline_code?: string;
+  message?: string;
+}
+
+/**
+ * Turns Stripe's `PaymentIntent.last_payment_error` into a specific,
+ * human-readable failure reason. `decline_code` covers card-issuer declines
+ * (e.g. insufficient funds); `code` covers Stripe-side validation errors
+ * (e.g. an expired or malformed card number) that never reach the issuer.
+ */
+function describeStripeFailure(lastPaymentError: StripeLastPaymentError | null | undefined): string | undefined {
+  if (!lastPaymentError) return undefined;
+  switch (lastPaymentError.decline_code ?? lastPaymentError.code) {
+    case 'insufficient_funds':
+      return 'Insufficient funds';
+    case 'expired_card':
+      return 'Card expired';
+    case 'incorrect_number':
+    case 'invalid_number':
+      return 'Invalid card number';
+    default:
+      return lastPaymentError.message ?? 'Payment failed';
+  }
+}
+
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
@@ -198,7 +225,7 @@ export class CheckoutService {
     const orderId = intent.metadata.orderId;
     const status: 'succeeded' | 'failed' =
       payload.type === 'payment_intent.succeeded' ? 'succeeded' : 'failed';
-    const errorDetail = payload.data?.error?.message;
+    const errorDetail = describeStripeFailure(intent.last_payment_error);
 
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },

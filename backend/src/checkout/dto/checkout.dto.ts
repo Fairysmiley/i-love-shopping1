@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsOptional,
+  IsPhoneNumber,
   IsString,
   IsUUID,
   Matches,
@@ -38,6 +39,10 @@ export class ShippingAddressDto {
   @IsNotEmpty({ message: 'Country is required.' })
   @MaxLength(100)
   country: string;
+
+  @IsPhoneNumber(undefined, { message: 'Phone number format looks invalid.' })
+  @IsNotEmpty({ message: 'Phone number is required.' })
+  phone: string;
 }
 
 export class CheckoutDto {

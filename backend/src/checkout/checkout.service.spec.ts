@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StripePaymentService } from './stripe-payment.service';
 import { PaymentQueueService } from './payment-queue.service';
 import { Prisma } from '@prisma/client';
-import { decrypt } from '../common/utils/encryption.util';
+import { decrypt, encrypt } from '../common/utils/encryption.util';
 
 const DELIVERY_OPTION = { id: 'do1', price: new Prisma.Decimal('15.00'), isActive: true };
 
@@ -14,6 +14,7 @@ describe('CheckoutService', () => {
   let service: CheckoutService;
   let prisma: any;
   let cart: any;
+  let paymentQueue: any;
 
   beforeEach(async () => {
     const mockPrisma = {
@@ -22,6 +23,10 @@ describe('CheckoutService', () => {
       },
       order: {
         create: jest.fn(),
+        findUnique: jest.fn(),
+      },
+      payment: {
+        upsert: jest.fn(),
       },
       product: {
         update: jest.fn(),
@@ -62,6 +67,7 @@ describe('CheckoutService', () => {
     service = module.get<CheckoutService>(CheckoutService);
     prisma = module.get(PrismaService);
     cart = module.get(CartService);
+    paymentQueue = module.get(PaymentQueueService);
   });
 
   const dto = (overrides: Partial<any> = {}) => ({
@@ -72,6 +78,7 @@ describe('CheckoutService', () => {
       city: 'Helsinki',
       postalCode: '00100',
       country: 'Finland',
+      phone: '+358401234567',
     },
     ...overrides,
   });
@@ -212,5 +219,73 @@ describe('CheckoutService', () => {
     await expect(
       service.processCheckout({ guestId: 'g1', email: 'guest@example.com' }, dto()),
     ).rejects.toThrow('Cart is empty. Cannot proceed with checkout.');
+  });
+
+  describe('handleStripeWebhook — specific payment failure reasons', () => {
+    beforeEach(() => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'o1',
+        user: null,
+        guestEmail: encrypt('shopper@example.com'),
+      });
+      prisma.payment.upsert.mockResolvedValue({});
+    });
+
+    const webhookPayload = (lastPaymentError?: Record<string, unknown>) => ({
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: 'pi_1',
+          amount: 1500,
+          currency: 'eur',
+          metadata: { orderId: 'o1' },
+          last_payment_error: lastPaymentError,
+        },
+      },
+    });
+
+    it.each([
+      [{ decline_code: 'insufficient_funds', message: 'raw' }, 'Insufficient funds'],
+      [{ code: 'expired_card', message: 'raw' }, 'Card expired'],
+      [{ code: 'incorrect_number', message: 'raw' }, 'Invalid card number'],
+      [{ code: 'invalid_number', message: 'raw' }, 'Invalid card number'],
+      [{ message: 'Something else entirely went wrong.' }, 'Something else entirely went wrong.'],
+    ])('maps last_payment_error %j to "%s"', async (lastPaymentError, expectedReason) => {
+      await service.handleStripeWebhook(webhookPayload(lastPaymentError));
+
+      expect(paymentQueue.publishStatusUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ orderId: 'o1', status: 'failed', errorDetail: expectedReason }),
+      );
+    });
+
+    it('reads last_payment_error from the PaymentIntent itself, not a top-level data.error', async () => {
+      // Regression test: Stripe's real webhook shape nests the decline reason
+      // inside `data.object.last_payment_error`, not a sibling `data.error` —
+      // asserting `undefined` is never mistaken for a passing "no reason" case.
+      const payloadWithWrongShape = {
+        type: 'payment_intent.payment_failed',
+        data: {
+          object: { id: 'pi_1', amount: 1500, currency: 'eur', metadata: { orderId: 'o1' } },
+          error: { message: 'insufficient funds' },
+        },
+      };
+
+      await service.handleStripeWebhook(payloadWithWrongShape);
+
+      expect(paymentQueue.publishStatusUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ orderId: 'o1', status: 'failed', errorDetail: undefined }),
+      );
+    });
+
+    it('does not set an errorDetail for a successful payment', async () => {
+      await service.handleStripeWebhook({
+        type: 'payment_intent.succeeded',
+        data: { object: { id: 'pi_1', amount: 1500, currency: 'eur', metadata: { orderId: 'o1' } } },
+      });
+
+      expect(paymentQueue.publishStatusUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ orderId: 'o1', status: 'succeeded', errorDetail: undefined }),
+      );
+    });
   });
 });

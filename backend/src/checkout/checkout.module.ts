@@ -17,5 +17,6 @@ import { RedisModule } from '../redis/redis.module';
     PaymentQueueService,
     OrderStatusConsumerService,
   ],
+  exports: [StripePaymentService],
 })
 export class CheckoutModule {}

@@ -11,7 +11,7 @@ import { decrypt } from '../src/common/utils/encryption.util';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy';
 
 function testAddress() {
-  return { street: '123 E2E Street', city: 'Helsinki', postalCode: '00100', country: 'Finland' };
+  return { street: '123 E2E Street', city: 'Helsinki', postalCode: '00100', country: 'Finland', phone: '+358401234567' };
 }
 
 /** Signs a webhook payload exactly the way Stripe would, so the controller's
@@ -203,7 +203,7 @@ describe('Commerce E2E (Task 2)', () => {
       .set('x-guest-cart-id', guestId)
       .send({
         paymentMethodId: 'tok_mastercard',
-        shippingAddress: { street: '456 Guest Ave', city: 'Testing City', postalCode: '10001', country: 'Finland' },
+        shippingAddress: { street: '456 Guest Ave', city: 'Testing City', postalCode: '10001', country: 'Finland', phone: '+358501234567' },
         deliveryOptionId,
         email: 'guest.shopper@test.com',
       });
@@ -303,12 +303,27 @@ describe('Commerce E2E (Task 2)', () => {
         .send({
           paymentMethodId: 'tok_visa',
           deliveryOptionId,
-          shippingAddress: { street: '', city: 'Helsinki', postalCode: '###', country: 'Finland' },
+          shippingAddress: { street: '', city: 'Helsinki', postalCode: '###', country: 'Finland', phone: '+358401234567' },
         });
 
       expect(res.status).toBe(400);
       const messages = [].concat(res.body.message);
       expect(messages.some((m: string) => /street/i.test(m))).toBe(true);
+    });
+
+    it('fails with 400 on an invalid phone number format', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/checkout')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          paymentMethodId: 'tok_visa',
+          deliveryOptionId,
+          shippingAddress: { ...testAddress(), phone: 'not-a-phone-number' },
+        });
+
+      expect(res.status).toBe(400);
+      const messages = [].concat(res.body.message);
+      expect(messages.some((m: string) => /phone/i.test(m))).toBe(true);
     });
 
     it('fails with 400 when no shipping option is selected', async () => {
@@ -393,8 +408,13 @@ describe('Commerce E2E (Task 2)', () => {
       await signedWebhook(app.getHttpServer(), {
         type: 'payment_intent.payment_failed',
         data: {
-          object: { metadata: { orderId: failOrderId }, amount: 1500, currency: 'eur', id: 'pi_fail123' },
-          error: { message: 'insufficient funds' },
+          object: {
+            metadata: { orderId: failOrderId },
+            amount: 1500,
+            currency: 'eur',
+            id: 'pi_fail123',
+            last_payment_error: { decline_code: 'insufficient_funds', message: 'Your card has insufficient funds.' },
+          },
         },
       });
 
@@ -426,8 +446,13 @@ describe('Commerce E2E (Task 2)', () => {
       const failurePayload = {
         type: 'payment_intent.payment_failed',
         data: {
-          object: { metadata: { orderId }, amount: 1500, currency: 'eur', id: 'pi_dup_fail' },
-          error: { message: 'insufficient funds' },
+          object: {
+            metadata: { orderId },
+            amount: 1500,
+            currency: 'eur',
+            id: 'pi_dup_fail',
+            last_payment_error: { decline_code: 'insufficient_funds', message: 'Your card has insufficient funds.' },
+          },
         },
       };
 

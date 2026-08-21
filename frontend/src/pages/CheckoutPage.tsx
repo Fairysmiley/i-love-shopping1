@@ -27,9 +27,13 @@ interface Address {
   city: string;
   postalCode: string;
   country: string;
+  phone: string;
 }
 
-const EMPTY_ADDRESS: Address = { street: '', city: '', postalCode: '', country: '' };
+const EMPTY_ADDRESS: Address = { street: '', city: '', postalCode: '', country: '', phone: '' };
+// Lenient client-side check (digits, spaces, +()- , 7-20 chars) — the server's
+// IsPhoneNumber validation is the strict, authoritative check.
+const PHONE_PATTERN = /^\+?[0-9\s\-()]{7,20}$/;
 
 export function CheckoutPage() {
   usePageTitle('Checkout');
@@ -59,7 +63,7 @@ export function CheckoutPage() {
         const preferred = addresses.find((a) => a.isDefault) ?? addresses[0];
         if (preferred) {
           setSelectedAddressId(preferred.id);
-          setAddress({ street: preferred.street, city: preferred.city, postalCode: preferred.postalCode, country: preferred.country });
+          setAddress((prev) => ({ street: preferred.street, city: preferred.city, postalCode: preferred.postalCode, country: preferred.country, phone: prev.phone }));
         }
       })
       .catch(() => setSavedAddresses([]));
@@ -73,7 +77,7 @@ export function CheckoutPage() {
     }
     const found = savedAddresses.find((a) => a.id === id);
     if (found) {
-      setAddress({ street: found.street, city: found.city, postalCode: found.postalCode, country: found.country });
+      setAddress((prev) => ({ street: found.street, city: found.city, postalCode: found.postalCode, country: found.country, phone: prev.phone }));
     }
   };
 
@@ -105,6 +109,14 @@ export function CheckoutPage() {
     e.preventDefault();
     if (!address.street.trim() || !address.city.trim() || !address.postalCode.trim() || !address.country.trim()) {
       setError('Please fill in your full shipping address.');
+      return;
+    }
+    if (!address.phone.trim()) {
+      setError('Please enter a phone number for delivery contact.');
+      return;
+    }
+    if (!PHONE_PATTERN.test(address.phone.trim())) {
+      setError('Please enter a valid phone number (e.g. +358 40 1234567).');
       return;
     }
     if (!user && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -245,6 +257,18 @@ export function CheckoutPage() {
               </div>
 
               <div className="field">
+                <label htmlFor="phone">Phone</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={address.phone}
+                  onChange={(e) => setAddress({ ...address, phone: e.target.value })}
+                  placeholder="+358 40 1234567"
+                  required
+                />
+              </div>
+
+              <div className="field">
                 <label htmlFor="delivery">Shipping option</label>
                 <select
                   id="delivery"
@@ -267,8 +291,7 @@ export function CheckoutPage() {
                   value={paymentMethodId}
                   onChange={(e) => setPaymentMethodId(e.target.value)}
                 >
-                  <option value="card">Credit / Debit Card</option>
-                  <option value="paypal">PayPal</option>
+                  <option value="card">Credit / Debit Card (Stripe)</option>
                 </select>
               </div>
 
@@ -284,7 +307,6 @@ export function CheckoutPage() {
               {clientSecret && (
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
                   <StripePaymentForm
-                    orderId={orderId}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
                     onProcessing={setBusy}

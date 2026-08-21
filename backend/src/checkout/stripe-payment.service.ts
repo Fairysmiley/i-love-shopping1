@@ -49,6 +49,28 @@ export class StripePaymentService {
     }
   }
 
+  /** Issues a real refund against a completed PaymentIntent (full amount).
+   *  Returns null if the intent was never actually charged (e.g. it failed
+   *  or was never confirmed) — Stripe rejects refunding those, and callers
+   *  should treat that as "nothing to refund," not an error. */
+  async refundPayment(paymentIntentId: string): Promise<Stripe.Refund | null> {
+    try {
+      return await this.withTimeout(
+        this.stripe.refunds.create({ payment_intent: paymentIntentId }),
+        10_000,
+        'Payment gateway timeout: Stripe did not respond in time.',
+      );
+    } catch (error) {
+      if (error?.code === 'charge_already_refunded') return null;
+      if (error?.message?.includes('has not been charged') || error?.code === 'payment_intent_unexpected_state') {
+        this.logger.warn(`Refund skipped for ${paymentIntentId}: intent was never successfully charged.`);
+        return null;
+      }
+      this.logger.error(`Failed to refund Stripe Payment Intent ${paymentIntentId}: ${error.message}`);
+      throw error;
+    }
+  }
+
   private withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
     let timer: NodeJS.Timeout;
     const timeout = new Promise<never>((_, reject) => {
