@@ -34,12 +34,35 @@ buyers can filter on, with stock fixed at one unit per item.
 ```bash
 git clone <this-repo>
 cd i-love-shopping1
+cp .env.example .env
+```
+
+**Before running `./start.sh`, set real credentials in `.env` for CAPTCHA and
+OAuth.** These are graded review items — *"The system implements both
+email-password and OAuth authentication methods,"* *"CAPTCHA is integrated
+into the registration process,"* plus manual tests for CAPTCHA and OAuth —
+not extras a reviewer can skip. Leaving them blank means those two checklist
+items can't actually be demonstrated, only left as unverified code. Minimum
+for review:
+
+- **reCAPTCHA:** `RECAPTCHA_SECRET`, `VITE_RECAPTCHA_SITE_KEY`
+- **OAuth:** at least one provider — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+  + `VITE_GOOGLE_OAUTH_ENABLED=true`, or the GitHub equivalent
+
+Where to get each key and exact callback URLs to register:
+[CAPTCHA and OAuth (required for review)](#captcha-and-oauth-required-for-review),
+below. `STRIPE_*` keys are genuinely optional here — payments are Project 2
+(Commerce), out of scope for this Foundation review — leave them blank.
+
+```bash
 ./start.sh
 ```
 
-On first run this automatically copies `.env.example` → `.env`, generates a
-self-signed local HTTPS cert, builds and starts every service (Postgres,
-Redis, RabbitMQ, Mailhog, API, web, proxy), and applies migrations + seed data.
+On first run this generates a self-signed local HTTPS cert, builds and
+starts every service (Postgres, Redis, RabbitMQ, Mailhog, API, web, proxy),
+and applies migrations + seed data. (`start.sh` also copies `.env.example` →
+`.env` automatically if you skip the `cp` step above — but then you're
+starting without the keys above set, so add them and rebuild `web` after.)
 
 Then open **http://localhost:8080** and sign in:
 
@@ -48,10 +71,10 @@ Then open **http://localhost:8080** and sign in:
 | Admin | `admin@villi.test` | `Admin!Passw0rd` |
 | Customer | `shopper@villi.test` | `Shopper!Passw0rd` |
 
-**Not required for review:** OAuth, Stripe keys, and reCAPTCHA are left blank
-in `.env.example` on purpose — those integrations are skipped without keys,
-and every other flow (accounts, catalog, 2FA, password reset via
-[Mailhog](http://localhost:18025)) works fully without them.
+Accounts (email/password), catalog, 2FA, and password reset (via
+[Mailhog](http://localhost:18025)) work with zero extra configuration. OAuth
+sign-in and the CAPTCHA widget only render once the keys above are set and
+`web` is rebuilt.
 
 ## Troubleshooting
 
@@ -327,9 +350,50 @@ flow locally (`stripe listen --forward-to localhost:3001/api/v1/checkout/webhook
 issues. Other URLs: web-only `:5173`, API/Swagger `:3001`. Change ports via
 `PROXY_HOST_PORT` / `WEB_HOST_PORT` / `API_HOST_PORT` in `.env`, then re-run.
 
-> Configure OAuth, reCAPTCHA, and SMTP by filling in the matching `.env`
-> variables. Step-by-step CAPTCHA + 2FA guide: [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
-> Password-reset emails are caught by [Mailhog](http://localhost:18025).
+Password-reset emails are caught by [Mailhog](http://localhost:18025) —
+nothing to configure. CAPTCHA and OAuth are different: they're graded review
+items (see [Quick start](#quick-start-for-reviewers)), so they need real
+credentials, not blanks, before a reviewer's first run. Everything in the
+second table below (Stripe, Facebook OAuth, real SMTP) is genuinely optional
+— `start.sh` runs fine with those left blank, and each just no-ops (payment
+falls back to a Stripe test key, that OAuth button stays hidden, mail goes to
+Mailhog). CAPTCHA + 2FA walkthrough once configured:
+[`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
+
+After editing `.env` for any integration below, re-run `./start.sh`
+(backend-only vars) or add `--build` / rebuild `web` for `VITE_*` vars, since
+Vite bakes those in at build time: `docker compose up -d --build web`.
+
+### CAPTCHA and OAuth (required for review)
+
+| Integration | Where to get credentials | `.env` variables |
+|---|---|---|
+| **Google reCAPTCHA** (registration form) | [google.com/recaptcha/admin/create](https://www.google.com/recaptcha/admin/create) — register a site as **reCAPTCHA v2 → "I'm not a robot" Checkbox** specifically (the widget calls `grecaptcha.render()`, which errors with "Invalid key type" on a v3 key), add `localhost` and your ngrok host as domains | `RECAPTCHA_SECRET`, `VITE_RECAPTCHA_SITE_KEY` |
+| **OAuth: Google** | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create Credentials → OAuth client ID (Web application) → add `GOOGLE_CALLBACK_URL`'s value as an authorized redirect URI | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_GOOGLE_OAUTH_ENABLED=true` |
+| **OAuth: GitHub** | [GitHub → Settings → Developer settings → OAuth Apps → New OAuth App](https://github.com/settings/developers) → set "Authorization callback URL" to `GITHUB_CALLBACK_URL`'s value | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `VITE_GITHUB_OAUTH_ENABLED=true` |
+
+Only **one** working OAuth provider is needed to satisfy the "email-password
++ OAuth" requirement — Google or GitHub, whichever is faster for you to
+register.
+
+### Stripe, Facebook OAuth, and mail (optional)
+
+| Integration | Where to get credentials | `.env` variables |
+|---|---|---|
+| **OAuth: Facebook** (bonus provider, not required) | [Facebook for Developers](https://developers.facebook.com/apps) → Create App → add "Facebook Login" product → set Valid OAuth Redirect URI to `FACEBOOK_CALLBACK_URL`'s value | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `VITE_FACEBOOK_OAUTH_ENABLED=true` |
+| **Stripe** (checkout payment — Project 2, not this Foundation review) | [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys) for test-mode keys; run `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` (Stripe CLI) and paste the printed `whsec_...` | `STRIPE_SECRET_KEY`, `VITE_STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET` |
+| **Real SMTP** (instead of Mailhog) | Any SMTP provider (e.g. Mailtrap, SendGrid, Gmail app password) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` |
+
+Two more `.env` values matter even for local-only review, since they're
+security-sensitive rather than third-party keys:
+
+- `ENCRYPTION_KEY` — AES-256-GCM key for encrypted user fields, **must be
+  exactly 32 characters**. The example value works for local dev; generate a
+  real one with `openssl rand -hex 16`. Changing it after data exists makes
+  that data unrecoverable.
+- `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — the `.env.example` defaults
+  are fine for local dev; replace with `openssl rand -hex 48` for any
+  shared/public deployment (e.g. before running `./scripts/ngrok.sh`).
 
 **Share a public URL with remote reviewers** (optional — not needed to run
 the app locally): `./scripts/install-ngrok.sh` once, then `./scripts/ngrok.sh`

@@ -181,7 +181,29 @@
       "Bash(curl -si -b /tmp/cookies.txt -X POST http://localhost:8080/api/v1/auth/refresh)",
       "Bash(grep -oaE \"/shop\\\\?category=\\\\\\\\\\\\$\\\\{[a-zA-Z.]+\\\\}\")",
       "Bash(curl -s http://localhost:8080/product/klattermusen-bergelmir-trousers -o /dev/null -w \"page_status=%{http_code}\\\\n\")",
-      "Bash(curl -s \"http://localhost:8080/api/v1/products/klattermusen-bergelmir-trousers\")"
+      "Bash(curl -s \"http://localhost:8080/api/v1/products/klattermusen-bergelmir-trousers\")",
+      "Bash(./scripts/configure-public-url.sh \"https://c6f3-213-28-230-231.ngrok-free.app\")",
+      "Bash(bash scripts/configure-public-url.sh \"https://c6f3-213-28-230-231.ngrok-free.app\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://c6f3-213-28-230-231.ngrok-free.app/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://c6f3-213-28-230-231.ngrok-free.app/api/docs)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/api/docs)",
+      "Bash(curl -s -H \"ngrok-skip-browser-warning: 1\" -o /dev/null -w \"%{http_code}\\\\n\" https://c6f3-213-28-230-231.ngrok-free.app/)",
+      "Bash(curl -s http://127.0.0.1:4040/api/tunnels)",
+      "Bash(curl -sv http://127.0.0.1:4040/api/tunnels)",
+      "Bash(bash scripts/configure-public-url.sh \"https://facc-213-28-230-231.ngrok-free.app\")",
+      "Bash(curl -s -o /dev/null -w \"ngrok root: %{http_code}\\\\n\" https://facc-213-28-230-231.ngrok-free.app/ -H \"ngrok-skip-browser-warning: 1\")",
+      "Bash(curl -s -o /dev/null -w \"ngrok swagger: %{http_code}\\\\n\" https://facc-213-28-230-231.ngrok-free.app/api/docs -H \"ngrok-skip-browser-warning: 1\")",
+      "Bash(curl -sS -o /dev/null -D - \"http://localhost:8080/api/v1/auth/oauth/google\")",
+      "Bash(curl -sS -o /dev/null -D - \"http://localhost:8080/api/v1/auth/oauth/github\")",
+      "Bash(curl -sS -o /dev/null -D - \"http://localhost:8080/\")",
+      "Bash(claude doctor *)",
+      "Bash(claude install *)",
+      "Bash(npm -g config get prefix)",
+      "Read(//home/cutebutzaiko/**)",
+      "Bash(claude --version)",
+      "Bash(xargs stat -c '%y %n')",
+      "Bash(curl -s https://downloads.claude.ai/claude-code-releases/latest)"
     ]
   }
 }

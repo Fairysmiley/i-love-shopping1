@@ -1,7 +1,8 @@
 # Review Guide — Part 1: Platform Foundation
 
-Answers every checklist item at the bottom of [`task1.txt`](task1.txt), in
-the same order, against the running codebase. Code paths are relative to the repo root; API routes are relative
+Answers every checklist item at the bottom of `task1.txt` (the assignment
+brief — not checked into this repo), in the same order, against the running
+codebase. Code paths are relative to the repo root; API routes are relative
 to `https://localhost:3001` (direct) or `http://localhost:8080` (unified
 proxy). Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and
 `shopper@villi.test` / `Shopper!Passw0rd`.

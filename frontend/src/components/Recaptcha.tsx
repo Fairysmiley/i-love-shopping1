@@ -6,7 +6,25 @@ declare global {
     grecaptcha?: {
       render: (el: HTMLElement, opts: Record<string, unknown>) => number;
     };
+    onRecaptchaApiLoad?: () => void;
   }
+}
+
+let apiLoadPromise: Promise<void> | null = null;
+
+/** Loads the reCAPTCHA v2 script once and resolves once `grecaptcha.render` is actually callable. */
+function loadRecaptchaApi(): Promise<void> {
+  if (window.grecaptcha?.render) return Promise.resolve();
+  if (apiLoadPromise) return apiLoadPromise;
+
+  apiLoadPromise = new Promise((resolve) => {
+    window.onRecaptchaApiLoad = () => resolve();
+    const script = document.createElement('script');
+    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit&onload=onRecaptchaApiLoad';
+    script.async = true;
+    document.head.appendChild(script);
+  });
+  return apiLoadPromise;
 }
 
 /**
@@ -27,26 +45,20 @@ export function Recaptcha({
   useEffect(() => {
     if (!config.recaptchaSiteKey || rendered.current) return;
 
-    const renderWidget = () => {
-      if (ref.current && window.grecaptcha) {
-        rendered.current = true;
-        window.grecaptcha.render(ref.current, {
-          sitekey: config.recaptchaSiteKey,
-          callback: (token: string) => onChange(token),
-          'expired-callback': () => onChange(null),
-        });
-      }
-    };
+    let cancelled = false;
+    loadRecaptchaApi().then(() => {
+      if (cancelled || !ref.current || rendered.current || !window.grecaptcha) return;
+      rendered.current = true;
+      window.grecaptcha.render(ref.current, {
+        sitekey: config.recaptchaSiteKey,
+        callback: (token: string) => onChange(token),
+        'expired-callback': () => onChange(null),
+      });
+    });
 
-    if (window.grecaptcha) {
-      renderWidget();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
-      script.async = true;
-      script.onload = () => setTimeout(renderWidget, 300);
-      document.head.appendChild(script);
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [onChange]);
 
   return (

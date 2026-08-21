@@ -73,7 +73,7 @@ services:
       mailhog:
         condition: service_started
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       API_PORT: 3001
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:5173}
