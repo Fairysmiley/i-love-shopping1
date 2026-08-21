@@ -38,21 +38,21 @@ cp .env.example .env
 ```
 
 **Before running `./start.sh`, set real credentials in `.env` for CAPTCHA and
-OAuth.** These are graded review items — *"The system implements both
-email-password and OAuth authentication methods,"* *"CAPTCHA is integrated
-into the registration process,"* plus manual tests for CAPTCHA and OAuth —
-not extras a reviewer can skip. Leaving them blank means those two checklist
-items can't actually be demonstrated, only left as unverified code. Minimum
-for review:
+OAuth.** `STRIPE_*` keys are part of Project 2 — leave them blank.
 
-- **reCAPTCHA:** `RECAPTCHA_SECRET`, `VITE_RECAPTCHA_SITE_KEY`
-- **OAuth:** at least one provider — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
-  + `VITE_GOOGLE_OAUTH_ENABLED=true`, or the GitHub equivalent
 
-Where to get each key and exact callback URLs to register:
-[CAPTCHA and OAuth (required for review)](#captcha-and-oauth-required-for-review),
-below. `STRIPE_*` keys are genuinely optional here — payments are Project 2
-(Commerce), out of scope for this Foundation review — leave them blank.
+### CAPTCHA and OAuth
+
+| Integration | Where to get credentials | `.env` variables |
+|---|---|---|
+| **Google reCAPTCHA** (registration form) | [google.com/recaptcha/admin/create](https://www.google.com/recaptcha/admin/create) — register a site as **reCAPTCHA v2 → "I'm not a robot" Checkbox** specifically (the widget calls `grecaptcha.render()`, which errors with "Invalid key type" on a v3 key), add `localhost` as an authorized domain | `RECAPTCHA_SECRET`, `VITE_RECAPTCHA_SITE_KEY` |
+| **OAuth: Google** | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create Credentials → OAuth client ID (Web application) → add `GOOGLE_CALLBACK_URL`'s value as an authorized redirect URI | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_GOOGLE_OAUTH_ENABLED=true` |
+| **OAuth: GitHub** | [GitHub → Settings → Developer settings → OAuth Apps → New OAuth App](https://github.com/settings/developers) → set "Authorization callback URL" to `GITHUB_CALLBACK_URL`'s value | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `VITE_GITHUB_OAUTH_ENABLED=true` |
+
+Only **one** working OAuth provider is needed to satisfy the "email-password
++ OAuth" requirement — Google or GitHub, whichever is faster for you to
+register.
+
 
 ```bash
 ./start.sh
@@ -61,10 +61,10 @@ below. `STRIPE_*` keys are genuinely optional here — payments are Project 2
 On first run this generates a self-signed local HTTPS cert, builds and
 starts every service (Postgres, Redis, RabbitMQ, Mailhog, API, web, proxy),
 and applies migrations + seed data. (`start.sh` also copies `.env.example` →
-`.env` automatically if you skip the `cp` step above — but then you're
-starting without the keys above set, so add them and rebuild `web` after.)
+`.env` automatically if you skip the `cp` step above)
 
-Then open **http://localhost:8080** and sign in:
+Then open **http://localhost:8080** and sign in with a seeded account, or
+register your own (email/password or OAuth) via **Sign up**:
 
 | Role | Email | Password |
 |---|---|---|
@@ -72,9 +72,7 @@ Then open **http://localhost:8080** and sign in:
 | Customer | `shopper@villi.test` | `Shopper!Passw0rd` |
 
 Accounts (email/password), catalog, 2FA, and password reset (via
-[Mailhog](http://localhost:18025)) work with zero extra configuration. OAuth
-sign-in and the CAPTCHA widget only render once the keys above are set and
-`web` is rebuilt.
+[Mailhog](http://localhost:18025)) work with zero extra configuration.
 
 ## Troubleshooting
 
@@ -83,7 +81,6 @@ sign-in and the CAPTCHA widget only render once the keys above are set and
 | `permission denied ... docker.sock` | Your user was added to the `docker` group but the current shell predates it. Open a new terminal (or `wsl --shutdown` + reopen on Windows/WSL2), or run `newgrp docker` to refresh it in-place. |
 | `api` container restart-looping, log shows `ENOENT ... certs/key.pem` | Delete the empty `certs/` dir if Docker auto-created it root-owned (`sudo rm -rf certs`), then re-run `./start.sh` — it regenerates the cert as your user. |
 | API crashes with `RangeError: Invalid key length` | `ENCRYPTION_KEY` in `.env` must be exactly 32 bytes/characters. Regenerate: `openssl rand -hex 16`. |
-| `./scripts/ngrok.sh` fails with `ERR_NGROK_4018` (not authenticated) | Run `ngrok config add-authtoken <token>` from https://dashboard.ngrok.com/get-started/your-authtoken first. |
 | Port `3001`/`5173`/`8080` already in use | Set `API_HOST_PORT`/`WEB_HOST_PORT`/`PROXY_HOST_PORT` in `.env`, then re-run `./start.sh`. |
 
 ---
@@ -331,61 +328,12 @@ erDiagram
 
 ACID/transaction notes and DB scalability rationale: [`docs/REFERENCE.md`](docs/REFERENCE.md#acid-properties-in-e-commerce).
 
----
 
-## Setup and installation
-
-**Prerequisite:** Docker (with Compose v2) — see [Quick start](#quick-start-for-reviewers).
-Everything else (Node, Postgres, Redis, nginx, the HTTPS cert) is provisioned
-automatically. The Stripe CLI is only needed to exercise the payment-webhook
-flow locally (`stripe listen --forward-to localhost:3001/api/v1/checkout/webhook`).
-
-```bash
-./start.sh      # foreground, URLs printed before logs
-./start.sh -d   # detached
-```
-
-**Open http://localhost:8080** — the unified gateway serves both the SPA and
-`/api/v1` from one origin, so cookies and OAuth work without cross-port
-issues. Other URLs: web-only `:5173`, API/Swagger `:3001`. Change ports via
-`PROXY_HOST_PORT` / `WEB_HOST_PORT` / `API_HOST_PORT` in `.env`, then re-run.
-
-Password-reset emails are caught by [Mailhog](http://localhost:18025) —
-nothing to configure. CAPTCHA and OAuth are different: they're graded review
-items (see [Quick start](#quick-start-for-reviewers)), so they need real
-credentials, not blanks, before a reviewer's first run. Everything in the
-second table below (Stripe, Facebook OAuth, real SMTP) is genuinely optional
-— `start.sh` runs fine with those left blank, and each just no-ops (payment
-falls back to a Stripe test key, that OAuth button stays hidden, mail goes to
-Mailhog). CAPTCHA + 2FA walkthrough once configured:
-[`docs/review-guide-part-1.md`](docs/review-guide-part-1.md).
-
-After editing `.env` for any integration below, re-run `./start.sh`
-(backend-only vars) or add `--build` / rebuild `web` for `VITE_*` vars, since
-Vite bakes those in at build time: `docker compose up -d --build web`.
-
-### CAPTCHA and OAuth (required for review)
+### Stripe (Project 2)
 
 | Integration | Where to get credentials | `.env` variables |
 |---|---|---|
-| **Google reCAPTCHA** (registration form) | [google.com/recaptcha/admin/create](https://www.google.com/recaptcha/admin/create) — register a site as **reCAPTCHA v2 → "I'm not a robot" Checkbox** specifically (the widget calls `grecaptcha.render()`, which errors with "Invalid key type" on a v3 key), add `localhost` and your ngrok host as domains | `RECAPTCHA_SECRET`, `VITE_RECAPTCHA_SITE_KEY` |
-| **OAuth: Google** | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create Credentials → OAuth client ID (Web application) → add `GOOGLE_CALLBACK_URL`'s value as an authorized redirect URI | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_GOOGLE_OAUTH_ENABLED=true` |
-| **OAuth: GitHub** | [GitHub → Settings → Developer settings → OAuth Apps → New OAuth App](https://github.com/settings/developers) → set "Authorization callback URL" to `GITHUB_CALLBACK_URL`'s value | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `VITE_GITHUB_OAUTH_ENABLED=true` |
-
-Only **one** working OAuth provider is needed to satisfy the "email-password
-+ OAuth" requirement — Google or GitHub, whichever is faster for you to
-register.
-
-### Stripe, Facebook OAuth, and mail (optional)
-
-| Integration | Where to get credentials | `.env` variables |
-|---|---|---|
-| **OAuth: Facebook** (bonus provider, not required) | [Facebook for Developers](https://developers.facebook.com/apps) → Create App → add "Facebook Login" product → set Valid OAuth Redirect URI to `FACEBOOK_CALLBACK_URL`'s value | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `VITE_FACEBOOK_OAUTH_ENABLED=true` |
 | **Stripe** (checkout payment — Project 2, not this Foundation review) | [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys) for test-mode keys; run `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` (Stripe CLI) and paste the printed `whsec_...` | `STRIPE_SECRET_KEY`, `VITE_STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| **Real SMTP** (instead of Mailhog) | Any SMTP provider (e.g. Mailtrap, SendGrid, Gmail app password) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` |
-
-Two more `.env` values matter even for local-only review, since they're
-security-sensitive rather than third-party keys:
 
 - `ENCRYPTION_KEY` — AES-256-GCM key for encrypted user fields, **must be
   exactly 32 characters**. The example value works for local dev; generate a
@@ -393,12 +341,8 @@ security-sensitive rather than third-party keys:
   that data unrecoverable.
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — the `.env.example` defaults
   are fine for local dev; replace with `openssl rand -hex 48` for any
-  shared/public deployment (e.g. before running `./scripts/ngrok.sh`).
+  shared/public deployment.
 
-**Share a public URL with remote reviewers** (optional — not needed to run
-the app locally): `./scripts/install-ngrok.sh` once, then `./scripts/ngrok.sh`
-each time you want a tunnel. Useful mainly so a reviewer can exercise OAuth
-without configuring their own credentials.
 
 **Without Docker:** Node 20+, PostgreSQL, and Redis running locally, then:
 ```bash
@@ -422,7 +366,7 @@ sign in with a seeded account.
    configured. Access token lives only in memory, never localStorage.
 4. **Account page** — enable/disable optional TOTP 2FA, export data, or
    delete your account (GDPR).
-5. **Admin** — sign in as admin to manage products/categories/brands (see Swagger).
+5. **Admin** — sign in as admin to manage products/categories/brands (Project 2).
 
 **Quick reviewer walkthrough:**
 
@@ -437,6 +381,10 @@ sign in with a seeded account.
 
 **Password reset demo:** Forgot password → enter an email → open
 [Mailhog](http://localhost:18025) for the reset link → set a new password.
+
+For more detailed review:
+- [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md) — step-by-step
+  walkthroughs for every task1.txt checklist item.
 
 ---
 

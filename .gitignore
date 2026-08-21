@@ -35,11 +35,6 @@ backend/prisma/*.db
 *.pem
 tmp/
 /dot-com-retail
-/docs/ngrok.sh
-/docs/push-to-repos.sh
-/docs/task1.txt
-/docs/task3.txt
-/docs/task2.txt
 /i-love-shopping3
 niche.txt
 .claude
