@@ -11,8 +11,6 @@ Because every item is **pre-loved and one-of-a-kind**, each listing carries an
 authenticity status, a condition grade, and a size — all faceted attributes
 buyers can filter on, with stock fixed at one unit per item.
 
-> Projects 2 (Commerce) and 3 (Experience) build on top of this Foundation.
-> See [Roadmap](docs/REFERENCE.md#roadmap).
 
 ## Table of contents
 
@@ -101,7 +99,7 @@ planned in later projects.
 | **Catalog** | Full product model, nested category browse, faceted search, sort by relevance/price/rating, static images. |
 | **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape, per-IP rate limiting. |
 | **Ops** | Fully containerized; one command builds + runs the whole stack. |
-| **Business model** | **B2C** — Villi sells directly to individual consumers; see [B2C e-commerce model](docs/REFERENCE.md#b2c-e-commerce-model). |
+| **Business model** | **B2C** — Villi sells directly to individual consumers;
 
 Architecture, tech stack, and the full B2C-model writeup: [`docs/REFERENCE.md`](docs/REFERENCE.md).
 
