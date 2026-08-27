@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react';
 import { api, ApiError } from '../../api/client';
-import type { Paginated } from '../../api/types';
 import { money } from '../../format';
 
 export interface OrderItem {
   id: string;
   productId: string;
-  productName: string;
   quantity: number;
-  price: number;
+  unitPrice: number;
+  product: { name: string };
 }
 
 export interface Order {
   id: string;
-  userId: string;
-  status: 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED';
-  total: number;
+  userId: string | null;
+  status: 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  totalAmount: number;
   currency: string;
   createdAt: string;
   items: OrderItem[];
@@ -28,8 +27,8 @@ export function OrderManagementPanel() {
 
   const fetchOrders = async () => {
     try {
-      const res = await api.get<Paginated<Order>>('/orders/all');
-      setOrders(res.data);
+      const res = await api.get<Order[]>('/orders/all');
+      setOrders(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to fetch orders');
     } finally {
@@ -82,10 +81,10 @@ export function OrderManagementPanel() {
             <tr key={o.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <td style={{ padding: 8, fontSize: "0.875rem" }}>{o.id}</td>
               <td style={{ padding: 8 }}>{new Date(o.createdAt).toLocaleDateString()}</td>
-              <td style={{ padding: 8 }}>{money(o.total, o.currency)}</td>
+              <td style={{ padding: 8 }}>{money(o.totalAmount, o.currency)}</td>
               <td style={{ padding: 8 }}>
-                <select 
-                  value={o.status} 
+                <select
+                  value={o.status}
                   onChange={(e) => handleStatusChange(o.id, e.target.value)}
                   style={{ padding: '4px 8px' }}
                 >
@@ -94,7 +93,6 @@ export function OrderManagementPanel() {
                   <option value="SHIPPED">Shipped</option>
                   <option value="DELIVERED">Delivered</option>
                   <option value="CANCELLED">Cancelled</option>
-                  <option value="REFUNDED">Refunded</option>
                 </select>
               </td>
               <td style={{ padding: 8 }}>

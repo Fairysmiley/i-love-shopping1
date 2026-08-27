@@ -35,6 +35,15 @@ export class StripePaymentService {
         this.stripe.paymentIntents.create({
           amount: amountInCents,
           currency: currency.toLowerCase(),
+          // Explicit, curated list instead of `automatic_payment_methods` —
+          // the latter surfaces every method type enabled account-wide in
+          // the Stripe Dashboard (Klarna, Bancontact, EPS, MB Way, ...),
+          // most of which are irrelevant to a Finnish/Nordic storefront and
+          // just add checkout clutter. Card-only keeps checkout a genuine
+          // single-page flow — every redirect-based method (MobilePay
+          // included) hands off to an external confirmation screen, which
+          // conflicts with that requirement.
+          payment_method_types: ['card'],
           metadata: {
             orderId,
           },

@@ -136,6 +136,22 @@ describe('Villi API (e2e)', () => {
       );
     });
 
+    it('full-text search (?q=) matches by product name, case-insensitively', async () => {
+      // Pick a distinctive, plain-ASCII word from the sample product's name
+      // as the search term (mirrors how a shopper would type a partial name).
+      const words: string[] = sample.name.split(/\s+/).filter((w: string) => /^[A-Za-z-]{4,}$/.test(w));
+      const term = (words.sort((a, b) => b.length - a.length)[0] ?? sample.name).toUpperCase();
+
+      const res = await api().get(`/api/v1/products?q=${encodeURIComponent(term)}`).expect(200);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(res.body.data.some((p: any) => p.id === sample.id)).toBe(true);
+    });
+
+    it('full-text search (?q=) returns an empty result set for a nonsense term', async () => {
+      const res = await api().get('/api/v1/products?q=zzznonexistentqueryxyz123').expect(200);
+      expect(res.body.data).toEqual([]);
+    });
+
     it('supports price filtering + ascending sort', async () => {
       const res = await api().get('/api/v1/products?minPrice=100&sort=price_asc').expect(200);
       const prices = res.body.data.map((p: any) => p.price);

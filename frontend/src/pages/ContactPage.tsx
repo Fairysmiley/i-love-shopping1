@@ -26,6 +26,7 @@ export function ContactPage() {
   if (status === 'success') {
     return (
       <div className="container" style={{ padding: 48, maxWidth: 600, textAlign: 'center' }}>
+        <SEO title="Message Sent" description="Your message to Villi Support has been received." noindex />
         <h1 style={{ marginBottom: 16 }}>Message Sent</h1>
         <p className="muted" style={{ marginBottom: 32 }}>Thank you for reaching out! Our support team will get back to you within 24 hours.</p>
         <button className="btn btn-primary" onClick={() => setStatus('idle')}>Send Another Message</button>
@@ -97,11 +98,11 @@ export function ContactPage() {
 
       <div style={{ marginTop: 48, display: 'flex', justifyContent: 'space-between' }}>
         <div>
-          <h3>Email Us</h3>
+          <h2 style={{ fontSize: '1.125rem' }}>Email Us</h2>
           <p className="muted">support@villi.test</p>
         </div>
         <div>
-          <h3>Call Us</h3>
+          <h2 style={{ fontSize: '1.125rem' }}>Call Us</h2>
           <p className="muted">+1 (555) 123-4567</p>
         </div>
       </div>

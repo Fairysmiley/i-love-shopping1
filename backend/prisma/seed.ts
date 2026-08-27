@@ -4,6 +4,31 @@ import { encrypt, hashForLookup } from '../src/common/utils/encryption.util';
 
 const prisma = new PrismaClient();
 
+// A subset of product images also ship a genuinely smaller `-thumb.png`
+// asset (see frontend/public/products/) — wiring those up demonstrates the
+// "images stored/served in multiple sizes" requirement (task3) with real,
+// differently-sized files rather than every size falling back to the same
+// full-size URL. `mediumUrl` is intentionally left unset for seed data (no
+// distinct medium asset exists yet); it falls back to `url` like the rest.
+const PRODUCTS_WITH_REAL_THUMBNAIL = new Set([
+  'allgron',
+  'falketind',
+  'halti-fort',
+  'helium-shell',
+  'kanken',
+  'keb-shell',
+  'lim-down',
+  'luhta-parka',
+  'roc-fleece',
+  'sasta-kaarna',
+]);
+
+function thumbnailFor(image: string): string | undefined {
+  const match = /^\/products\/([a-z0-9-]+)\.(png|jpg)$/.exec(image);
+  const base = match?.[1];
+  return base && PRODUCTS_WITH_REAL_THUMBNAIL.has(base) ? `/products/${base}-thumb.png` : undefined;
+}
+
 /** Mirrors UsersService's encryption for seed data, so seeded accounts are
  * stored exactly like accounts created through the real registration flow. */
 function encryptedUser<T extends { email: string; firstName: string; lastName: string }>(
@@ -802,7 +827,7 @@ async function main(): Promise<void> {
         heightMm: p.dims[2],
         averageRating: p.rating,
         ratingCount: p.ratingCount,
-        images: { create: [{ url: p.image, altText: p.name, isPrimary: true, position: 0 }] },
+        images: { create: [{ url: p.image, thumbnailUrl: thumbnailFor(p.image), altText: p.name, isPrimary: true, position: 0 }] },
         attributes: { create: p.attributes },
       },
     });
@@ -812,7 +837,7 @@ async function main(): Promise<void> {
     // size/material in this file previously had no effect on re-seed).
     await prisma.productImage.deleteMany({ where: { productId: product.id } });
     await prisma.productImage.create({
-      data: { productId: product.id, url: p.image, altText: p.name, isPrimary: true, position: 0 },
+      data: { productId: product.id, url: p.image, thumbnailUrl: thumbnailFor(p.image), altText: p.name, isPrimary: true, position: 0 },
     });
     await prisma.productAttribute.deleteMany({ where: { productId: product.id } });
     await prisma.productAttribute.createMany({

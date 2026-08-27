@@ -5,6 +5,8 @@ import { UsersService } from './users.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -17,6 +19,13 @@ export class UsersController {
   async me(@CurrentUser('userId') userId: string) {
     const user = await this.users.getByIdOrThrow(userId);
     return this.users.toPublic(user);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update the current user\'s profile (first/last name)' })
+  async updateProfile(@CurrentUser('userId') userId: string, @Body() dto: UpdateProfileDto) {
+    const updated = await this.users.update(userId, dto);
+    return this.users.toPublic(updated);
   }
 
   @Get('me/export')
@@ -58,11 +67,8 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Admin: Assign role to user' })
-  async updateRole(
-    @Param('id') id: string,
-    @Body('role') role: Role,
-  ) {
-    const updated = await this.users.updateRole(id, role);
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    const updated = await this.users.updateRole(id, dto.role);
     return this.users.toPublic(updated);
   }
 }

@@ -45,6 +45,7 @@ export class UsersService {
   }
 
   async updateRole(id: string, role: Role): Promise<User> {
+    await this.getByIdOrThrow(id);
     const user = await this.prisma.user.update({
       where: { id },
       data: { role },

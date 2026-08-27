@@ -1,21 +1,23 @@
-# Villi — B2C E-commerce Platform (Projects 1–2: Foundation + Commerce)
+# Villi — B2C E-commerce Platform (Projects 1–3: Foundation + Commerce + Experience)
 
 Villi is a Business-to-Consumer **curated marketplace for verified,
 authenticated pre-loved Finnish/Nordic design high-end outdoor apparel** (e.g.
 Fjällräven, Haglöfs, Luhta, Sasta, Norrøna, Klättermusen). This repository
 implements **Project 1 — Foundation** (secure user accounts, an
 ACID-compliant relational database, and a searchable, faceted product
-catalog) and **Project 2 — Commerce** (guest + persistent carts, a
+catalog), **Project 2 — Commerce** (guest + persistent carts, a
 single-page checkout, real Stripe payments, async order/payment status via
-RabbitMQ, and order management with cancellation + refunds). It's built
-API-first and runs end-to-end with a single Docker command.
+RabbitMQ, and order management with cancellation + refunds), and
+**Project 3 — Experience** (the full customer-facing page set, an admin
+dashboard for products/categories/orders/users/refunds/bulk uploads/review
+moderation, SEO, WCAG 2.1 A accessibility, and security/performance
+hardening — self-signed TLS, encryption at rest, token-bucket rate limiting,
+and a documented load-test report). It's built API-first and runs
+end-to-end with a single Docker command.
 
 Because every item is **pre-loved and one-of-a-kind**, each listing carries an
 authenticity status, a condition grade, and a size — all faceted attributes
 buyers can filter on, with stock fixed at one unit per item.
-
-> Project 3 (Experience — admin dashboards, accessibility & performance
-> hardening) builds on top of this. See [Roadmap](docs/REFERENCE.md#roadmap).
 
 ## Table of contents
 
@@ -32,7 +34,19 @@ buyers can filter on, with stock fixed at one unit per item.
 
 ## Quick start (for reviewers)
 
-**Prerequisite: Docker Desktop (running).** Nothing else to install.
+**Two prerequisites, both host-level, nothing else to install** (task2.txt:
+*"Docker and payment simulation CLI are the only prerequisites"*):
+
+1. **Docker Desktop** (running).
+2. **[Stripe CLI](https://docs.stripe.com/stripe-cli)** — the "payment
+   simulation CLI." Without it, checkout still runs, but silently breaks:
+   with no real `STRIPE_SECRET_KEY` in `.env`, the payment step fails
+   outright (`POST /checkout/create-intent` → `500`); even with a real key,
+   without the CLI forwarding webhooks an otherwise-successful charge never
+   flips `Order.status` off `PENDING`. **Do this before `./start.sh`** — see
+   [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup) below,
+   it's a 5-minute one-time setup (free Stripe account, no verification
+   needed for test mode).
 
 ```bash
 git clone <this-repo>
@@ -41,14 +55,7 @@ cp .env.example .env
 ```
 
 **Before running `./start.sh`, set real credentials in `.env` for CAPTCHA,
-OAuth, and Stripe** (see tables below), **and install the
-[Stripe CLI](https://docs.stripe.com/stripe-cli)** — it's the one extra host
-prerequisite alongside Docker (task2.txt: *"Docker and payment simulation
-CLI are the only prerequisites"*). Without a real `STRIPE_SECRET_KEY`,
-checkout fails outright at the payment step; without the CLI forwarding
-webhooks, an otherwise-successful charge never flips `Order.status` off
-`PENDING` — see [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup)
-below.
+OAuth, and Stripe** (see tables below).
 
 ### CAPTCHA and OAuth
 
@@ -136,21 +143,28 @@ Accounts (email/password), catalog, 2FA, and password reset (via
 ## Project overview
 
 **Villi** is a B2C e-commerce platform for a curated pre-loved outdoor
-apparel shop. Shoppers browse and search a product catalog, add items to a
-cart that survives as a guest or a signed-in user, and check out through a
-single-page flow with real Stripe payments, async order-status updates via
-RabbitMQ, and full order management (filtering, cancellation, refunds). The
-full admin UI is planned for Project 3.
+apparel shop. Shoppers browse and search a product catalog, read and write
+star-rated reviews, add items to a cart that survives as a guest or a
+signed-in user, and check out through a single-page flow with real Stripe
+payments, async order-status updates via RabbitMQ, and full order management
+(filtering, cancellation, refunds). Staff manage the whole business — products,
+categories, orders, refunds, delivery options, user roles, review moderation,
+and bulk CSV/JSON product uploads — from a role-gated admin dashboard.
 
 | Capability | Summary |
 |---|---|
-| **Accounts & auth** | Email/password + OAuth (Google, GitHub), CAPTCHA on signup, JWT access + rotating refresh tokens, token revocation, password reset, optional TOTP 2FA. |
+| **Accounts & auth** | Email/password + OAuth (Google, GitHub), CAPTCHA on signup, JWT access + rotating refresh tokens, token revocation, password reset, optional TOTP 2FA — **mandatory** and enforced for every admin account. |
 | **Database** | PostgreSQL (relational, ACID) via Prisma. Transactions for multi-step writes, FKs/constraints for integrity. |
-| **Catalog** | Full product model, nested category browse, faceted search, sort by relevance/price/rating, static images. |
-| **Cart** | Redis-backed guest cart (temporary, keyed by an anonymous id) + Postgres-backed persistent cart for signed-in users, merged automatically on login. Live totals, out-of-stock guards. |
-| **Checkout & payments** | Single-page checkout (address + delivery + payment), prefilled for signed-in users. Stripe `PaymentElement` — card data never touches our backend. Order status (`PENDING`/`PAID`/`CANCELLED`) driven by a real Stripe webhook → RabbitMQ → consumer round-trip, with retry + dead-letter handling. |
+| **Catalog** | Full product model, nested category browse, faceted search, sort by relevance/price/rating, images served in multiple sizes (thumbnail/medium/full). |
+| **Reviews & ratings** | Star ratings + text reviews, average rating recomputed live from real rows, "helpful" voting sorted to the top, admin moderation. |
+| **Cart** | Redis-backed guest cart (temporary, keyed by an anonymous id) + Postgres-backed persistent cart for signed-in users, merged automatically on login. Live totals, out-of-stock guards, quick drop-down cart preview on every page. |
+| **Checkout & payments** | Single-page checkout (address + delivery + payment), prefilled for signed-in users, guest checkout supported. Stripe `PaymentElement` — card data never touches our backend. Order status (`PENDING`/`PAID`/`CANCELLED`) driven by a real Stripe webhook → RabbitMQ → consumer round-trip, with retry + dead-letter handling. |
 | **Orders** | Filter by date/status, detailed order view, cancellation for unprocessed orders, real Stripe refunds, automatic inventory restock. |
-| **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape, per-IP rate limiting. |
+| **Admin dashboard** | CRUD for products/categories/brands, bulk product upload (JSON/CSV), order + delivery-option + refund management, review moderation, user account/role management — all behind `ADMIN`-only, 2FA-gated guards. |
+| **UI** | Full customer page set (home, PLP, PDP, cart, checkout, order confirmation, account, search, contact, about, FAQ, terms, 404), responsive from 320px to 1440px+, quick search with type-ahead suggestions on every page. |
+| **SEO & accessibility** | Unique per-page title/meta tags, logical heading hierarchy, descriptive alt text, WCAG 2.1 Level A: semantic HTML, full keyboard navigation, ARIA only where native HTML falls short, compliant color contrast, text that stays readable at 200% zoom. |
+| **Security** | Self-signed TLS end-to-end, AES-256-GCM encryption at rest for all PII/order/payment/session data, Redis-backed token-bucket rate limiting, client + server syntactic/semantic input validation with whitelisting. |
+| **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape. |
 | **Ops** | Fully containerized; one command builds + runs the whole stack. |
 | **Business model** | **B2C** — Villi sells directly to individual consumers; see [B2C e-commerce model](docs/REFERENCE.md#b2c-e-commerce-model). |
 
@@ -174,6 +188,7 @@ erDiagram
   User ||--o{ RefreshToken : "owns 0..N"
   User ||--o{ PasswordResetToken : "requests 0..N"
   User ||--o{ Review : "writes 0..N"
+  User ||--o{ ReviewHelpfulVote : "casts 0..N"
 
   Category ||--o{ Category : "parent 0..N children"
   Category ||--o{ Product : "contains 1..N"
@@ -181,6 +196,7 @@ erDiagram
   Product ||--o{ ProductImage : "has 1..N"
   Product ||--o{ ProductAttribute : "has 0..N"
   Product ||--o{ Review : "receives 0..N"
+  Review ||--o{ ReviewHelpfulVote : "receives 0..N"
 
   User ||--o{ Cart : "owns 0..N"
   Cart ||--o{ CartItem : "contains 0..N"
@@ -298,6 +314,13 @@ erDiagram
     int rating
     string title "nullable"
     string body "nullable"
+    int helpfulVotes
+    datetime createdAt
+  }
+  ReviewHelpfulVote {
+    uuid id PK
+    uuid reviewId FK "composite with userId"
+    uuid userId FK "composite with reviewId"
     datetime createdAt
   }
   Cart {
@@ -385,12 +408,14 @@ erDiagram
 | User → RefreshToken | 1 : 0..N | Zero or many active/historical sessions | `RefreshToken.userId` → `User.id` |
 | User → PasswordResetToken | 1 : 0..N | Zero or many reset requests over time | `PasswordResetToken.userId` → `User.id` |
 | User → Review | 1 : 0..N | Shoppers may write zero or many reviews | `Review.userId` → `User.id` |
+| User → ReviewHelpfulVote | 1 : 0..N | A user may mark zero or many reviews helpful | `ReviewHelpfulVote.userId` → `User.id` |
 | Category → Category (tree) | 1 : 0..N | Root categories have `parentId` null | `Category.parentId` → `Category.id` |
 | Category → Product | 1 : 0..N | Each product in exactly one category | `Product.categoryId` → `Category.id` |
 | Brand → Product | 1 : 0..N | Each product has one brand | `Product.brandId` → `Brand.id` |
 | Product → ProductImage | 1 : 0..N | Images optional; usually one or more | `ProductImage.productId` → `Product.id` |
 | Product → ProductAttribute | 1 : 0..N | Facets optional (condition, size, colour) | `ProductAttribute.productId` → `Product.id` |
 | Product → Review | 1 : 0..N | Reviews optional; aggregates on `Product` | `Review.productId` → `Product.id` |
+| Review → ReviewHelpfulVote | 1 : 0..N | One vote per user per review (`@@unique([reviewId, userId])`); `Review.helpfulVotes` is a denormalized count | `ReviewHelpfulVote.reviewId` → `Review.id` |
 | User → Cart | 1 : 0..N | Guest carts have null userId | `Cart.userId` → `User.id` |
 | Cart → CartItem | 1 : 0..N | Carts contain zero or many items | `CartItem.cartId` → `Cart.id` |
 | Product → CartItem | 1 : 0..N | Product can be in multiple carts | `CartItem.productId` → `Product.id` |
@@ -436,43 +461,54 @@ cd ../frontend && npm install && npm run dev                          # :5173
 After [setup](#quick-start-for-reviewers), open **http://localhost:8080** and
 sign in with a seeded account.
 
-1. **Browse & search** — type-ahead search, facet filters (category, price,
-   brand, rating, size, condition), sort by relevance/price/rating/newest.
-2. **Reviews & ratings** — read reviews on any product; signed-in users can
-   leave a 1–5 star review (one per product). Ratings are computed live.
+1. **Browse & search** — home page (featured products/collections),
+   category/search listing pages (grid or list view, faceted filters, sort,
+   pagination), and the quick search box on every page (type-ahead
+   suggestions from 2 characters).
+2. **Reviews & ratings** — read reviews and the live average star rating on
+   any product; signed-in users can leave a 1–5 star review (one per
+   product), and vote reviews "helpful" — the list re-sorts to surface the
+   most helpful ones first.
 3. **Register / sign in** — email+password or OAuth; CAPTCHA shown if
    configured. Access token lives only in memory, never localStorage.
-4. **Account page** — enable/disable optional TOTP 2FA, export data, save
-   addresses, or delete your account (GDPR).
-5. **Admin** — sign in as admin to manage products/categories/brands.
+4. **Account page** — enable/disable optional TOTP 2FA (mandatory and
+   enforced for admins), export data, save addresses, view order history, or
+   delete your account (GDPR).
+5. **Admin** — sign in as an `ADMIN` (2FA is required to reach any admin
+   screen) at `/admin` to: CRUD products/categories/brands, bulk-upload
+   products via JSON/CSV, manage delivery options and manually update order/
+   shipping status, moderate (delete) reviews, and view/manage user accounts
+   and roles (`USER`/`ADMIN`/`SUPPORT`/`SALES`).
+6. **More pages** — About, Contact/Support (working contact form), FAQ,
+   Terms, and a friendly 404 for unknown routes.
 
 ### Cart, checkout & payments
 
-6. **Cart** — add items from any product page or the shop grid; the cart
-   icon shows a live count. Update quantities or remove items directly in
-   the cart drawer — totals recalculate immediately. Adding more than the
-   current stock is rejected with an explicit "only N in stock" message,
-   not a silent clamp. **As a guest**, the cart is kept in Redis under an
-   anonymous id stored in `localStorage`; sign in and it merges automatically
-   into your persistent (Postgres-backed) cart, capped at each product's
-   current stock.
-7. **Checkout** — one page: shipping address (street/city/postal
+7. **Cart** — add items from any product page or the shop grid; a
+   drop-down cart preview opens with a live item count and running total —
+   update quantities or remove items right there, totals recalculate
+   immediately. Adding more than the current stock is rejected with an
+   explicit "only N in stock" message, not a silent clamp. **As a guest**,
+   the cart is kept in Redis under an anonymous id stored in `localStorage`;
+   sign in and it merges automatically into your persistent (Postgres-backed)
+   cart, capped at each product's current stock.
+8. **Checkout** — one page: shipping address (street/city/postal
    code/country/phone, validated both client- and server-side), a shipping
    option, and payment. Signed-in users get their email and default saved
    address prefilled. The order summary stays editable (quantity/remove)
    until you place the order.
-8. **Payment** — Stripe's `PaymentElement` renders inline; your card number
+9. **Payment** — Stripe's `PaymentElement` renders inline; your card number
    never reaches our backend. Use any [Stripe test card](https://docs.stripe.com/testing#cards)
    to see a specific outcome (success, insufficient funds, expired card,
    generic decline). **Requires real `STRIPE_SECRET_KEY`/`VITE_STRIPE_PUBLIC_KEY`
    in `.env` and `stripe listen` running** — see
    [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup).
-9. **Order confirmation** — after payment, the page polls briefly and shows
+10. **Order confirmation** — after payment, the page polls briefly and shows
    one of three real states: a green confirmation once `Order.status` is
    `PAID`, an honest "confirming your payment…" while the webhook is still
    in flight, or a clear failure screen if the charge was declined — never a
    false "success" before the backend has actually confirmed it.
-10. **My orders** — filter by date range and status; open an order for full
+11. **My orders** — filter by date range and status; open an order for full
     details (items, address, payment status, delivery estimate). Cancel any
     order that's still `PENDING` or `PAID`; cancelling a `PAID` order issues
     a real Stripe refund and restocks inventory automatically.

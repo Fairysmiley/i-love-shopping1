@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/review.dto';
+import { decrypt } from '../common/utils/encryption.util';
 
 const reviewInclude = {
   user: { select: { firstName: true, lastName: true } },
@@ -157,26 +158,29 @@ export class ReviewsService {
 
   private toPublic(r: FullReview) {
     // Show first name + last initial only — never leak full names/emails.
-    const lastInitial = r.user.lastName ? `${r.user.lastName.charAt(0)}.` : '';
+    const firstName = decrypt(r.user.firstName);
+    const lastName = decrypt(r.user.lastName);
+    const lastInitial = lastName ? `${lastName.charAt(0)}.` : '';
     return {
       id: r.id,
       rating: r.rating,
       title: r.title,
       body: r.body,
-      author: `${r.user.firstName} ${lastInitial}`.trim(),
+      author: `${firstName} ${lastInitial}`.trim(),
       helpfulVotes: r.helpfulVotes,
       createdAt: r.createdAt,
     };
   }
 
   async getAllReviews() {
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       include: {
         ...reviewInclude,
         product: { select: { name: true, slug: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
+    return reviews.map((r) => ({ ...this.toPublic(r), product: r.product }));
   }
 
   async deleteByAdmin(reviewId: string) {

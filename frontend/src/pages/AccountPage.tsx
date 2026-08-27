@@ -7,7 +7,7 @@ import {
   clearTwoFactorEnabledHint,
   markTwoFactorEnabledHint,
 } from '../utils/twoFactorHint';
-import { usePageTitle } from '../components/SEO';
+import { SEO } from '../components/SEO';
 import { AddressBook } from '../components/AddressBook';
 
 interface TwoFactorSetup {
@@ -17,8 +17,7 @@ interface TwoFactorSetup {
 }
 
 export function AccountPage() {
-  usePageTitle('My Account');
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
   const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
@@ -26,6 +25,37 @@ export function AccountPage() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [lastName, setLastName] = useState(user?.lastName ?? '');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const startEditingProfile = () => {
+    setFirstName(user?.firstName ?? '');
+    setLastName(user?.lastName ?? '');
+    setError('');
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('First and last name cannot be empty.');
+      return;
+    }
+    setSavingProfile(true);
+    setError('');
+    try {
+      await api.patch('/users/me', { firstName: firstName.trim(), lastName: lastName.trim() });
+      await refreshProfile();
+      setEditingProfile(false);
+      setMsg('Profile updated.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not update your profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   useEffect(() => {
     api
@@ -109,26 +139,69 @@ export function AccountPage() {
 
   return (
     <div className="container" style={{ maxWidth: 720, padding: 28 }}>
+      <SEO title="My Account" description="Manage your Villi profile, addresses, orders, and security settings." canonical="https://villi.com/account" noindex />
       <h1>Account</h1>
       {msg && <div className="alert alert-success">{msg}</div>}
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="panel" style={{ marginBottom: 18 }}>
         <h2>Profile</h2>
-        <p style={{ margin: '4px 0' }}>
-          {user?.firstName} {user?.lastName}
-        </p>
-        <p className="muted" style={{ margin: '4px 0' }}>
-          {user?.email} &middot; role: {user?.role}
-        </p>
-        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => navigate('/orders')}>
-            View My Orders
-          </button>
-          <button type="button" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }} onClick={signOut}>
-            Sign out
-          </button>
-        </div>
+        {editingProfile ? (
+          <form onSubmit={saveProfile}>
+            <div className="field">
+              <label htmlFor="profile-first-name">First name</label>
+              <input
+                id="profile-first-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="profile-last-name">Last name</label>
+              <input
+                id="profile-last-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="submit" className="btn btn-primary" disabled={savingProfile}>
+                {savingProfile ? 'Saving...' : 'Save changes'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: 'transparent', border: '1px solid var(--border)' }}
+                onClick={() => setEditingProfile(false)}
+                disabled={savingProfile}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <p style={{ margin: '4px 0' }}>
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="muted" style={{ margin: '4px 0' }}>
+              {user?.email} &middot; role: {user?.role}
+            </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              <button type="button" className="btn" onClick={startEditingProfile}>
+                Edit profile
+              </button>
+              <button type="button" className="btn" onClick={() => navigate('/orders')}>
+                View My Orders
+              </button>
+              <button type="button" className="btn" style={{ background: 'transparent', border: '1px solid var(--border)' }} onClick={signOut}>
+                Sign out
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <AddressBook />

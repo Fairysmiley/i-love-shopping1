@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# One-step build + run for Villi. Docker is the only prerequisite.
+# One-step build + run for Villi. Docker + the Stripe CLI ("payment
+# simulation CLI") are the only host prerequisites — see README's
+# "Payments and Stripe CLI setup" for the one-time Stripe key/webhook setup.
 set -e
 
 cd "$(dirname "$0")"
@@ -33,6 +35,31 @@ API_PORT="${API_HOST_PORT:-3001}"
 MAILHOG_WEB_PORT="${MAILHOG_WEB_PORT:-18025}"
 SMTP_HOST_EFFECTIVE="${SMTP_HOST:-mailhog}"
 
+# Payments silently degrade (checkout runs, but the payment step 500s) if
+# STRIPE_SECRET_KEY isn't a real test-mode key — surface that loudly here
+# instead of letting a reviewer discover it deep in a browser console.
+check_stripe_setup() {
+  if [ -z "${STRIPE_SECRET_KEY:-}" ] || [[ "$STRIPE_SECRET_KEY" == *dummy* ]]; then
+    echo ""
+    echo "  ⚠  STRIPE_SECRET_KEY is not set (or is a placeholder) in .env — checkout's"
+    echo "     payment step will fail with a 500. Get free test-mode keys from"
+    echo "     https://dashboard.stripe.com/test/apikeys and set STRIPE_SECRET_KEY +"
+    echo "     VITE_STRIPE_PUBLIC_KEY in .env, then re-run this script."
+    echo "     See README → 'Payments and Stripe CLI setup'."
+  elif ! command -v stripe >/dev/null 2>&1; then
+    echo ""
+    echo "  ⚠  Stripe CLI ('stripe' command) not found — a successful payment will"
+    echo "     never flip Order.status off PENDING, since the webhook that confirms"
+    echo "     it locally never arrives. Install it: https://docs.stripe.com/stripe-cli"
+    echo "     then run: stripe listen --forward-to localhost:${PROXY_PORT}/api/v1/checkout/webhook"
+    echo "     See README → 'Payments and Stripe CLI setup'."
+  else
+    echo ""
+    echo "  ℹ  Payments: remember to run, in a separate terminal, for the whole review session:"
+    echo "     stripe listen --forward-to localhost:${PROXY_PORT}/api/v1/checkout/webhook"
+  fi
+}
+
 print_urls() {
   echo ""
   echo "══════════════════════════════════════════════════════════"
@@ -50,6 +77,7 @@ print_urls() {
     echo "  Dev email:            docker compose logs api | grep \"DEV EMAIL\""
   fi
   echo "══════════════════════════════════════════════════════════"
+  check_stripe_setup
   echo ""
 }
 

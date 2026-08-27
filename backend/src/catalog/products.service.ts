@@ -360,7 +360,14 @@ export class ProductsService {
     return { imported, skipped, errors };
   }
 
-  parseCsvToProducts(csvContent: string): BulkProductItemDto[] {
+  /**
+   * A single malformed row must not sink the whole file — the rest of the
+   * pipeline (bulkCreate) is per-row already, so parsing collects per-row
+   * errors instead of throwing on the first bad one. Only file-level
+   * problems (no data rows, missing a required column entirely) reject the
+   * whole upload, since there's nothing salvageable in those cases.
+   */
+  parseCsvToProducts(csvContent: string): { products: BulkProductItemDto[]; errors: string[] } {
     const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
     if (lines.length < 2) {
       throw new BadRequestException('CSV must have a header row and at least one data row');
@@ -376,6 +383,7 @@ export class ProductsService {
     }
 
     const products: BulkProductItemDto[] = [];
+    const errors: string[] = [];
 
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
@@ -388,7 +396,8 @@ export class ProductsService {
       const stockQuantity = parseInt(row['stockquantity'], 10);
 
       if (!row['sku'] || !row['name'] || isNaN(price) || isNaN(stockQuantity)) {
-        throw new BadRequestException(`Invalid data in CSV row ${i + 1}`);
+        errors.push(`Row ${i + 1}: invalid or missing required data (sku, name, price, stockQuantity)`);
+        continue;
       }
 
       products.push({
@@ -407,7 +416,7 @@ export class ProductsService {
       });
     }
 
-    return products;
+    return { products, errors };
   }
 
   private async getOrThrow(id: string): Promise<Product> {

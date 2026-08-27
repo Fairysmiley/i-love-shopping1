@@ -28,6 +28,20 @@ interface Order {
   };
 }
 
+/** shippingAddress is stored (and returned, decrypted) as a JSON string of
+ *  the address form fields — parse it into a readable multi-line address,
+ *  falling back to the raw string for old/malformed data. */
+function formatShippingAddress(raw: string): string {
+  try {
+    const a = JSON.parse(raw);
+    return [a.street, [a.postalCode, a.city].filter(Boolean).join(' '), a.country, a.phone]
+      .filter(Boolean)
+      .join('\n');
+  } catch {
+    return raw;
+  }
+}
+
 export function OrderDetailsPage() {
   usePageTitle('Order Details');
   const { id } = useParams<{ id: string }>();
@@ -110,7 +124,7 @@ export function OrderDetailsPage() {
           <div className="panel">
             <h2>Shipping Information</h2>
             <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, margin: 0 }}>
-              {order.shippingAddress}
+              {formatShippingAddress(order.shippingAddress)}
             </p>
           </div>
         </div>

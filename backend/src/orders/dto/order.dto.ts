@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsDateString } from 'class-validator';
+import { IsEnum, IsOptional, IsDateString, IsIn } from 'class-validator';
 import { OrderStatus } from '@prisma/client';
 
 export class OrderFilterDto {
@@ -14,9 +14,11 @@ export class OrderFilterDto {
   @IsOptional()
   endDate?: string;
 
+  @IsIn(['createdAt', 'status'])
   @IsOptional()
   sortBy?: 'createdAt' | 'status';
 
+  @IsIn(['asc', 'desc'])
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
 }

@@ -11,8 +11,11 @@ testing, per-criterion review tables, and oral-exam talking points.
 - [B2C e-commerce model](#b2c-e-commerce-model)
 - [Database scalability & growth](#database-scalability--growth)
 - [ACID properties in e-commerce](#acid-properties-in-e-commerce)
+- [Payments: theoretical concepts](#payments-theoretical-concepts)
 - [API reference](#api-reference)
 - [Security model](#security-model)
+- [CIA triad](#cia-triad)
+- [Semantic HTML & accessibility](#semantic-html--accessibility)
 - [Testing](#testing)
 - [Review criteria (task1)](#review-criteria-task1)
 - [Manual test checklist](#manual-test-checklist)
@@ -90,6 +93,39 @@ Multi-step operations (OAuth linking, refresh rotation, password reset +
 session revocation, product creation, review + rating recompute) run inside
 Prisma `$transaction`s.
 
+## Payments: theoretical concepts
+
+- **PCI DSS** — the card-industry standard for anyone who touches cardholder
+  data. The cheapest, safest compliance posture is to never possess that data
+  at all: Villi's checkout renders Stripe's own `PaymentElement` inside an
+  iframe Stripe controls, so the card number/CVV/expiry are typed directly
+  into Stripe's DOM and sent straight to Stripe — our frontend and backend
+  never see them, `checkout.service.ts` only ever handles a Stripe
+  `PaymentIntent` id and status. That keeps the app in the lightest PCI SAQ
+  category (SAQ A) instead of the full audit required for a server that
+  actually stores/processes card numbers. A real breach of stored card data —
+  Target (2013), Heartland (2008), Equifax (2017, though not card data per
+  se) — is exactly the failure mode "never store it" designs around: there's
+  nothing on our servers worth stealing.
+- **SSL/TLS** — encrypts the connection between browser and server so a
+  network observer (public wifi, a compromised router) can't read or tamper
+  with requests in transit — login credentials, session cookies, the Stripe
+  client secret. In this repo, `proxy/nginx.conf` + `certs/` terminate
+  TLS at the single-origin gateway (`docker-compose.yml`'s `proxy` service);
+  Stripe's own hosted fields are loaded over HTTPS by the browser directly.
+  This is transport security, a separate concern from *at-rest* encryption
+  (`common/utils/encryption.util.ts`, AES-256-GCM) — TLS protects data
+  in motion, `encrypt()`/`decrypt()` protect it sitting in Postgres.
+- **Refunds & cancellations** — `OrdersService.cancelOrder()` /
+  `processRefund()` (`backend/src/orders/orders.service.ts`) always call
+  Stripe's refund API *before* mutating the local `Order`/`Payment` rows —
+  if the gateway call throws, nothing here is recorded as cancelled/refunded,
+  so the database can never claim a refund that didn't actually happen at
+  Stripe. Only a `COMPLETED` payment is ever sent to Stripe for a refund; a
+  `PENDING`/`FAILED` payment was never captured, so there's nothing to
+  reverse — cancelling it just restocks inventory and marks the order
+  `CANCELLED` directly.
+
 ---
 
 ## API reference
@@ -147,6 +183,53 @@ GET /api/v1/products?q=jacket&category=shell-jackets&brands=fjallraven&brands=ha
 - **Injection safety:** Prisma parameterizes all queries.
 - **GDPR:** data export + account erasure; no user-enumeration on login/reset.
 
+## CIA triad
+
+Villi's security model maps onto the classic **Confidentiality, Integrity,
+Availability** triad (task3 "Student can explain CIA principles"):
+
+- **Confidentiality** — data is readable only by who's authorized to read it.
+  TLS (`certs/`, `proxy/nginx.conf`) stops it being read in transit; AES-256-GCM
+  (`common/utils/encryption.util.ts`) stops it being read at rest even with
+  raw DB access; argon2 password hashing means we never hold a readable
+  password at all; JWTs live in memory only, never `localStorage`, to limit
+  what an XSS payload could steal.
+- **Integrity** — data stays accurate and isn't silently corrupted or
+  tampered with. Postgres FKs/constraints and Prisma `$transaction`s (see
+  [ACID properties](#acid-properties-in-e-commerce)) stop the DB reaching an
+  inconsistent state; AES-GCM's auth tag makes tampering with encrypted
+  ciphertext fail decryption instead of silently returning garbage; Stripe
+  webhook signatures (`stripe-payment.service.ts`) stop a forged payment
+  callback from marking an unpaid order as paid; refresh-token rotation with
+  reuse-detection stops a stolen token being replayed to extend a session.
+- **Availability** — legitimate users can actually reach the service.
+  Redis-backed token-bucket rate limiting stops one client from starving
+  everyone else; the API is stateless so it can run as multiple replicas
+  behind the proxy; RabbitMQ's retry + dead-letter queue means a transient
+  failure degrades gracefully instead of losing a payment-status update
+  outright; see [`docs/load_test_report.md`](load_test_report.md) for the
+  measured concurrency the platform actually sustains.
+
+## Semantic HTML & accessibility
+
+"Semantic HTML" means using the HTML5 element whose *meaning* matches the
+content — `<button>` for something clickable, `<nav>`/`<main>`/`<header>` for
+page regions, a real `<table>` for tabular data, `<h1>`–`<h6>` for an actual
+document outline — instead of a generic `<div>`/`<span>` styled to look the
+same. It matters for accessibility (task3 "Student can explain the
+importance of semantic HTML") because assistive technology doesn't see
+pixels, it sees the DOM: a screen reader announces `<button>` as an
+interactive control a keyboard user can activate with Enter/Space for free,
+lets a user jump by landmark (`<nav>`, `<main>`) or by heading level without
+reading the whole page linearly, and a `<div onclick>` gets none of that —
+it's silently unreachable by keyboard and unannounced as interactive unless
+you hand-reimplement everything ARIA would have given you for free. That's
+also why the WCAG 2.1 A checklist (task3) treats ARIA as a fallback, not a
+first choice: "no ARIA is better than bad ARIA," because ARIA only overrides
+*how* something is announced, it doesn't grant keyboard behavior — the
+underlying semantic element (or a correctly reimplemented one) still has to
+actually work.
+
 ---
 
 ## Testing
@@ -166,18 +249,35 @@ npm run test:cov  # unit tests with coverage
 npm run test:e2e  # API integration + security tests (needs DB + Redis)
 ```
 
-**Unit tests (34)** cover JWT token handling incl. rotation/reuse-detection
-(`auth/tokens.service.spec.ts`), auth DTO validation incl. injection-style
-input (`auth/dto/auth.dto.spec.ts`), CAPTCHA skip/enforce logic
-(`auth/captcha.service.spec.ts`), and the product data model + dimension
-conversion (`catalog/dto/product.dto.spec.ts`, `catalog/products.service.spec.ts`,
-`common/utils/units.spec.ts`).
+**Unit tests (108 across 12 spec files)** cover JWT token handling incl.
+rotation/reuse-detection (`auth/tokens.service.spec.ts`), auth DTO validation
+incl. injection-style input (`auth/dto/auth.dto.spec.ts`), CAPTCHA
+skip/enforce logic (`auth/captcha.service.spec.ts`), the product data model +
+dimension conversion (`catalog/dto/product.dto.spec.ts`,
+`catalog/products.service.spec.ts`, `common/utils/units.spec.ts`), address
+book validation (`addresses/addresses.service.spec.ts`), and — the Commerce
+phase's required "cart functionality" and "order calculations" coverage —
+`cart/cart.service.spec.ts` (34 cases: add/remove/update quantity math, stock
+limits, guest-Redis vs logged-in-Prisma parity, guest→user cart merge) and
+`checkout/checkout.service.spec.ts` (order total = subtotal + shipping,
+decimal-precision rounding, stock deduction, Stripe failure-reason mapping)
+plus `orders/orders.service.spec.ts` (cancellation restocking, refund
+gating).
 
-**API integration + security tests (32, `test/app.e2e-spec.ts`)** cover catalog
-listing/facets/sorting, reviews (auth-gated create, rating validation,
-aggregate recompute, owner delete), auth (register/login/persistence),
-refresh-token rotation + reuse detection, logout revocation, and security
-cases (malformed input, SQLi-as-data, injection in path params, admin guards).
+**API integration + security tests (63 across two files)**:
+`test/app.e2e-spec.ts` (52) covers catalog listing/facets/sorting, full-text
+search by name (the task3 "critical user flow" requirement), reviews
+(auth-gated create, rating validation, aggregate recompute, owner delete),
+auth (register/login/persistence), refresh-token rotation + reuse detection,
+logout revocation, and security cases (malformed input, SQLi-as-data,
+injection in path params, admin guards). `test/commerce.e2e-spec.ts` (11) is
+the Commerce phase's required "critical user flow" coverage: full
+register → add-to-cart → checkout → order → inventory-deduction flow, the
+same flow for a guest cart/checkout, checkout validation edge cases (empty
+cart, missing fields, invalid address/phone, no shipping option), Stripe
+webhook signature rejection, and the async PENDING → PAID/CANCELLED
+transition applied through the RabbitMQ queue — including an idempotency
+check that a duplicate webhook message never double-reverts stock.
 
 ## Review criteria (task1)
 
@@ -228,6 +328,8 @@ Guards against flows that are hard to fully automate:
 - [ ] **OAuth (Google / GitHub / Facebook)** — "Continue with…" completes and lands signed-in, linking/creating the account.
 - [ ] **2FA setup** — enable on Account, scan the QR, verify a code, confirm recovery codes shown once.
 - [ ] **2FA login** — sign out/in; confirm the code prompt and that a recovery code works as fallback.
+- [ ] **Data encryption at rest** — place an order, then `docker compose exec postgres psql -U villi -d villi -c 'SELECT "shippingAddress", "guestEmail" FROM "Order" LIMIT 1;'` and separately `SELECT "transactionId" FROM "Payment" LIMIT 1;` — both come back as opaque `iv:authTag:ciphertext` hex, never plaintext JSON/an email/a Stripe id. Confirm the app itself shows the decrypted, human-readable versions (order confirmation page, `/orders/:id`).
+- [ ] **Data encryption in transit** — with the stack fronted by `proxy` (nginx + `certs/`), confirm the browser padlock/HTTPS is in effect end-to-end and that Stripe's card fields are also loaded over HTTPS (DevTools → Network, filter `js.stripe.com`).
 
 ---
 

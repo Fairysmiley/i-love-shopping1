@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../cart/CartContext';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { money } from '../format';
-import { usePageTitle } from '../components/SEO';
+import { SEO } from '../components/SEO';
 import type { Product } from '../api/types';
 
 export function CartPage() {
-  usePageTitle('Shopping Cart');
   const { cart, updateItem, removeItem } = useCart();
   const navigate = useNavigate();
   const [related, setRelated] = useState<Product[]>([]);
+  const [error, setError] = useState('');
+
+  const runCartAction = async (action: () => Promise<void>) => {
+    try {
+      setError('');
+      await action();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update your cart.');
+    }
+  };
 
   // "Incorporate a section for related or recommended products based on the
   // items in the cart." (Task 2) — recommend from the first item's category.
@@ -34,6 +43,7 @@ export function CartPage() {
   if (cart.items.length === 0) {
     return (
       <div className="container" style={{ padding: 48, textAlign: 'center', maxWidth: 600 }}>
+        <SEO title="Shopping Cart" description="Your Villi shopping cart." canonical="https://villi.com/cart" noindex />
         <h1>Your Cart is Empty</h1>
         <p className="muted" style={{ marginBottom: 32 }}>Looks like you haven't added anything to your cart yet.</p>
         <Link to="/shop" className="btn btn-primary">Continue Shopping</Link>
@@ -43,10 +53,12 @@ export function CartPage() {
 
   return (
     <div className="container" style={{ maxWidth: 1000, padding: 28 }}>
+    <SEO title="Shopping Cart" description="Review the items in your Villi shopping cart before checkout." canonical="https://villi.com/cart" noindex />
     <div className="layout" style={{ gridTemplateColumns: '2fr 1fr', gap: 32, padding: 0 }}>
       <div>
         <h1>Shopping Cart</h1>
         <p className="muted">{cart.items.length} items</p>
+        {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
 
         <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {cart.items.map((item) => (
@@ -67,26 +79,26 @@ export function CartPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button 
-                      className="btn" 
+                    <button
+                      className="btn"
                       style={{ padding: '2px 8px' }}
-                      onClick={() => updateItem(item.productId, Math.max(1, item.quantity - 1))}
+                      onClick={() => runCartAction(() => updateItem(item.productId, Math.max(1, item.quantity - 1)))}
                     >
                       -
                     </button>
                     <span style={{ minWidth: 24, textAlign: 'center' }}>{item.quantity}</span>
-                    <button 
-                      className="btn" 
+                    <button
+                      className="btn"
                       style={{ padding: '2px 8px' }}
-                      onClick={() => updateItem(item.productId, item.quantity + 1)}
+                      onClick={() => runCartAction(() => updateItem(item.productId, item.quantity + 1))}
                     >
                       +
                     </button>
                   </div>
-                  <button 
-                    className="btn" 
+                  <button
+                    className="btn"
                     style={{ color: 'var(--danger)', borderColor: 'var(--danger)', padding: '4px 8px', fontSize: "0.8125rem" }}
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => runCartAction(() => removeItem(item.productId))}
                   >
                     Remove
                   </button>

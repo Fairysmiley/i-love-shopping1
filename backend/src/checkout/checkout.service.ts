@@ -201,8 +201,19 @@ export class CheckoutService {
     }
   }
 
-  async createStripePaymentIntent(amount: number, currency: string, orderId: string) {
-    return this.stripePayment.createPaymentIntent(amount, currency, orderId);
+  /**
+   * The PaymentIntent amount always comes from the Order row we created
+   * server-side during processCheckout — never from client input — so a
+   * tampered client-supplied amount can never under/over-charge an order.
+   */
+  async createStripePaymentIntentForOrder(orderId: string, userId?: string) {
+    await this.assertOrderAccess(orderId, userId);
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException('This order is no longer awaiting payment.');
+    }
+    return this.stripePayment.createPaymentIntent(Number(order.totalAmount), order.currency, orderId);
   }
 
   verifyWebhookSignature(signature: string, rawBody: Buffer) {
@@ -218,6 +229,19 @@ export class CheckoutService {
    */
   async handleStripeWebhook(payload: any) {
     this.logger.log(`Received Stripe webhook payload: ${payload.type}`);
+
+    // `stripe listen`/a real webhook endpoint delivers every event type the
+    // account has enabled — payment_intent.created, charge.succeeded,
+    // charge.updated, etc. — not just the two we care about. Treating
+    // anything-that-isn't-"succeeded" as a failure meant the very first
+    // event (payment_intent.created, which fires the instant the intent is
+    // made, long before the customer pays) would cancel the order outright.
+    if (
+      payload.type !== 'payment_intent.succeeded' &&
+      payload.type !== 'payment_intent.payment_failed'
+    ) {
+      return;
+    }
 
     const intent = payload.data?.object;
     if (!intent || !intent.metadata?.orderId) return;

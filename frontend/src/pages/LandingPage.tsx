@@ -1,9 +1,11 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { LandingHeroArt } from '../components/LandingHeroArt';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { money } from '../format';
 import { SEO } from '../components/SEO';
+import { getCachedCategoryTree, loadCategoryTree } from '../api/categoryTree';
+import type { Category } from '../api/types';
 
 interface Product {
   id: string;
@@ -31,13 +33,19 @@ const HIGHLIGHTS = [
 
 export function LandingPage() {
   const [featured, setFeatured] = useState<Product[]>([]);
-  const navigate = useNavigate();
+  const [categories, setCategories] = useState<Category[]>(getCachedCategoryTree);
 
   useEffect(() => {
     // Fetch featured products (top rated)
     api.get<{ data: Product[] }>('/products?limit=4&sort=rating')
       .then((productsData) => setFeatured(productsData.data))
       .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    loadCategoryTree().then((tree) => {
+      if (tree?.length) setCategories(tree);
+    });
   }, []);
 
   return (
@@ -93,11 +101,37 @@ export function LandingPage() {
         </div>
       </section>
 
+      {categories.length > 0 && (
+        <section className="container landing-section" style={{ padding: '48px 24px 0 24px' }}>
+          <h2>Shop by category</h2>
+          <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            {categories.slice(0, 6).map((c) => (
+              <Link
+                key={c.id}
+                to={`/shop?category=${c.slug}`}
+                className="panel landing-card"
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <h3 style={{ margin: '0 0 4px 0', fontSize: "1rem" }}>{c.name}</h3>
+                {c.description && (
+                  <p className="muted" style={{ margin: 0, fontSize: "0.8125rem" }}>{c.description}</p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="container landing-section" style={{ padding: '48px 24px 64px 24px' }}>
-        
+        <h2>Featured products</h2>
         <div className="landing-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
           {featured.map(p => (
-            <div key={p.id} className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }} onClick={() => navigate(`/product/${p.slug}`)}>
+            <Link
+              key={p.id}
+              to={`/product/${p.slug}`}
+              className="panel"
+              style={{ display: 'flex', flexDirection: 'column', gap: 12, textDecoration: 'none', color: 'inherit' }}
+            >
               {p.images && p.images[0] ? (
                 <img src={p.images[0].thumbnailUrl || p.images[0].url} alt={p.images[0].altText || p.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8 }} />
               ) : (
@@ -110,7 +144,7 @@ export function LandingPage() {
                   {p.averageRating > 0 && <span style={{ fontSize: "0.8125rem", color: '#eab308' }}>★ {p.averageRating.toFixed(1)}</span>}
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

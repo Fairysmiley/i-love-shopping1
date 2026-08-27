@@ -391,7 +391,7 @@ describe('CartService', () => {
           product: expect.objectContaining({
             name: PRODUCT_A.name,
             price: 250,
-            image: 'https://cdn.example.com/keb-thumb.png',
+            image: 'https://cdn.example.com/keb.png',
           }),
         }),
       );
@@ -428,7 +428,25 @@ describe('CartService', () => {
       expect(cart).toEqual({ items: [], total: 0 });
     });
 
-    it('generates thumbnail URLs by replacing .png with -thumb.png', async () => {
+    it('prefers the dedicated thumbnailUrl over the full-size url when present', async () => {
+      const productWithThumb = {
+        ...PRODUCT_A,
+        images: [
+          { url: 'https://cdn.example.com/keb.png', thumbnailUrl: 'https://cdn.example.com/keb-thumb.png', isPrimary: true },
+        ],
+      };
+      prisma.cart.findFirst.mockResolvedValue({
+        id: CART_ID,
+        items: [{ productId: PRODUCT_A.id, quantity: 1 }],
+      });
+      prisma.product.findMany.mockResolvedValue([productWithThumb]);
+
+      const cart = await service.getCart(USER_ID);
+
+      expect(cart.items[0].product.image).toBe('https://cdn.example.com/keb-thumb.png');
+    });
+
+    it('falls back to the full-size url when no thumbnailUrl is set', async () => {
       prisma.cart.findFirst.mockResolvedValue({
         id: CART_ID,
         items: [{ productId: PRODUCT_A.id, quantity: 1 }],
@@ -437,7 +455,7 @@ describe('CartService', () => {
 
       const cart = await service.getCart(USER_ID);
 
-      expect(cart.items[0].product.image).toBe('https://cdn.example.com/keb-thumb.png');
+      expect(cart.items[0].product.image).toBe('https://cdn.example.com/keb.png');
     });
 
     it('sets image to null when the product has no primary image', async () => {

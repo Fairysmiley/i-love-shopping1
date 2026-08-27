@@ -186,8 +186,12 @@ export class ProductsController {
     }
 
     const csvContent = file.buffer.toString('utf-8');
-    const products = this.products.parseCsvToProducts(csvContent);
+    const { products, errors: parseErrors } = this.products.parseCsvToProducts(csvContent);
     const result = await this.products.bulkCreate(products);
-    return result;
+    return {
+      imported: result.imported,
+      skipped: result.skipped + parseErrors.length,
+      errors: [...parseErrors, ...result.errors],
+    };
   }
 }

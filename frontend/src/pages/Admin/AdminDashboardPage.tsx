@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ProductManagementPanel } from './ProductManagementPanel';
+import { CategoryBrandManagementPanel } from './CategoryBrandManagementPanel';
 import { OrderManagementPanel } from './OrderManagementPanel';
 import { UserManagementPanel } from './UserManagementPanel';
 import { ReviewManagementPanel } from './ReviewManagementPanel';
@@ -9,7 +10,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePageTitle } from '../../components/SEO';
 
-type AdminTab = 'products' | 'orders' | 'users' | 'reviews' | 'bulk-upload' | 'delivery';
+type AdminTab = 'products' | 'categories' | 'orders' | 'users' | 'reviews' | 'bulk-upload' | 'delivery';
 
 export function AdminDashboardPage() {
   usePageTitle('Admin Dashboard');
@@ -35,6 +36,16 @@ export function AdminDashboardPage() {
           onClick={() => setActiveTab('products')}
         >
           Products
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'categories'}
+          aria-controls="panel-categories"
+          id="tab-categories"
+          className={`btn ${activeTab === 'categories' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('categories')}
+        >
+          Categories &amp; Brands
         </button>
         <button
           role="tab"
@@ -90,6 +101,7 @@ export function AdminDashboardPage() {
 
       <div className="admin-panel" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'products' && <ProductManagementPanel />}
+        {activeTab === 'categories' && <CategoryBrandManagementPanel />}
         {activeTab === 'bulk-upload' && <BulkUploadPanel />}
         {activeTab === 'delivery' && <DeliveryOptionsPanel />}
         {activeTab === 'orders' && <OrderManagementPanel />}

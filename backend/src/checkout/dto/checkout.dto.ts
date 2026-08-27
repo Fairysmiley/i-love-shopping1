@@ -63,3 +63,9 @@ export class CheckoutDto {
   @IsOptional()
   email?: string;
 }
+
+export class CreatePaymentIntentDto {
+  @IsUUID()
+  @IsNotEmpty()
+  orderId: string;
+}

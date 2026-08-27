@@ -1,18 +1,26 @@
+import { useState } from 'react';
 import { useCart } from './CartContext';
 import { money } from '../format';
-import { Link } from 'react-router-dom';
-
-import { useAuth } from '../auth/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ApiError } from '../api/client';
 
 export function CartSidebar() {
   const { cart, isOpen, setIsOpen, updateItem, removeItem } = useCart();
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
   const itemCount = cart?.items.reduce((acc, item) => acc + item.quantity, 0) || 0;
+
+  const runCartAction = async (action: () => Promise<void>) => {
+    try {
+      setError('');
+      await action();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update your cart.');
+    }
+  };
 
   return (
     <>
@@ -41,6 +49,7 @@ export function CartSidebar() {
         </div>
 
         <div style={{ flex: 1, padding: 20, overflowY: 'auto' }}>
+          {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
           {!cart?.items.length ? (
             <p className="muted center" style={{ marginTop: 40 }}>Your cart is empty.</p>
           ) : (
@@ -53,22 +62,22 @@ export function CartSidebar() {
                     <div style={{ width: 80, height: 80, background: 'var(--surface-2)', borderRadius: 'var(--radius)' }} />
                   )}
                   <div style={{ flex: 1 }}>
-                    <Link to={`/products/${item.product.slug}`} onClick={() => setIsOpen(false)} style={{ fontWeight: 600, color: 'var(--text)' }}>
+                    <Link to={`/product/${item.product.slug}`} onClick={() => setIsOpen(false)} style={{ fontWeight: 600, color: 'var(--text)' }}>
                       {item.product.name}
                     </Link>
                     <div style={{ margin: '4px 0', fontSize: "0.875rem" }}>{money(item.product.price, 'EUR')}</div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <select 
-                        value={item.quantity} 
-                        onChange={(e) => updateItem(item.productId, Number(e.target.value))}
+                      <select
+                        value={item.quantity}
+                        onChange={(e) => runCartAction(() => updateItem(item.productId, Number(e.target.value)))}
                         style={{ padding: '4px 8px', width: 'auto', borderRadius: 6 }}
                       >
                         {[...Array(Math.min(10, item.product.stockQuantity)).keys()].map(n => (
                           <option key={n+1} value={n+1}>{n+1}</option>
                         ))}
                       </select>
-                      <button className="btn" onClick={() => removeItem(item.productId)} style={{ padding: '4px 8px', fontSize: "0.75rem" }}>Remove</button>
+                      <button className="btn" onClick={() => runCartAction(() => removeItem(item.productId))} style={{ padding: '4px 8px', fontSize: "0.75rem" }}>Remove</button>
                     </div>
                   </div>
                 </div>
@@ -87,11 +96,7 @@ export function CartSidebar() {
               className="btn btn-primary btn-block" 
               onClick={() => {
                 setIsOpen(false);
-                if (user) {
-                  navigate('/checkout');
-                } else {
-                  navigate('/login', { state: { next: '/checkout' } });
-                }
+                navigate('/checkout');
               }}
             >
               Checkout

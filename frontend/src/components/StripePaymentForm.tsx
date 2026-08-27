@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 
 export interface StripePaymentFormProps {
+  orderId: string;
   onSuccess: () => void;
   onError: (error: string) => void;
   onProcessing: (isProcessing: boolean) => void;
 }
 
-export function StripePaymentForm({ onSuccess, onError, onProcessing }: StripePaymentFormProps) {
+export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }: StripePaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [errorMessage, setErrorMessage] = useState('');
@@ -21,7 +22,15 @@ export function StripePaymentForm({ onSuccess, onError, onProcessing }: StripePa
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      redirect: 'if_required', // We want to stay on the page for single-page checkout
+      // Card (this app's only non-redirect method) never redirects, so this
+      // stays a single-page checkout for it; MobilePay always redirects out
+      // to confirm and needs somewhere to land — the order confirmation
+      // page is self-contained (reads the order fresh from the URL, polls
+      // for PENDING -> PAID itself), so it's a safe, simple return target.
+      redirect: 'if_required',
+      confirmParams: {
+        return_url: `${window.location.origin}/order-confirmation/${orderId}`,
+      },
     });
 
     if (error) {

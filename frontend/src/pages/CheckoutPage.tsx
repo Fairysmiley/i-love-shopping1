@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { StripePaymentForm } from '../components/StripePaymentForm';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import { usePageTitle } from '../components/SEO';
+import { SEO } from '../components/SEO';
 import type { Address as SavedAddress } from '../api/types';
 
 // We initialize Stripe with a dummy test key if VITE_STRIPE_PUBLIC_KEY is missing
@@ -36,7 +36,6 @@ const EMPTY_ADDRESS: Address = { street: '', city: '', postalCode: '', country: 
 const PHONE_PATTERN = /^\+?[0-9\s\-()]{7,20}$/;
 
 export function CheckoutPage() {
-  usePageTitle('Checkout');
   const { cart, refreshCart, updateItem, removeItem } = useCart();
   const navigate = useNavigate();
   const [address, setAddress] = useState<Address>(EMPTY_ADDRESS);
@@ -94,6 +93,7 @@ export function CheckoutPage() {
   if (!cart || cart.items.length === 0) {
     return (
       <div className="container" style={{ padding: 28 }}>
+        <SEO title="Checkout" description="Checkout securely with Villi — shipping, payment, and order summary in one page." canonical="https://villi.com/checkout" noindex />
         <h1>Checkout</h1>
         <p>Your cart is empty.</p>
         <button className="btn" onClick={() => navigate('/shop')}>Continue shopping</button>
@@ -140,11 +140,10 @@ export function CheckoutPage() {
       });
       setOrderId(order.id);
 
-      // 2. Create Stripe Payment Intent
+      // 2. Create Stripe Payment Intent — amount is derived server-side from
+      // the order we just created, never trusted from the client.
       const intent = await api.post<{ clientSecret: string, intentId: string }>('/checkout/create-intent', {
         orderId: order.id,
-        amount: total,
-        currency: 'EUR'
       });
       setClientSecret(intent.clientSecret);
     } catch (err) {
@@ -163,8 +162,18 @@ export function CheckoutPage() {
     setError(err);
   };
 
+  const runCartAction = async (action: () => Promise<void>) => {
+    try {
+      setError('');
+      await action();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update your cart.');
+    }
+  };
+
   return (
     <div className="container" style={{ padding: 28, maxWidth: 800 }}>
+      <SEO title="Checkout" description="Checkout securely with Villi — shipping, payment, and order summary in one page." canonical="https://villi.com/checkout" noindex />
       <h1>Checkout</h1>
 
       <div className="layout" style={{ gap: 40, gridTemplateColumns: '1fr 320px', padding: 0 }}>
@@ -307,6 +316,7 @@ export function CheckoutPage() {
               {clientSecret && (
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
                   <StripePaymentForm
+                    orderId={orderId}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
                     onProcessing={setBusy}
@@ -336,7 +346,7 @@ export function CheckoutPage() {
                           type="button"
                           className="btn"
                           style={{ padding: '0 6px', fontSize: '0.75rem' }}
-                          onClick={() => updateItem(item.productId, Math.max(1, item.quantity - 1))}
+                          onClick={() => runCartAction(() => updateItem(item.productId, Math.max(1, item.quantity - 1)))}
                         >
                           -
                         </button>
@@ -345,7 +355,7 @@ export function CheckoutPage() {
                           type="button"
                           className="btn"
                           style={{ padding: '0 6px', fontSize: '0.75rem' }}
-                          onClick={() => updateItem(item.productId, item.quantity + 1)}
+                          onClick={() => runCartAction(() => updateItem(item.productId, item.quantity + 1))}
                         >
                           +
                         </button>
@@ -354,7 +364,7 @@ export function CheckoutPage() {
                         type="button"
                         className="btn"
                         style={{ color: 'var(--danger)', borderColor: 'var(--danger)', padding: '0 6px', fontSize: '0.7rem' }}
-                        onClick={() => removeItem(item.productId)}
+                        onClick={() => runCartAction(() => removeItem(item.productId))}
                       >
                         Remove
                       </button>

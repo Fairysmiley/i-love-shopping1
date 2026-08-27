@@ -11,7 +11,7 @@ import { Request } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CheckoutService } from './checkout.service';
-import { CheckoutDto } from './dto/checkout.dto';
+import { CheckoutDto, CreatePaymentIntentDto } from './dto/checkout.dto';
 
 @Controller('checkout')
 export class CheckoutController {
@@ -35,15 +35,10 @@ export class CheckoutController {
   async createPaymentIntent(
     @Req() req: Request,
     @CurrentUser() user: any,
-    @Body() dto: { orderId: string; amount: number; currency: string },
+    @Body() dto: CreatePaymentIntentDto,
   ) {
     const { userId } = this.extractCtx(req, user);
-    await this.checkoutService.assertOrderAccess(dto.orderId, userId);
-    const intent = await this.checkoutService.createStripePaymentIntent(
-      dto.amount,
-      dto.currency,
-      dto.orderId,
-    );
+    const intent = await this.checkoutService.createStripePaymentIntentForOrder(dto.orderId, userId);
     return { clientSecret: intent.client_secret, intentId: intent.id };
   }
 

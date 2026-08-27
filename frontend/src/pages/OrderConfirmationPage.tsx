@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { money } from '../format';
 import { useAuth } from '../auth/AuthContext';
-import { usePageTitle } from '../components/SEO';
+import { SEO } from '../components/SEO';
 
 interface Order {
   id: string;
@@ -31,7 +31,6 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 8; // ~16s, generous for a local webhook round-trip
 
 export function OrderConfirmationPage() {
-  usePageTitle('Order Confirmation');
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
@@ -71,6 +70,7 @@ export function OrderConfirmationPage() {
   if (order.status === 'CANCELLED') {
     return (
       <div className="container" style={{ maxWidth: 800, padding: 48, textAlign: 'center' }}>
+        <SEO title="Payment Failed" description="Your Villi order payment couldn't be completed." noindex />
         <div style={{ width: 80, height: 80, background: '#fee2e2', color: '#991b1b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px auto', fontSize: '2.25rem' }}>
           ✕
         </div>
@@ -87,6 +87,7 @@ export function OrderConfirmationPage() {
     const stillWaiting = pollAttempts < MAX_POLL_ATTEMPTS;
     return (
       <div className="container" style={{ maxWidth: 800, padding: 48, textAlign: 'center' }}>
+        <SEO title="Confirming Your Payment" description="We're confirming your Villi order payment." noindex />
         <div style={{ width: 80, height: 80, background: 'var(--surface-2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px auto', fontSize: '2.25rem' }}>
           {stillWaiting ? '⏳' : '⚠️'}
         </div>
@@ -112,6 +113,7 @@ export function OrderConfirmationPage() {
 
   return (
     <div className="container" style={{ maxWidth: 800, padding: 48, textAlign: 'center' }}>
+      <SEO title="Order Confirmed" description="Your Villi order is confirmed — view your order summary and estimated delivery." noindex />
       <div style={{ marginBottom: 32 }}>
         <div style={{ width: 80, height: 80, background: '#dcfce7', color: '#166534', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px auto', fontSize: "2.25rem" }}>
           ✓
@@ -132,7 +134,7 @@ export function OrderConfirmationPage() {
           </div>
         </div>
 
-        <h3 style={{ marginTop: 0 }}>Order Summary</h3>
+        <h2 style={{ marginTop: 0, fontSize: '1.125rem' }}>Order Summary</h2>
         {order.items.map(item => (
           <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
             <span>{item.quantity}x {item.product.name}</span>

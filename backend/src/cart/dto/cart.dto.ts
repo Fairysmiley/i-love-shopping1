@@ -1,17 +1,17 @@
-import { IsNotEmpty, IsNumber, IsString, IsUUID, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsUUID, Min } from 'class-validator';
 
 export class AddToCartDto {
   @IsUUID()
   @IsNotEmpty()
   productId: string;
 
-  @IsNumber()
+  @IsInt({ message: 'Quantity must be a whole number.' })
   @Min(1)
   quantity: number;
 }
 
 export class UpdateCartItemDto {
-  @IsNumber()
+  @IsInt({ message: 'Quantity must be a whole number.' })
   @Min(1)
   quantity: number;
 }

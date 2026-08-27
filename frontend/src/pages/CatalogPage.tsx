@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { flattenCategoryTree, getCachedCategoryTree, loadCategoryTree } from '../api/categoryTree';
 import { ProductCard } from '../components/ProductCard';
@@ -17,7 +16,6 @@ const SORTS = [
 ];
 
 export function CatalogPage() {
-  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [result, setResult] = useState<Paginated<Product> | null>(null);
@@ -39,18 +37,6 @@ export function CatalogPage() {
 
   const q = params.get('q') ?? '';
   const category = params.get('category') ?? '';
-
-  useEffect(() => {
-    if (authLoading || user || !q) return;
-    setParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete('q');
-        return next;
-      },
-      { replace: true },
-    );
-  }, [authLoading, user, q, setParams]);
   const sort = params.get('sort') ?? 'relevance';
   const brands = params.getAll('brands');
   const minPrice = params.get('minPrice') ?? '';
