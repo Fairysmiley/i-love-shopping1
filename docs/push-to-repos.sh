@@ -9,7 +9,7 @@
 #
 set -euo pipefail
 
-GITEA_URL="${GITEA_URL:-https://gitea.kood.tech/juliageorgieva/i-love-shopping1}"
+GITEA_URL="${GITEA_URL:-https://gitea.kood.tech/juliageorgieva/i-love-shopping2}"
 GITHUB_URL="${GITHUB_URL:-https://github.com/Fairysmiley/i-love-shopping1}"
 DEFAULT_BRANCH="main"
 BRANCH="${1:-$DEFAULT_BRANCH}"

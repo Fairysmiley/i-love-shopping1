@@ -1,473 +1,471 @@
 # Review Guide — Part 2: Commerce
 
-Answers every mandatory checklist item at the bottom of `task2.txt` (the
-assignment brief — not checked into this repo), in the same order, against
-the running codebase. Code paths are relative to the repo root; API routes
-are relative to `https://localhost:3001` (direct) or `http://localhost:8080`
-(unified proxy). Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and
-`shopper@villi.test` / `Shopper!Passw0rd`. Payments run against real Stripe
-test-mode sandbox keys — see README → "Payments and Stripe CLI setup" for
-the one-time `stripe listen` step needed before any checkout completes.
+This walks through every mandatory item at the bottom of `task2.txt` (the
+assignment brief — not checked into this repo) in the same order it appears
+there, so you can go down the list and check things off as you go. Each
+item says where the relevant code lives, then gives you something concrete
+to click through or run to see it working yourself.
+
+A few things worth knowing before you start:
+
+- Code paths are relative to the repo root. API routes are relative to `https://localhost:3001` (hitting the API directly) or `http://localhost:8080` (the unified proxy — what you'll normally use).
+- Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`.
+- Payments run against a real Stripe **test-mode** sandbox, not a fake payment form. Before you can complete a checkout, run `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` in a separate terminal (see the README's "Payments and Stripe CLI setup" section) — without it, the order gets created but never flips out of "Pending".
+- The `docker exec` commands below assume the stack was started with `./start.sh` or `docker compose up`, which names the containers `i-love-shopping-postgres-1`, `i-love-shopping-redis-1`, etc. If you renamed the project folder, swap in whatever `docker ps` shows you.
 
 ---
 
 **The README file contains updated project overview, entity relationship diagram, setup instructions, and usage guide for the commerce functionality**
 
-[`README.md`](../README.md)'s `## Entity Relationship Diagram` includes
-`Cart`, `CartItem`, `Order`, `OrderItem`, `Payment`, and `DeliveryOption`
-alongside the Foundation entities, with the same PK/FK/cardinality notation.
-`## Usage guide` covers adding to cart, guest vs. logged-in checkout, and
-order management. `## Setup and installation` documents the Stripe CLI as a
-second host prerequisite alongside Docker.
+Open [README.md](../README.md). The Entity Relationship Diagram section
+includes `Cart`, `CartItem`, `Order`, `OrderItem`, `Payment`, and
+`DeliveryOption` alongside the Foundation entities, in the same
+Mermaid diagram with PK/FK/cardinality notation. The usage guide covers
+adding to cart and both guest and logged-in checkout, and the setup section
+calls out the Stripe CLI as a second host prerequisite next to Docker.
 
-> Open [README.md](../README.md) and confirm the ERD's Mermaid block includes the Commerce entities and that the setup section mentions the Stripe CLI.
+> Just read through the README top to bottom — nothing to run here.
 
 ---
 
 **The database schema includes tables and relationships to support the shopping cart functionality, including guest carts and persistent carts for logged-in users.**
 
 `Cart`/`CartItem` (`backend/prisma/schema.prisma:270-294`) hold the
-persistent, logged-in-user cart — `Cart.userId` nullable-but-unique-per-user,
-`CartItem` unique on `(cartId, productId)`. Guest carts intentionally have
-**no** table: they live in Redis under `cart:guest:<guestId>` with a 7-day
-TTL (`CartService.guestCartKey()`, `cart.service.ts:18-20,135`) — an
-ephemeral, unauthenticated cart has no reason to occupy durable relational
-storage, and Redis's TTL gives "temporary" for free instead of a cron job.
+persistent, logged-in-user cart. Guest carts deliberately don't get their
+own table — they live in Redis under `cart:guest:<a random id>` with a
+7-day expiry (`CartService.guestCartKey()`, `cart.service.ts:18-20,135`).
+An anonymous cart doesn't need durable relational storage, and Redis's
+built-in expiry gives you "temporary" for free instead of a cleanup job.
 
-> `docker exec -it <postgres container> psql -U villi -d villi -c '\d "Cart"'` shows the persistent table; `docker exec -it <redis container> redis-cli KEYS 'cart:guest:*'` shows guest carts after adding to cart while logged out.
+> Look at the persistent side:
+> ```
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c '\d "Cart"'
+> ```
+> Then add something to your cart while logged out and check the guest side:
+> ```
+> docker exec -it i-love-shopping-redis-1 redis-cli KEYS 'cart:guest:*'
+> ```
 
 ---
 
 **The shopping cart displays product information for each item, including name, price, and a thumbnail image.**
 
 `CartService.getCart()` (`cart.service.ts:22-76`) enriches each raw
-`{productId, quantity}` pair with `product.name`, `product.price`, and
+`{productId, quantity}` pair with the product's name and price, plus
 `image: p.images[0]?.thumbnailUrl || p.images[0]?.url || null` (line 68) —
-prefers the dedicated 320px thumbnail variant, falling back to the full-size
-URL only if no thumbnail was generated. Rendered by `CartSidebar.tsx` and
-`CartPage.tsx`.
+it uses the dedicated 320px thumbnail if one was generated, and only falls
+back to the full-size image otherwise.
 
-> Add any product to cart and open the cart sidebar: name, unit price, and a thumbnail all appear. Unit coverage: `'prefers the dedicated thumbnailUrl over the full-size url when present'` / `'falls back to the full-size url when no thumbnailUrl is set'` / `'sets image to null when the product has no primary image'`, `backend/src/cart/cart.service.spec.ts:431,449,461`.
+> Add any product to your cart and open the cart sidebar — name, unit price, and a thumbnail should all be visible right away.
 
 ---
 
 **Users can add, remove, and update quantities of items in the cart with real-time total calculations.**
 
-`POST /api/v1/cart/items`, `PATCH /api/v1/cart/items/:productId`,
-`DELETE /api/v1/cart/items/:productId` (`cart.controller.ts`) map to
-`addItem`/`updateItem`/`removeItem`. Every one of them returns
-`this.getCart(...)` (e.g. `cart.service.ts:138,177,197`), which recomputes
-`itemTotal`/`total` from current `product.price` on every call — the total
-is never a stored, staleness-prone field.
+The cart endpoints (`cart.controller.ts`) all route through
+`addItem`/`updateItem`/`removeItem` in `cart.service.ts`, and every one of
+them returns a freshly recomputed cart (e.g. `cart.service.ts:138,177,197`)
+— the total is calculated from the current product price on every request,
+never stored and left to go stale.
 
-> On `/cart`, change a quantity or remove an item: the line total and cart total both update immediately with no page reload. Unit coverage: `'returns enriched items with real-time total for a logged-in user'`, `cart.service.spec.ts:370`.
+> Go to `/cart`, bump a quantity up and down and remove an item — the line total and the cart total should update instantly with no page reload.
 
 ---
 
 **A guest cart is implemented for non-registered users, saving their selections temporarily.**
 
-Confirmed above (Redis, 7-day TTL). `CartPage`/`CartSidebar` work identically
-whether or not `useAuth()` returns a user — the guest path is driven by an
-`x-guest-cart-id` header generated client-side and never requires
-registration.
+Confirmed above — it's Redis-backed with a 7-day TTL, and works identically
+to the logged-in cart from the UI's point of view. The only difference is
+an `x-guest-cart-id` header generated client-side instead of a session.
 
-> Open an incognito window, add items to cart without logging in, close and reopen the tab (same browser session) — the cart persists. Unit coverage: the "Guest User (Redis)" `describe` blocks throughout `cart.service.spec.ts` (e.g. lines 164, 175, 268).
+> Open an incognito window, add a few items without logging in, close the tab, and reopen `/cart` in a new incognito window using the same browser profile — the cart should still be there.
 
 ---
 
 **A persistent cart is implemented for logged-in users, retaining items across sessions.**
 
-Logged-in cart rows live in Postgres (`Cart`/`CartItem`), keyed by
-`userId` — unaffected by token expiry, browser restarts, or device changes.
-`CartService.mergeCart()` (`cart.service.ts:211-251`) additionally folds a
-guest cart into the account's persistent cart on login, clamping merged
-quantities to live stock (`Math.min(..., product.stockQuantity)`,
-line 233) rather than trusting the pre-login guest quantity blindly.
+Logged-in cart rows live in Postgres, keyed by `userId`, so they survive
+token expiry, browser restarts, or switching devices.
+`CartService.mergeCart()` (`cart.service.ts:211-251`) also folds a guest
+cart into the account cart the moment you log in, clamping the merged
+quantity to whatever is actually in stock rather than trusting a stale
+guest-side number.
 
-> Add items while logged out, then log in: guest items appear merged into the account cart. Log out and back in again: the cart is still there. Unit coverage: `'copies guest items into the user's DB cart and clears the guest cart'` / `'clamps the merged quantity to the product stock'`, `cart.service.spec.ts:479,524`.
+> Add items while logged out, then log in — they should show up merged into your account cart. Log out and back in again and they should still be there.
 
 ---
 
 **The system handles out-of-stock scenarios gracefully when users attempt to add items to the cart.**
 
-Server: `addItem`/`updateItem` (`cart.service.ts:82-86,145-149`) throw a
-`BadRequestException` with the exact remaining quantity the moment a
-requested amount would exceed `product.stockQuantity` — never a silent clamp
-or a generic 500. Client: `ProductCard.tsx:49` and `ProductPage.tsx:190`
-disable the **Add to Cart** button (`disabled={!product.inStock || adding}`)
-and swap its label/`aria-label` to reflect "Sold", so a zero-stock item can't
-even be submitted from the UI in the first place.
+On the server, `addItem`/`updateItem` reject a quantity that would exceed
+stock with a specific message telling you exactly how many are left,
+instead of a generic error or a silent clamp. On the client, the **Add to
+Cart** button on both the product grid and the product page is disabled and
+relabeled "Sold" the moment `product.inStock` is false, so you can't even
+submit a request for a sold-out item.
 
-> Set a seeded product's `stockQuantity` to 0 via Prisma Studio or the admin panel; its **Add to Cart** button becomes disabled and reads "Sold" on both the grid card and product page. Unit coverage: `'throws BadRequestException if requested quantity exceeds stock'`, `cart.service.spec.ts:130`.
+> Set a product's stock to 0 (Prisma Studio or the admin product panel), then visit its page — the Add to Cart button is disabled and reads "Sold".
 
 ---
 
 **The system implements a single-page checkout process.**
 
-`/checkout` (`frontend/src/pages/CheckoutPage.tsx`) is one route/component
-handling address entry, delivery-option selection, and payment — no
-multi-step wizard, no route change between "shipping" and "payment". The
-Stripe `PaymentElement` renders inline on the same page once the order is
-created; `stripe.confirmPayment()` is called with `redirect: 'if_required'`
-(`StripePaymentForm.tsx:30`) so a card payment (this app's only enabled
-method) never navigates away — confirmation happens in place.
+`/checkout` (`frontend/src/pages/CheckoutPage.tsx`) is one page for
+shipping, delivery, and payment — there's no multi-step wizard and no route
+change between steps. The Stripe payment form renders inline once the
+order is created, and confirming a card payment happens in place rather
+than redirecting out to another site.
 
-> Walk through checkout end to end: address form → payment form → confirmation, all without the browser URL ever leaving `/checkout` until the final redirect to `/order-confirmation/:id`.
+> Walk through a full checkout — the URL stays on `/checkout` the entire time, right up until you're redirected to the order confirmation page at the end.
 
 ---
 
 **The checkout page collects basic information, address input, and payment selection.**
 
-Basic info: guest email field (`CheckoutPage.tsx:186-197`, logged-in users
-skip this — see prefill below). Address: `ShippingAddressDto`-backed form
-(street/city/postal code/country/phone). Payment: Stripe `PaymentElement`
-rendered once the order is created (currently configured for card,
-`stripe-payment.service.ts:46`).
+Guest checkouts get an email field; logged-in users skip straight past it
+(see prefill below). Address is a structured form (street, city, postal
+code, country, phone). Payment is the Stripe form, which appears once the
+order's been created.
 
-> Load `/checkout` with items in cart: email (guests only), address fields, delivery option, and a payment form are all present on one screen.
+> Load `/checkout` with something in your cart — email (if you're a guest), the address form, delivery options, and the payment form are all right there on one screen.
 
 ---
 
 **For logged-in users, known information is pre-filled in the checkout form.**
 
-`useEffect` at `CheckoutPage.tsx:53-67`: on mount, if `user` is set, it
-populates `email` from `user.email` and calls `GET /api/v1/addresses`,
-pre-selecting the address marked `isDefault` (or the first one) into the
-form fields. A dropdown (`CheckoutPage.tsx:207-222`) lets the user pick a
-different saved address or enter a brand-new one.
+On mount, if you're logged in, `CheckoutPage.tsx` fills in your email and
+fetches your saved addresses, pre-selecting whichever one is marked as
+default (or the first one if none is). A dropdown lets you switch to a
+different saved address or type in a new one.
 
-> Log in as `shopper@villi.test` (has a saved address from seed data) and open `/checkout`: address fields and a saved-address dropdown are pre-populated without typing anything.
+> Log in as `shopper@villi.test` (has a saved address from seed data) and open `/checkout` — the address fields and a saved-address dropdown are already filled in.
 
 ---
 
 **The system validates entered shipping address for accuracy.**
 
-Two layers: **client** — `handlePlaceOrder` (`CheckoutPage.tsx:112-131`)
-blocks submission with specific inline errors for empty required fields and
-a malformed phone number (`PHONE_PATTERN`, line 33) before any network call.
-**Server** — `ShippingAddressDto` (`backend/src/checkout/dto/checkout.dto.ts:20-46`)
-re-validates every field: `@MaxLength`, a postal-code `@Matches` regex, and
-`@IsPhoneNumber()` for the phone — the authoritative check, since client
-validation can be bypassed.
+Client-side, the form blocks submission with a specific inline message for
+empty required fields or a badly formatted phone number, before any request
+is sent. Server-side, `ShippingAddressDto` re-validates everything
+independently — length limits, a postal-code pattern, and phone-number
+format — since the client check can always be bypassed.
 
-> Submit checkout with an empty city or a phone number like `"abc"`: inline error before any request fires. Then POST the same malformed payload directly to `/api/v1/checkout` (e.g. via Swagger) to confirm the server independently returns `400`. Automated: `'fails with 400 on an incomplete/invalid shipping address'` / `'fails with 400 on an invalid phone number format'`, `backend/test/commerce.e2e-spec.ts:299,314`.
+> Try submitting checkout with an empty city, or a phone number like `abc` — you'll get an inline error before anything hits the network. Automated: `'fails with 400 on an incomplete/invalid shipping address'` and `'fails with 400 on an invalid phone number format'` in `backend/test/commerce.e2e-spec.ts` (lines 299 and 314).
 
 ---
 
 **An order summary is provided during checkout, displaying all items, quantities, and costs.**
 
-The right-hand column of `/checkout` (`CheckoutPage.tsx`, order-summary
-panel) lists every cart item with quantity and line price, the selected
-delivery option's cost, and the running total — kept live via `useCart()`,
-with quantity/remove controls wired through a `runCartAction` wrapper so an
-edit mid-checkout immediately recalculates the total shown before payment.
+The right-hand panel on `/checkout` lists every cart item with quantity and
+price, the chosen delivery cost, and the running total. It's wired to the
+same cart state as the rest of the app, so editing a quantity there
+recalculates the total before you've paid anything.
 
-> On `/checkout`, change an item's quantity in the order-summary panel: the total updates immediately, before you've paid.
+> On `/checkout`, change an item's quantity in the order summary panel — the total updates immediately.
 
 ---
 
 **The system sends an email confirmation to the user after a successful order placement.**
 
-Not sent by the checkout request itself — sent asynchronously once the
-payment queue confirms success: `OrderStatusConsumerService.applyStatus()`
-calls `this.mail.sendOrderConfirmation(message.email, message.orderId)`
-(`order-status-consumer.service.ts:105-106`) after the DB transaction
-commits. `MailService.sendOrderConfirmation()` (`mail.service.ts`) renders
-the order link. Locally, caught by **Mailhog** (`http://localhost:18025`)
-instead of a real SMTP provider.
+The email isn't sent by the checkout request itself — it goes out once the
+payment queue confirms success, from `OrderStatusConsumerService`, after the
+order's status has actually settled in the database. Locally, it's caught
+by Mailhog instead of going out over real SMTP.
 
-> Complete a real checkout with `stripe listen` running, then check `http://localhost:18025` — an "Order Confirmation - `<orderId>`" email appears once the webhook round-trips. Automated: `'Critical Flow: register -> add to cart -> checkout -> order -> deduct inventory'`, `backend/test/commerce.e2e-spec.ts:94` (asserts the full flow including the async status settling).
+> Complete a real checkout with `stripe listen` running, then open `http://localhost:18025` — an order confirmation email shows up once the webhook has round-tripped (usually a couple of seconds).
 
 ---
 
 **The checkout process handles and displays appropriate error messages for invalid inputs or failed transactions.**
 
-`handlePlaceOrder`/`handlePaymentError`/`runCartAction` in `CheckoutPage.tsx`
-all funnel into one `error` state rendered as `<div className="alert
-alert-error">`, sourced from `err instanceof ApiError ? err.message : '...'`
-— the server's specific validation message is shown verbatim, not a generic
-"something went wrong". Stripe declines surface through
-`StripePaymentForm`'s own `errorMessage` state (`StripePaymentForm.tsx:36-39`),
-driven directly by Stripe's `error.message`.
+Form and cart errors all render as a red alert box with the server's actual
+message, not a generic "something went wrong". Stripe declines surface
+through the payment form's own error state, using Stripe's message
+directly.
 
-> Trigger each of: an empty required field, an invalid phone number, and a declined test card (`4000000000009995`) — each produces a distinct, specific message in the UI, not a blank screen or console-only error.
+> Try each of: an empty required field, an invalid phone number, and a declined test card (`4000000000009995`) — each gives you a distinct, specific message, never a blank screen.
 
 ---
 
 **Verify specific error messages for: missing required fields, invalid formats (email, phone, address), payment validation, and network errors.**
 
-| Scenario | Message source |
+| Scenario | What you'll see |
 |---|---|
-| Missing required field | `'Please fill in your full shipping address.'` (client) / per-field `class-validator` message (server), `checkout.dto.ts` |
-| Invalid email | `'Please enter a valid email address for your order confirmation.'` (client) / `@IsEmail` DTO message (server) |
-| Invalid phone | `'Please enter a valid phone number (e.g. +358 40 1234567).'` (client) / `'Phone number format looks invalid.'` (`@IsPhoneNumber`, server) |
-| Invalid address | `'Postal code format looks invalid.'` (`@Matches`, server) |
-| Payment validation | Stripe's own `error.message` on the PaymentElement (e.g. "Your card number is invalid.") |
-| Network error | `ApiError`-wrapped fetch failures surface through the same `error` alert rather than an unhandled promise rejection — `frontend/src/api/client.ts` |
+| Missing required field | "Please fill in your full shipping address." |
+| Invalid email | "Please enter a valid email address for your order confirmation." |
+| Invalid phone | "Please enter a valid phone number (e.g. +358 40 1234567)." |
+| Invalid address | "Postal code format looks invalid." (from the server, if you bypass the client check) |
+| Payment validation | Stripe's own message on the payment form (e.g. "Your card number is invalid.") |
+| Network error | Shown in the same error alert as the others, not an unhandled crash |
 
-> Reproduce each row directly; all six are distinct, human-readable strings, not raw error objects or generic fallbacks.
+> Reproduce each row directly on `/checkout` — every one of these is a distinct, readable sentence.
 
 ---
 
 **The payment system integrates with Stripe, PayPal or other similar simulation sandbox APIs.**
 
-Real Stripe **test-mode** integration (`sk_test_.../pk_test_...`), not a
-hand-rolled mock. `StripePaymentService` (`backend/src/checkout/stripe-payment.service.ts`)
-wraps the official `stripe` Node SDK for `paymentIntents.create()`,
-`refunds.create()`, and `webhooks.constructEvent()`. Webhook events are
-forwarded locally by the real **Stripe CLI** (`stripe listen`), exercising
-the actual signature-verification path, not a stub.
+This is a real Stripe **test-mode** integration — not a hand-rolled mock.
+`StripePaymentService` wraps the official Stripe SDK for creating payment
+intents, issuing refunds, and verifying webhook signatures. Webhooks are
+forwarded locally by the real Stripe CLI, so you're exercising Stripe's
+actual signature verification, not a stub of it.
 
-> With `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` running, complete a checkout with test card `4242424242424242` and watch the CLI terminal log real `payment_intent.*` events as they arrive.
+> With `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` running in a terminal, complete a checkout with test card `4242 4242 4242 4242` and watch real `payment_intent.*` events scroll by in that same terminal.
 
 ---
 
 **The payment form uses the payment provider's secure form elements instead of handling card details directly.**
 
-`<PaymentElement />` (`StripePaymentForm.tsx:61`) from `@stripe/react-stripe-js`
-renders Stripe's own hosted iframe for card input. No `<input>` for card
-number/expiry/CVV exists anywhere in this codebase — `grep -r "cardNumber\|cvv" frontend/src` returns nothing. `stripe.confirmPayment()` is the only
-place card data is referenced, and it never leaves Stripe's iframe boundary
-to touch application JavaScript.
+The payment step uses Stripe's `PaymentElement`, which renders Stripe's own
+hosted iframe for card input. There's no plain `<input>` for card number,
+expiry, or CVV anywhere in the app — the app's own JavaScript never sees
+raw card data at all.
 
-> DevTools → Elements on `/checkout`'s payment step: the card fields live inside `<iframe>`s served from `js.stripe.com`, confirming the app's own JS never has access to raw input values.
+> Open DevTools → Elements while on the payment step of checkout — the card fields live inside iframes served from `js.stripe.com`, not the app's own DOM.
 
 ---
 
 **The card validation system checks number format, expiry date, and CVV before form submission.**
 
-Delegated entirely to Stripe's `PaymentElement`, which validates Luhn
-checksum, expiry (not-in-the-past), and CVV length/format live as the user
-types, disabling submission until the fields are valid — this is
-Stripe-hosted validation, safer than reimplementing it, since raw card data
-never reaches application code to validate against in the first place.
+This is handled entirely by Stripe's hosted form — it checks the card
+number's checksum, whether the expiry date is in the past, and CVV
+length/format live as you type, and won't let you submit until everything's
+valid. That's safer than reimplementing this check ourselves, since it
+means raw card data never has to reach our own code to be validated.
 
-> Type an invalid card number (e.g. `4242 4242 4242 4241`, bad checksum) into the payment form: Stripe flags it inline before **Pay Now** can be pressed.
+> Type an invalid card number (e.g. `4242 4242 4242 4241` — one digit off, fails the checksum) into the payment form — Stripe flags it before you can click Pay Now.
 
 ---
 
 **Student can explain the concept of PCI DSS compliance and why sensitive payment data should not be stored on application servers.**
 
-Covered in [`docs/REFERENCE.md`](REFERENCE.md) → "Payments: theoretical
-concepts". Short version for the review conversation: PCI DSS is the card
-networks' security standard for anyone who stores, processes, or transmits
-cardholder data; the scope (and audit burden) of that standard shrinks
-enormously if your servers never touch raw card data at all. Using Stripe
-Elements/PaymentElement means card numbers go straight from the customer's
-browser to Stripe over TLS — this app only ever sees a `PaymentIntent` id
-and status, which is why `Payment.transactionId` (an opaque Stripe id, not a
-card number) is the only payment-related value we store, and even that is
-encrypted at rest.
+Covered in [`docs/REFERENCE.md`](REFERENCE.md) under "Payments:
+theoretical concepts" — worth a skim before the review conversation, since
+this one's meant to be discussed rather than demonstrated. Short version:
+PCI DSS is the card networks' security standard for anyone who stores,
+processes, or transmits cardholder data, and the scope of that standard
+shrinks a lot if your servers just never touch raw card data. Using
+Stripe's hosted form means card numbers go straight from the customer's
+browser to Stripe — this app only ever sees a payment intent id and status,
+and even that gets encrypted before it's stored.
 
-> Be ready to explain this verbally per the checklist's own instruction — no code artifact demonstrates a "concept."
+> No demo for this one — just be ready to explain it out loud, as the checklist itself asks.
 
 ---
 
 **The order system updates status appropriately upon receiving callbacks from payment provider (successful or failed payments).**
 
-`POST /api/v1/checkout/webhook` (`checkout.controller.ts:46-62`) verifies
-the Stripe signature, then `handleStripeWebhook()` (`checkout.service.ts:230-289`)
-processes exactly the two event types that matter —
-`payment_intent.succeeded` and `payment_intent.payment_failed` — ignoring
-every other event Stripe delivers (e.g. `payment_intent.created`, which
-fires immediately on intent creation and, if misclassified, would cancel
-every order before the customer even paid). It records a `Payment` row,
-then hands off to the queue; `Order.status` itself is only ever changed by
-`OrderStatusConsumerService`, on the other side of that queue.
+The webhook endpoint verifies Stripe's signature, then only acts on
+`payment_intent.succeeded` and `payment_intent.payment_failed` — every
+other event Stripe sends (like `payment_intent.created`, which fires the
+instant the intent is made, well before the customer has actually paid) is
+ignored. It records a payment row, then hands off to the queue — the order's
+status itself only ever changes on the other side of that queue.
 
-> Pay with `4242424242424242` (succeeds) and `4000000000009995` (declines) in two separate checkouts; watch `Order.status` land on `PAID` and `CANCELLED` respectively after the webhook round-trips. Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
+> Pay with `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 9995` (declines) in two separate checkouts, and watch the order land on "Paid" or "Cancelled" respectively a few seconds after payment. Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
 
 ---
 
 **The payment system publishes status updates to a message queue.**
 
-`PaymentQueueService.publishStatusUpdate()` (`payment-queue.service.ts:23-33`)
-publishes onto a durable RabbitMQ queue (`payment.status.updates`,
-`RabbitmqService.PAYMENT_STATUS_QUEUE`), called from
-`handleStripeWebhook()` right after the `Payment` row is written
-(`checkout.service.ts:283-288`) — matching the brief's own diagram
-(Payment Service → Message Queue → Order Service) exactly: the webhook
-handler is the "Payment Service" side and never touches `Order.status`
-itself.
+Once the webhook records the payment, it publishes a message onto a
+durable RabbitMQ queue (`payment.status.updates`) — matching the brief's
+own diagram (Payment Service → Message Queue → Order Service) directly:
+the webhook handler is the "Payment Service" side and never touches the
+order's status itself.
 
-> `docker compose exec rabbitmq rabbitmqctl list_queues` shows `payment.status.updates`; the RabbitMQ management UI (`http://localhost:15672`, guest/guest by default) shows message throughput spike during a checkout.
+> Check the queue exists:
+> ```
+> docker exec -it i-love-shopping-rabbitmq-1 rabbitmqctl list_queues
+> ```
+> Or open the management UI at `http://localhost:15672` (guest/guest) and watch message throughput spike during a checkout.
 
 ---
 
 **Manage payment statuses (Pending/Success/Failure) linked to the order state / The Order Service consumes the message to update the order based on the payment status.**
 
-`OrderStatusConsumerService.onModuleInit()` (`order-status-consumer.service.ts:28-35`)
-consumes `payment.status.updates` and `applyStatus()` (lines 72-110) maps
-`'succeeded' → OrderStatus.PAID`, `'failed' → OrderStatus.CANCELLED`, inside
-a Prisma transaction. `Order.status` starts at `PENDING` the moment
-`processCheckout()` creates the row (`checkout.service.ts:142`, `status:
-OrderStatus.PENDING`) — before payment is even attempted — matching the
-brief's required "Pending Payment" → "Payment Successful"/"Payment Failed"
-lifecycle precisely. `PaymentStatus` (`PENDING|COMPLETED|FAILED|REFUNDED`,
-the `Payment` row) tracks the gateway-level state separately from
-`OrderStatus`, so a payment's own history is preserved even after refund.
+A separate consumer service picks up messages from that queue and maps
+`succeeded` → the order becomes Paid, `failed` → the order becomes
+Cancelled, inside a database transaction. Every order starts out Pending
+the moment it's created — before payment is even attempted — matching the
+brief's required lifecycle exactly. Payment status (Pending/Completed/
+Failed/Refunded) is tracked separately from order status, so a payment's
+history survives even after a later refund.
 
-> Track `Order.status` through Prisma Studio across a full checkout: `PENDING` immediately on order creation, then `PAID` or `CANCELLED` a few seconds later once the webhook + queue settle.
+> Place an order and immediately open it in Prisma Studio or the admin panel — you'll see it start as Pending, then flip to Paid or Cancelled a few seconds later once the webhook and queue have caught up.
 
 ---
 
 **Notify the customer via email of the order status and adjust inventory accordingly.**
 
-Both happen inside `OrderStatusConsumerService.applyStatus()`
-(`order-status-consumer.service.ts:72-110`), driven by the same message:
-- **Success** → `sendOrderConfirmation()`. Stock was already decremented at order-creation time (reserved), so nothing further happens to inventory.
-- **Failure** → stock is *restored* (`stockQuantity: { increment: item.quantity }`, lines 96-102) for every item, then `sendPaymentFailed()` (`mail.service.ts:87-96`) is sent, explicitly telling the customer "Your items have been released back into stock."
+Both of these happen together, driven by the same queue message:
 
-> Force a declined payment (`4000000000009995`): check Mailhog for a "Payment Failed" email, and confirm the product's `stockQuantity` in Prisma Studio returns to its pre-checkout value. Automated: `'fails with 400 ... reverts stock'` path in `commerce.e2e-spec.ts:391-427` asserts exactly this reversion.
+- On success — a confirmation email goes out. Stock was already reserved (decremented) when the order was placed, so nothing further happens to inventory.
+- On failure — stock is put back for every item, and a "Payment Failed" email goes out that explicitly says the items have been released back into stock.
+
+> Force a declined payment with `4000 0000 0000 9995`, then check Mailhog for the failure email and confirm the product's stock count in Prisma Studio is back to where it started.
 
 ---
 
 **The payment system responds to specific failure scenarios. System must handle: insufficient funds error, invalid card number error, expired card error, and payment gateway timeout**
 
-`describeStripeFailure()` (`checkout.service.ts:34-47`) maps Stripe's
-`decline_code`/`code` to a specific, human string:
+Each scenario maps to a specific message shown to the customer:
 
-| Scenario | Stripe test card / trigger | Mapped message |
+| Scenario | Stripe test card | Message |
 |---|---|---|
-| Insufficient funds | `4000000000009995` | `'Insufficient funds'` |
-| Invalid card number | `incorrect_number`/`invalid_number` | `'Invalid card number'` |
-| Expired card | `4000000000000069` | `'Card expired'` |
-| Gateway timeout | any Stripe call exceeding 10s | `'Payment gateway timeout: Stripe did not respond in time.'` — a `withTimeout()` wrapper (`stripe-payment.service.ts:83-89`) races every Stripe call against a 10s timer via `Promise.race`, so a hung/unreachable gateway surfaces as this explicit error instead of hanging the checkout request indefinitely. |
+| Insufficient funds | `4000 0000 0000 9995` | "Insufficient funds" |
+| Invalid card number | `4242 4242 4242 4241` (bad checksum) | "Invalid card number" |
+| Expired card | `4000 0000 0000 0069` | "Card expired" |
+| Gateway timeout | — (see below) | "Payment gateway timeout: Stripe did not respond in time." |
 
-> Run each Stripe test card above through a real checkout and confirm the corresponding message reaches the customer (UI alert for an immediate decline; the "Payment Failed" email for anything settled asynchronously via webhook). Unit coverage: `'reads last_payment_error from the PaymentIntent itself, not a top-level data.error'`, `backend/src/checkout/checkout.service.spec.ts:261`.
+Every Stripe call is wrapped with a 10-second timeout, so a hung or
+unreachable gateway surfaces that exact message instead of just leaving the
+checkout request hanging forever.
+
+> Run each test card above through a real checkout and confirm the matching message shows up — either right away in the payment form, or via the "Payment Failed" email for anything that settles asynchronously through the webhook.
 
 ---
 
 **The inventory system prevents overselling during concurrent payments. Multiple simultaneous payments for the same product should not result in overselling inventory**
 
-Stock is decremented **at order-creation time** (`processCheckout()`,
-`checkout.service.ts:159-170`), inside a Postgres transaction, using an
-atomic `{ decrement: item.quantity }` update rather than a
-read-then-write — two concurrent checkouts for the last unit both issue
-`UPDATE ... SET stock = stock - 1` and Postgres serializes them at the row
-level, so the second one to commit sees the *already-decremented* value.
-An explicit guard (`if (updatedProduct.stockQuantity < 0) throw
-BadRequestException(...)`, lines 165-169) catches the case atomicity alone
-wouldn't: it rolls the whole transaction back rather than allowing a
-negative-stock row to ever be visible, even transiently.
+Stock is decremented at order-creation time, inside a database transaction,
+using an atomic "decrement by N" update rather than reading the count and
+writing it back — so two checkouts racing for the last unit both issue an
+atomic decrement, and Postgres serializes them at the row level. On top of
+that, an explicit check rejects the whole transaction outright if stock
+would ever go negative, so a negative-stock row is never even briefly
+visible.
 
-> Manual concurrency test: with a product at `stockQuantity: 1`, fire two `POST /api/v1/checkout` requests at the same instant (`curl` with `&` backgrounding, or two browser tabs) for carts that each want that unit — exactly one succeeds; the other gets `400 Race condition detected: Oversold product ...`, and the DB never shows negative stock.
+> This script sets a real product's stock to 1, adds it to two separate guest carts, and fires both checkouts at the same instant — copy-paste the whole thing, nothing to fill in:
+> ```
+> PRODUCT_ID=$(curl -s "http://localhost:8080/api/v1/products?limit=1" | jq -r '.data[0].id')
+> DELIVERY_ID=$(curl -s "http://localhost:8080/api/v1/delivery-options" | jq -r '.[0].id')
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c "UPDATE \"Product\" SET \"stockQuantity\" = 1 WHERE id = '$PRODUCT_ID';"
+>
+> ADDR='"shippingAddress":{"street":"Testikatu 1","city":"Helsinki","postalCode":"00100","country":"Finland","phone":"+358401234567"}'
+>
+> curl -s -X POST http://localhost:8080/api/v1/cart/items -H "Content-Type: application/json" -H "x-guest-cart-id: reviewer-buyer-1" -d "{\"productId\":\"$PRODUCT_ID\",\"quantity\":1}" > /dev/null
+> curl -s -X POST http://localhost:8080/api/v1/cart/items -H "Content-Type: application/json" -H "x-guest-cart-id: reviewer-buyer-2" -d "{\"productId\":\"$PRODUCT_ID\",\"quantity\":1}" > /dev/null
+>
+> curl -s -o buyer1.json -w "buyer1: %{http_code}\n" -X POST http://localhost:8080/api/v1/checkout -H "Content-Type: application/json" -H "x-guest-cart-id: reviewer-buyer-1" -d "{\"paymentMethodId\":\"card\",\"deliveryOptionId\":\"$DELIVERY_ID\",\"email\":\"buyer1@example.com\",$ADDR}" &
+> curl -s -o buyer2.json -w "buyer2: %{http_code}\n" -X POST http://localhost:8080/api/v1/checkout -H "Content-Type: application/json" -H "x-guest-cart-id: reviewer-buyer-2" -d "{\"paymentMethodId\":\"card\",\"deliveryOptionId\":\"$DELIVERY_ID\",\"email\":\"buyer2@example.com\",$ADDR}" &
+> wait
+>
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c "SELECT \"stockQuantity\" FROM \"Product\" WHERE id = '$PRODUCT_ID';"
+> ```
+> One of `buyer1`/`buyer2` should print `201`, the other `400` (check `buyer1.json`/`buyer2.json` for the "oversold" message), and the final `stockQuantity` should be `0`, never negative.
 
 ---
 
 **The order filtering system allows users to sort by date and order status.**
 
-`OrderFilterDto` (`backend/src/orders/dto/order.dto.ts:4-24`): `status`
-(validated `@IsEnum(OrderStatus)`), `startDate`/`endDate`
-(`@IsDateString`), `sortBy` restricted to `@IsIn(['createdAt', 'status'])`,
-`sortOrder` restricted to `@IsIn(['asc', 'desc'])` — an out-of-range value
-is rejected with `400` rather than silently ignored or crashing the query.
-`OrdersService.getUserOrders()` (`orders.service.ts:20-44`) applies all of
-it directly to the Prisma `where`/`orderBy`.
+Order filtering accepts a status, a date range, and a sort field/direction
+— and the sort field is restricted to an explicit allow-list
+(`createdAt`/`status`, ascending/descending), so an unexpected value comes
+back as a clean 400 instead of a silent no-op or a crash.
 
-> On `/account/orders`, use the status filter and the sort-by-date control together; the order list updates accordingly. Try `GET /orders?sortBy=totalAmount` directly (an unlisted field) and confirm `400`, not a 500 or a silently-ignored sort.
+> On `/account/orders`, use the status filter and the sort-by-date control together and confirm the list updates. Then try `GET /api/v1/orders?sortBy=totalAmount` directly (a field that isn't allowed) and confirm you get a 400, not a 500 or a filter that's just ignored.
 
 ---
 
 **The order details page displays full order information including status updates.**
 
-`GET /api/v1/orders/:id` → `OrdersService.getOrderById()`
-(`orders.service.ts:76-86`) returns items (with product details), current
-`status`, delivery option, timestamps, decrypted shipping address, and
-payment status — rendered by `frontend/src/pages/OrderDetailsPage.tsx`,
-including a human-formatted address (parsed from the stored JSON string,
-not raw JSON dumped to the page).
+The order details page shows the item list, current status, delivery
+option, timestamps, shipping address, and payment status — with the
+address shown as a readable, formatted block rather than a raw JSON dump.
 
-> Open any past order at `/orders/:id`: item list, current status badge, shipping address, and payment status are all visible and legible.
+> Open any past order at `/orders/:id` — item list, status badge, shipping address, and payment status are all there and legible.
 
 ---
 
 **The order cancellation system allows cancellations for unprocessed orders.**
 
-`POST /api/v1/orders/:id/cancel` → `OrdersService.cancelOrder()`
-(`orders.service.ts:134-184`): permitted only while `status` is `PENDING`
-or `PAID` (line 144-148) — a `SHIPPED`/`DELIVERED` order is rejected with an
-explicit "It may have already shipped" message, and an already-`CANCELLED`
-one is rejected as a duplicate. If the order had already been charged
-(`payment.status === COMPLETED`), a **real Stripe refund** is issued
-*before* the DB is touched (lines 150-156), so a cancellation is never
-recorded while the customer's money is still actually held.
+Cancellation is only allowed while an order is Pending or Paid — a shipped
+or delivered order gets rejected with an explicit "it may have already
+shipped" message, and cancelling twice gets rejected too. If the order had
+already been charged, a real Stripe refund goes out before anything changes
+in the database, so a cancellation never gets recorded while the customer's
+money is still actually held.
 
-> Cancel a `PENDING` order from `/account/orders` — succeeds instantly. Manually flip an order to `SHIPPED` via the admin panel and try to cancel it — rejected. Unit coverage: `'refunds via Stripe when cancelling an order that was already paid'` / `'rejects cancelling an already-cancelled order'`, `backend/src/orders/orders.service.spec.ts:138,181`.
+> Cancel a Pending order from `/account/orders` — works instantly. Then flip an order to Shipped from the admin panel and try to cancel it — rejected.
 
 ---
 
 **The inventory system updates stock levels when orders are placed or cancelled.**
 
-**Placed**: stock reserved (decremented) at order-creation time,
-`checkout.service.ts:159-170` (see the oversell-prevention item above).
-**Cancelled**: `cancelOrder()` restores it (`stockQuantity: { increment:
-item.quantity }`, `orders.service.ts:171-176`) inside the same transaction
-that flips `status` to `CANCELLED` — the two never happen independently, so
-stock can't drift out of sync with order state.
+Stock is reserved (decremented) the moment an order is placed, and restored
+(incremented) in the same transaction that marks a cancelled order as
+cancelled — so stock can never end up out of sync with the order's actual
+state.
 
-> Note a product's stock, place an order for it (stock drops), then cancel that order (stock returns to the original value) — verifiable in Prisma Studio or the admin product panel. Unit coverage: `'restores stock for every item when refunding a still-active order'`, `orders.service.spec.ts:66`.
+> Note a product's stock count, place an order for it (stock drops), then cancel that order (stock returns to the original number) — check it in Prisma Studio or the admin product panel.
 
 ---
 
 **All sensitive data stored in database is encrypted at rest for order and payment data. Check encryption implementation for: order details, shipping addresses, and payment transaction records**
 
-AES-256-GCM (`backend/src/common/utils/encryption.util.ts:1-28`), same
-primitive used for user PII in Project 1. Applied to:
+Shipping addresses, guest emails, and Stripe transaction IDs are all
+encrypted with AES-256-GCM before they're written to the database — the
+same approach used for user PII elsewhere in the app. Each encrypted value
+uses a random IV, so two orders shipped to the identical address never
+produce matching ciphertext, meaning nothing leaks even by comparing rows.
+Decryption happens in exactly one place, right before an order is handed
+back to a caller — never inside a raw query result passed further up the
+stack.
 
-| Field | Model | Encrypted at |
-|---|---|---|
-| `shippingAddress` | `Order` | `checkout.service.ts:145` (`encrypt(JSON.stringify(dto.shippingAddress))`) |
-| `guestEmail` | `Order` | `checkout.service.ts:141` |
-| `transactionId` | `Payment` (the Stripe PaymentIntent id) | `checkout.service.ts:271,275` |
-
-Each encrypted value is a random-IV ciphertext (`iv:authTag:ciphertext`
-hex triple) — two orders shipped to the identical address never produce
-matching bytes in the DB, so the ciphertext itself leaks nothing by
-comparison. `OrdersService.decryptOrder()` (`orders.service.ts:291-306`)
-is the single point where these are ever turned back into plaintext, always
-at the service boundary, never in a raw Prisma query result handed
-upstream.
-
-> `docker exec -it <postgres container> psql -U villi -d villi -c 'SELECT "shippingAddress", "guestEmail" FROM "Order" LIMIT 3;'` and `SELECT "transactionId" FROM "Payment" LIMIT 3;` — every value is an unreadable `hex:hex:hex` blob, never plaintext JSON or a real Stripe id (`pi_...`).
+> Look at the raw rows directly:
+> ```
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c 'SELECT "shippingAddress", "guestEmail" FROM "Order" LIMIT 3;'
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c 'SELECT "transactionId" FROM "Payment" LIMIT 3;'
+> ```
+> Every value should come back as an unreadable blob, never plaintext JSON or a real Stripe id starting with `pi_`.
 
 ---
 
 **Student can explain their approach to testing cart functionality, checkout flows, and payment integration.**
 
-Three layers, each targeting a different kind of bug:
-1. **Unit** (`cart.service.spec.ts`, `checkout.service.spec.ts`, `orders.service.spec.ts`) — Prisma/Redis/Stripe mocked out, so these run in milliseconds and pin down business-logic edge cases (stock clamping, decimal precision, guest-vs-user branching) precisely.
-2. **API integration** (`test/commerce.e2e-spec.ts`) — real Postgres/Redis/RabbitMQ in Docker, real HTTP requests through Nest's full pipeline, asserting on actual DB state after the async webhook→queue→consumer chain settles.
-3. **Manual, live-Stripe** — every payment-related item in this guide was additionally verified end-to-end against real Stripe test-mode keys and a running `stripe listen` forwarder during this project's development, not just against mocks — see the webhook-misclassification bug this caught (below).
+Three layers, each catching a different kind of bug:
 
-> Be ready to explain this verbally per the checklist's own instruction, and to point at the specific `describe`/`it` blocks referenced throughout this guide on request.
+1. **Unit tests** — Prisma, Redis, and Stripe are all mocked out, so these run in milliseconds and pin down business-logic edge cases precisely (stock clamping, decimal precision, guest vs. logged-in branching).
+2. **API integration tests** — real Postgres, Redis, and RabbitMQ running in Docker, real HTTP requests through the full request pipeline, asserting on actual database state after the webhook → queue → consumer chain has settled.
+3. **Manual testing against live Stripe** — every payment-related item in this guide was also verified by hand against real Stripe test-mode keys with `stripe listen` running, not just against mocks.
+
+> Be ready to talk through this out loud, and to point at specific test files or lines on request — they're referenced throughout this guide.
 
 ---
 
 **Automated tests exist for Unit tests (cart functionality, order calculations) and Critical User Flow tests (registration, checkout process).**
 
-Current live counts:
-
-| Layer | Count | Files |
+| Layer | Count | Where |
 |---|---|---|
-| **Unit** | 108, 12 suites | `backend/src/**/*.spec.ts`, including `cart.service.spec.ts` (34 cases — add/update/remove/get/merge, guest and logged-in), `checkout.service.spec.ts` (11 cases — totals, stock, guest checkout, Stripe failure-detail parsing), `orders.service.spec.ts` (cancellation/refund logic) |
-| **API integration / Critical Flow** | 63, 2 suites | `test/app.e2e-spec.ts` (52 — Foundation) and `test/commerce.e2e-spec.ts` (11 — full register→cart→checkout→order flow, guest checkout, and checkout resilience/edge cases) |
+| Unit | 108 tests, 12 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
+| API integration / Critical Flow | 63 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
 
-> `npm test` (backend/, unit only, ~19s, no DB needed — 108/108 passing as of this guide) and `docker compose --profile test run --rm e2e` (all 171 unit+e2e tests against a fully isolated, throwaway Postgres/Redis/RabbitMQ — see `docker-compose.yml`'s `test` profile, which never touches dev data).
+> Run the unit suite (no database needed, about 20 seconds):
+> ```
+> cd backend && npm test
+> ```
+> Or run everything — unit and integration together, 171 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches your dev data:
+> ```
+> docker compose --profile test run --rm e2e
+> ```
 
 ---
 
 **Project application is containerized using Docker. / Docker and payment simulation CLI are the only prerequisites for running and reviewing this project.**
 
-`docker-compose.yml` defines every service this project needs
-(`postgres`, `redis`, `rabbitmq`, `mailhog`, `api`, `web`, `proxy`) plus an
-isolated `test` profile with dedicated `postgres-test`/`redis-test`/
-`rabbitmq-test` containers. `./start.sh` builds and runs the whole stack in
-one command; its `check_stripe_setup()` (`start.sh:41-61`) loudly warns —
-rather than letting a reviewer discover it as a silent 500 — if
-`STRIPE_SECRET_KEY` is unset or the Stripe CLI isn't installed, and reminds
-the reviewer to run `stripe listen` for the payment step specifically to
-work. Every other dependency (Postgres, Redis, RabbitMQ, Node, npm
-packages) is fully contained inside Docker.
+`docker-compose.yml` defines every service the app needs — Postgres, Redis,
+RabbitMQ, Mailhog, the API, the web frontend, and a proxy — plus a separate
+`test` profile with its own throwaway database containers. `./start.sh`
+builds and runs the whole stack in one command, and warns you clearly if
+`STRIPE_SECRET_KEY` is missing or the Stripe CLI isn't installed, rather
+than letting you discover it later as an unexplained 500 during checkout.
+Everything else — Postgres, Redis, RabbitMQ, Node, npm packages — is fully
+contained inside Docker; nothing needs to be installed on your machine
+beyond Docker itself and the Stripe CLI.
 
-> Fresh clone → `./start.sh` → follow the printed Stripe reminder → full app reachable at `http://localhost:8080` with no other host installs beyond Docker + the Stripe CLI.
+> From a fresh clone:
+> ```
+> ./start.sh
+> ```
+> Follow the Stripe reminder it prints, then open `http://localhost:8080` — the whole app should be reachable with nothing else installed on your machine.

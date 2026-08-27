@@ -35,6 +35,6 @@ backend/prisma/*.db
 *.pem
 tmp/
 /dot-com-retail
-/i-love-shopping3
+/i-love-shopping
 niche.txt
 .claude
