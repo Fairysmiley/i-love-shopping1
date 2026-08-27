@@ -47,6 +47,13 @@ export function CheckoutPage() {
   const [error, setError] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Once this order's PaymentIntent has failed once, our backend has already
+  // cancelled the order and released its stock (see handleStripeWebhook) —
+  // Stripe would still technically accept a retry on the same intent, but
+  // our Order is already closed out, so a second success on it would be
+  // silently dropped by the order-status consumer's idempotency check. Force
+  // a brand new order/intent instead of re-showing the same payment form.
+  const [paymentFailed, setPaymentFailed] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const { user } = useAuth();
@@ -160,6 +167,22 @@ export function CheckoutPage() {
 
   const handlePaymentError = (err: string) => {
     setError(err);
+    setPaymentFailed(true);
+  };
+
+  /** Starts a fresh order from scratch after a failed payment — the failed
+   *  order/PaymentIntent are already dead server-side, so retrying needs a
+   *  new one, not another confirm on the same intent. The cart itself was
+   *  already emptied when the failed order was created (processCheckout
+   *  clears it up front, not on payment success), so refresh cart state
+   *  here too — this naturally falls back to the page's own empty-cart view
+   *  instead of re-showing stale items that can't actually be re-submitted. */
+  const startNewOrder = () => {
+    setOrderId(null);
+    setClientSecret(null);
+    setPaymentFailed(false);
+    setError('');
+    refreshCart();
   };
 
   const runCartAction = async (action: () => Promise<void>) => {
@@ -313,15 +336,26 @@ export function CheckoutPage() {
               <h2>Complete Payment</h2>
               {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
 
-              {clientSecret && (
-                <Elements stripe={stripePromise} options={{ clientSecret }}>
-                  <StripePaymentForm
-                    orderId={orderId}
-                    onSuccess={handlePaymentSuccess}
-                    onError={handlePaymentError}
-                    onProcessing={setBusy}
-                  />
-                </Elements>
+              {paymentFailed ? (
+                <div>
+                  <p className="muted">
+                    This order wasn't charged and won't be retried — place a new order to try again with a different card.
+                  </p>
+                  <button type="button" className="btn btn-primary" onClick={startNewOrder}>
+                    Start a new order
+                  </button>
+                </div>
+              ) : (
+                clientSecret && (
+                  <Elements stripe={stripePromise} options={{ clientSecret }}>
+                    <StripePaymentForm
+                      orderId={orderId}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      onProcessing={setBusy}
+                    />
+                  </Elements>
+                )
               )}
 
               {busy && <p className="muted center" style={{ marginTop: 16 }}>Processing your payment securely...</p>}

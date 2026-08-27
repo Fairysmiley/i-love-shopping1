@@ -12,6 +12,8 @@ A few things worth knowing before you start:
 - Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`.
 - Payments run against a real Stripe **test-mode** sandbox, not a fake payment form. Before you can complete a checkout, run `stripe listen --forward-to localhost:8080/api/v1/checkout/webhook` in a separate terminal (see the README's "Payments and Stripe CLI setup" section) — without it, the order gets created but never flips out of "Pending".
 - The `docker exec` commands below assume the stack was started with `./start.sh` or `docker compose up`, which names the containers `i-love-shopping-postgres-1`, `i-love-shopping-redis-1`, etc. If you renamed the project folder, swap in whatever `docker ps` shows you.
+- Wherever this guide says "check it in Prisma Studio," that's a suggestion, not a requirement — Postgres isn't exposed to your host machine by default, so `npx prisma studio` from outside Docker won't connect out of the box. The `docker exec ... psql` commands throughout this guide check the same data with zero setup and work identically on any OS, so default to those. If you'd still rather use Prisma Studio's GUI, add `ports: ['5555:5555']` under the `api:` service in `docker-compose.yml`, restart (`docker compose up -d api`), then run `docker exec -it i-love-shopping-api-1 npx prisma studio --hostname 0.0.0.0` and open `http://localhost:5555`.
+- Once a payment on a given order fails (e.g. testing the `4000000000009995` decline), don't try a different card on that same order — the checkout page deliberately won't let you (it shows the failure and a "Start a new order" button instead of the payment form). That order is already dead server-side the moment it fails: the webhook has cancelled it and released its stock, so a second attempt on the same order/PaymentIntent has nothing left to update even if Stripe would technically accept it. To retry, place a brand new order.
 
 ---
 
@@ -176,18 +178,12 @@ by Mailhog instead of going out over real SMTP.
 
 ---
 
-**The checkout process handles and displays appropriate error messages for invalid inputs or failed transactions.**
+**The checkout process handles and displays appropriate error messages for invalid inputs or failed transactions. Verify specific error messages for: missing required fields, invalid formats (email, phone, address), payment validation, and network errors.**
 
 Form and cart errors all render as a red alert box with the server's actual
 message, not a generic "something went wrong". Stripe declines surface
 through the payment form's own error state, using Stripe's message
-directly.
-
-> Try each of: an empty required field, an invalid phone number, and a declined test card (`4000000000009995`) — each gives you a distinct, specific message, never a blank screen.
-
----
-
-**Verify specific error messages for: missing required fields, invalid formats (email, phone, address), payment validation, and network errors.**
+directly. Specifically:
 
 | Scenario | What you'll see |
 |---|---|
@@ -198,7 +194,7 @@ directly.
 | Payment validation | Stripe's own message on the payment form (e.g. "Your card number is invalid.") |
 | Network error | Shown in the same error alert as the others, not an unhandled crash |
 
-> Reproduce each row directly on `/checkout` — every one of these is a distinct, readable sentence.
+> Try each of: an empty required field, an invalid phone number, a bad postal code, and a declined test card (`4000000000009995`) — reproduce each row directly on `/checkout` and confirm every one gives a distinct, readable sentence, never a blank screen.
 
 ---
 
@@ -239,17 +235,7 @@ means raw card data never has to reach our own code to be validated.
 
 **Student can explain the concept of PCI DSS compliance and why sensitive payment data should not be stored on application servers.**
 
-Covered in [`docs/REFERENCE.md`](REFERENCE.md) under "Payments:
-theoretical concepts" — worth a skim before the review conversation, since
-this one's meant to be discussed rather than demonstrated. Short version:
-PCI DSS is the card networks' security standard for anyone who stores,
-processes, or transmits cardholder data, and the scope of that standard
-shrinks a lot if your servers just never touch raw card data. Using
-Stripe's hosted form means card numbers go straight from the customer's
-browser to Stripe — this app only ever sees a payment intent id and status,
-and even that gets encrypted before it's stored.
-
-> No demo for this one — just be ready to explain it out loud, as the checklist itself asks.
+Verbal item — see [`docs/Verbal.md`](Verbal.md).
 
 ---
 
@@ -262,7 +248,7 @@ instant the intent is made, well before the customer has actually paid) is
 ignored. It records a payment row, then hands off to the queue — the order's
 status itself only ever changes on the other side of that queue.
 
-> Pay with `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 9995` (declines) in two separate checkouts, and watch the order land on "Paid" or "Cancelled" respectively a few seconds after payment. Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
+> Pay with `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 9995` (declines) in two separate checkouts. The decline card fails synchronously — Stripe's own payment form shows "Your card has insufficient funds" immediately, before anything else happens — but that's Stripe telling the browser the card was declined, not our backend. Don't try a working card on that same order afterward — the form is replaced by a "Start a new order" button precisely because the order is already dead server-side at that point (see the note near the top of this guide). Give it a couple more seconds and check the order in Prisma Studio or `/orders`: it lands on "Paid" or "Cancelled" respectively, once the webhook (fired by that same decline) has round-tripped through the queue. Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
 
 ---
 
@@ -274,36 +260,41 @@ own diagram (Payment Service → Message Queue → Order Service) directly:
 the webhook handler is the "Payment Service" side and never touches the
 order's status itself.
 
-> Check the queue exists:
+> A healthy consumer drains the queue within milliseconds, so an empty `rabbitmqctl list_queues` on its own doesn't prove a publish happened — watch it happen live instead:
 > ```
-> docker exec -it i-love-shopping-rabbitmq-1 rabbitmqctl list_queues
+> docker compose logs -f api | grep -i "Published payment status"
 > ```
-> Or open the management UI at `http://localhost:15672` (guest/guest) and watch message throughput spike during a checkout.
+> Leave that running, complete a checkout in the browser, and a `Published payment status update for order <id> (status=succeeded)` line appears the moment the webhook fires. The management UI's live "Message rates" graph (`http://localhost:15672`, guest/guest, on the queue's detail page) shows the same spike visually.
+>
+> `docker exec -it i-love-shopping-rabbitmq-1 rabbitmqctl list_queues` is still worth running once, just to confirm the queue itself exists and is durable (survives a RabbitMQ restart).
 
 ---
 
-**Manage payment statuses (Pending/Success/Failure) linked to the order state / The Order Service consumes the message to update the order based on the payment status.**
-
-A separate consumer service picks up messages from that queue and maps
+A separate consumer service picks up those queue messages and maps
 `succeeded` → the order becomes Paid, `failed` → the order becomes
 Cancelled, inside a database transaction. Every order starts out Pending
 the moment it's created — before payment is even attempted — matching the
-brief's required lifecycle exactly. Payment status (Pending/Completed/
-Failed/Refunded) is tracked separately from order status, so a payment's
-history survives even after a later refund.
+brief's required "Pending Payment" → "Payment Successful"/"Payment Failed"
+lifecycle exactly. Payment status (Pending/Completed/Failed/Refunded) is
+tracked separately from order status, so a payment's history survives even
+after a later refund.
 
-> Place an order and immediately open it in Prisma Studio or the admin panel — you'll see it start as Pending, then flip to Paid or Cancelled a few seconds later once the webhook and queue have caught up.
+> Racing to open Prisma Studio or the admin panel *after* placing an order is basically impossible — the whole thing settles in a couple of seconds. Open the watch loop below **first**, leave it running, then place the order in another window — you'll watch it flip from `PENDING` to `PAID`/`CANCELLED` live, no timing needed:
+> ```
+> watch -n 1 'docker exec i-love-shopping-postgres-1 psql -U villi -d villi -c "SELECT id, status, \"updatedAt\" FROM \"Order\" ORDER BY \"createdAt\" DESC LIMIT 1;"'
+> ```
+> (No `watch` command on your machine, e.g. plain macOS? Just rerun the `docker exec ...` line inside the quotes by hand every second or two instead.)
 
 ---
 
-**Notify the customer via email of the order status and adjust inventory accordingly.**
+**The notification system sends appropriate emails for both successful and failed payment scenarios.**
 
 Both of these happen together, driven by the same queue message:
 
 - On success — a confirmation email goes out. Stock was already reserved (decremented) when the order was placed, so nothing further happens to inventory.
 - On failure — stock is put back for every item, and a "Payment Failed" email goes out that explicitly says the items have been released back into stock.
 
-> Force a declined payment with `4000 0000 0000 9995`, then check Mailhog for the failure email and confirm the product's stock count in Prisma Studio is back to where it started.
+> Force a declined payment with `4000 0000 0000 9995`, then check Mailhog for the failure email and confirm the product's stock count in Prisma Studio is back to where it started. Leave it there — don't retry with a working card on that same order; place a new one instead if you want to also demo the success path.
 
 ---
 
@@ -424,28 +415,22 @@ stack.
 
 **Student can explain their approach to testing cart functionality, checkout flows, and payment integration.**
 
-Three layers, each catching a different kind of bug:
-
-1. **Unit tests** — Prisma, Redis, and Stripe are all mocked out, so these run in milliseconds and pin down business-logic edge cases precisely (stock clamping, decimal precision, guest vs. logged-in branching).
-2. **API integration tests** — real Postgres, Redis, and RabbitMQ running in Docker, real HTTP requests through the full request pipeline, asserting on actual database state after the webhook → queue → consumer chain has settled.
-3. **Manual testing against live Stripe** — every payment-related item in this guide was also verified by hand against real Stripe test-mode keys with `stripe listen` running, not just against mocks.
-
-> Be ready to talk through this out loud, and to point at specific test files or lines on request — they're referenced throughout this guide.
+Verbal item — see [`docs/Verbal.md`](Verbal.md).
 
 ---
 
-**Automated tests exist for Unit tests (cart functionality, order calculations) and Critical User Flow tests (registration, checkout process).**
+**Automated tests exist for Unit tests (cart functionality, order calculations) and Critical User Flow tests (registration, checkout process). Ask the student to explain and demonstrate the functionality of the tests.**
 
 | Layer | Count | Where |
 |---|---|---|
 | Unit | 108 tests, 12 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
 | API integration / Critical Flow | 63 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
 
-> Run the unit suite (no database needed, about 20 seconds):
+> Ask to see it run live. Unit suite (no database needed, about 20 seconds):
 > ```
 > cd backend && npm test
 > ```
-> Or run everything — unit and integration together, 171 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches your dev data:
+> Or everything — unit and integration together, 171 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
 > ```
 > docker compose --profile test run --rm e2e
 > ```

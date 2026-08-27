@@ -17,6 +17,23 @@ export class OrdersService {
     private readonly stripePayment: StripePaymentService,
   ) {}
 
+  /** Reusable Prisma include fragment for a product's primary thumbnail —
+   *  used everywhere an order's items are returned, so `decryptOrder()` can
+   *  flatten it into the flat `product.image` field the frontend expects. */
+  private readonly PRIMARY_IMAGE = {
+    images: { where: { isPrimary: true }, take: 1 },
+  };
+
+  /** Full items+product(+image)+payment include, used by every order
+   *  mutation below — each one must return a complete Order so the frontend
+   *  can safely replace its state with the response (no partial objects
+   *  missing `items`, which previously crashed the order details page with
+   *  "Cannot read properties of undefined (reading 'map')" after cancel). */
+  private readonly FULL_ORDER_INCLUDE = {
+    items: { include: { product: { include: this.PRIMARY_IMAGE } } },
+    payment: true,
+  };
+
   async getUserOrders(userId: string, filter: OrderFilterDto) {
     const where: any = { userId };
     if (filter.status) {
@@ -37,7 +54,7 @@ export class OrdersService {
 
     const orders = await this.prisma.order.findMany({
       where,
-      include: { items: { include: { product: true } }, payment: true },
+      include: this.FULL_ORDER_INCLUDE,
       orderBy,
     });
     return orders.map((o) => this.decryptOrder(o));
@@ -64,8 +81,7 @@ export class OrdersService {
     const orders = await this.prisma.order.findMany({
       where,
       include: {
-        items: { include: { product: true } },
-        payment: true,
+        ...this.FULL_ORDER_INCLUDE,
         user: { select: { email: true } },
       },
       orderBy,
@@ -76,7 +92,7 @@ export class OrdersService {
   async getOrderById(orderId: string, userId: string, isAdmin: boolean) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: { include: { product: true } }, payment: true },
+      include: this.FULL_ORDER_INCLUDE,
     });
 
     if (!order) throw new NotFoundException('Order not found');
@@ -162,7 +178,7 @@ export class OrdersService {
       });
       if (!order) throw new NotFoundException('Order not found');
 
-      const updatedOrder = await tx.order.update({
+      await tx.order.update({
         where: { id: orderId },
         data: { status: OrderStatus.CANCELLED },
       });
@@ -179,7 +195,14 @@ export class OrdersService {
         await tx.payment.update({ where: { orderId }, data: { status: PaymentStatus.REFUNDED } });
       }
 
-      return this.decryptOrder(updatedOrder);
+      // Re-fetch with the full include — the plain `update()` result above
+      // has no `items`/`payment`, and the frontend replaces its order state
+      // directly with whatever this endpoint returns.
+      const fullOrder = await tx.order.findUnique({
+        where: { id: orderId },
+        include: this.FULL_ORDER_INCLUDE,
+      });
+      return this.decryptOrder(fullOrder);
     });
   }
 
@@ -217,13 +240,18 @@ export class OrdersService {
         if (wasCharged) {
           await tx.payment.update({ where: { orderId }, data: { status: PaymentStatus.REFUNDED } });
         }
-        return this.decryptOrder(updatedOrder);
+        const fullOrder = await tx.order.findUnique({
+          where: { id: orderId },
+          include: this.FULL_ORDER_INCLUDE,
+        });
+        return this.decryptOrder(fullOrder);
       });
     }
 
     const updatedOrder = await this.prisma.order.update({
       where: { id: orderId },
       data: { status: dto.status },
+      include: this.FULL_ORDER_INCLUDE,
     });
     return this.decryptOrder(updatedOrder);
   }
@@ -282,7 +310,7 @@ export class OrdersService {
 
       const finalOrder = await tx.order.findUnique({
         where: { id: orderId },
-        include: { payment: true },
+        include: this.FULL_ORDER_INCLUDE,
       });
       return this.decryptOrder(finalOrder);
     });
@@ -301,6 +329,16 @@ export class OrdersService {
     }
     if (order.payment && order.payment.transactionId) {
       order.payment.transactionId = decrypt(order.payment.transactionId);
+    }
+    // Flatten the primary product image (fetched via PRIMARY_IMAGE) into a
+    // flat `product.image`, matching what the frontend's Order type expects
+    // — the raw Product record has no such field, only an `images` relation.
+    if (Array.isArray(order.items)) {
+      for (const item of order.items) {
+        if (item.product?.images) {
+          item.product.image = item.product.images[0]?.url ?? null;
+        }
+      }
     }
     return order;
   }

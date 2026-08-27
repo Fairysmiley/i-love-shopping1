@@ -1,0 +1,1 @@
+{"statusCode":400,"error":"Bad Request","message":["Please choose a shipping option.","deliveryOptionId must be a UUID"],"path":"/api/v1/checkout","timestamp":"2026-08-27T12:13:57.918Z"}

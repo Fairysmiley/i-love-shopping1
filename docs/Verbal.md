@@ -1,3 +1,33 @@
+**Student can explain the concept of PCI DSS compliance and why sensitive payment data should not be stored on application servers.**
+
+PCI DSS is the card networks' security standard for anyone who stores,
+processes, or transmits cardholder data — network segmentation, access
+controls, regular audits, the works. The less of that your own servers
+actually touch, the less of it applies to you at all, which is the whole
+reason to avoid storing card data in the first place.
+
+- **What never reaches our servers** — the payment step uses Stripe's `PaymentElement`, which renders Stripe's own hosted iframe. Card number, expiry, and CVV go straight from the customer's browser to Stripe over TLS; our own frontend JavaScript and backend never see them (`frontend/src/components/StripePaymentForm.tsx`).
+- **What we do store** — only a Stripe `PaymentIntent` id (`Payment.transactionId`, `backend/prisma/schema.prisma`), an opaque reference with no cardholder data in it at all. Even that gets encrypted at rest (AES-256-GCM, `backend/src/common/utils/encryption.util.ts`) as defense-in-depth, not because it's regulated data on its own.
+- **Why this matters practically** — a slip-up in payment handling has real consequences (Equifax's reputational damage, Target's breach costs, Heartland losing its right to process payments), so keeping card data out of the app entirely isn't just a compliance checkbox, it removes an entire category of risk.
+
+More detail in [`docs/REFERENCE.md`](REFERENCE.md) under "Payments:
+theoretical concepts".
+
+> **Verbal**
+
+---
+
+**Student can explain their approach to testing cart functionality, checkout flows, and payment integration.**
+
+Three layers, each catching a different kind of bug:
+- **Unit tests** — Prisma, Redis, and Stripe are all mocked out, so these run in milliseconds and pin down business-logic edge cases precisely: stock clamping, decimal precision, guest-vs-logged-in branching (`backend/src/cart/cart.service.spec.ts`, `backend/src/checkout/checkout.service.spec.ts`).
+- **API integration tests** — real Postgres, Redis, and RabbitMQ running in Docker, real HTTP requests through the full request pipeline, asserting on actual database state after the webhook → queue → consumer chain has settled (`backend/test/commerce.e2e-spec.ts`).
+- **Manual testing against live Stripe** — every payment-related requirement was also verified by hand against real Stripe test-mode keys with `stripe listen` running, not just against mocks — the actual webhook signature verification, actual test-card declines, actual async status settling.
+
+> **Verbal**
+
+---
+
 **Student can explain the concept of JWT and its components (header, payload, signature).**
 
 A JWT is three Base64URL-encoded parts joined by dots: `header.payload.signature`.

@@ -81,11 +81,27 @@ export class OrderStatusConsumerService implements OnModuleInit {
       }
 
       // Idempotency: a retried/duplicate webhook must not double-apply
-      // (e.g. re-incrementing stock on a second "failed" delivery).
+      // (e.g. re-incrementing stock on a second "failed" delivery). The
+      // frontend refuses to retry a failed PaymentIntent (it forces a new
+      // order instead — see CheckoutPage's paymentFailed guard), so this
+      // should only ever see ordinary duplicate deliveries of the same
+      // message. A "succeeded" arriving for an already-CANCELLED order is
+      // the one combination that isn't routine: it means the card *was*
+      // charged (e.g. someone confirmed the same PaymentIntent outside our
+      // UI) after we'd already released the order's stock, so it's worth
+      // surfacing loudly for manual reconciliation instead of blending in
+      // with normal skip-the-duplicate logging.
       if (order.status !== OrderStatus.PENDING) {
-        this.logger.log(
-          `Order ${message.orderId} already in terminal state ${order.status}; skipping duplicate message`,
-        );
+        if (message.status === 'succeeded' && order.status === OrderStatus.CANCELLED) {
+          this.logger.error(
+            `Order ${message.orderId} received a SUCCEEDED payment after already being cancelled — ` +
+              `the customer's card was charged for a cancelled order. Needs manual reconciliation.`,
+          );
+        } else {
+          this.logger.log(
+            `Order ${message.orderId} already in terminal state ${order.status}; skipping duplicate message`,
+          );
+        }
         return;
       }
 
