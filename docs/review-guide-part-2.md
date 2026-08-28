@@ -248,7 +248,17 @@ instant the intent is made, well before the customer has actually paid) is
 ignored. It records a payment row, then hands off to the queue — the order's
 status itself only ever changes on the other side of that queue.
 
-> Pay with `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 9995` (declines) in two separate checkouts. The decline card fails synchronously — Stripe's own payment form shows "Your card has insufficient funds" immediately, before anything else happens — but that's Stripe telling the browser the card was declined, not our backend. Don't try a working card on that same order afterward — the form is replaced by a "Start a new order" button precisely because the order is already dead server-side at that point (see the note near the top of this guide). Give it a couple more seconds and check the order in Prisma Studio or `/orders`: it lands on "Paid" or "Cancelled" respectively, once the webhook (fired by that same decline) has round-tripped through the queue. Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
+> Pay with `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 9995` (declines) in two separate checkouts. The decline card fails synchronously — Stripe's own payment form shows "Your card has insufficient funds" immediately, before anything else happens — but that's Stripe telling the browser the card was declined, not our backend. Don't try a working card on that same order afterward — the form is replaced by a "Start a new order" button precisely because the order is already dead server-side at that point (see the note near the top of this guide).
+>
+> A separate consumer service is what actually applies the status: it maps `succeeded` → the order becomes Paid, `failed` → the order becomes Cancelled, inside a database transaction. Every order starts out Pending the moment it's created — before payment is even attempted — matching the brief's required "Pending Payment" → "Payment Successful"/"Payment Failed" lifecycle exactly. Payment status (Pending/Completed/Failed/Refunded) is tracked separately from order status, so a payment's history survives even after a later refund.
+>
+> Racing to open Prisma Studio or the admin panel *after* placing an order is basically impossible — the whole thing settles in a couple of seconds. Open the watch loop below **first**, leave it running, then place the order in another window — you'll watch it flip from `PENDING` to `PAID`/`CANCELLED` live, no timing needed:
+> ```
+> watch -n 1 'docker exec i-love-shopping-postgres-1 psql -U villi -d villi -c "SELECT id, status, \"updatedAt\" FROM \"Order\" ORDER BY \"createdAt\" DESC LIMIT 1;"'
+> ```
+> (No `watch` command on your machine, e.g. plain macOS? Just rerun the `docker exec ...` line inside the quotes by hand every second or two instead.)
+>
+> Automated: `'applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue'`, `backend/test/commerce.e2e-spec.ts:358`.
 
 ---
 
@@ -267,23 +277,6 @@ order's status itself.
 > Leave that running, complete a checkout in the browser, and a `Published payment status update for order <id> (status=succeeded)` line appears the moment the webhook fires. The management UI's live "Message rates" graph (`http://localhost:15672`, guest/guest, on the queue's detail page) shows the same spike visually.
 >
 > `docker exec -it i-love-shopping-rabbitmq-1 rabbitmqctl list_queues` is still worth running once, just to confirm the queue itself exists and is durable (survives a RabbitMQ restart).
-
----
-
-A separate consumer service picks up those queue messages and maps
-`succeeded` → the order becomes Paid, `failed` → the order becomes
-Cancelled, inside a database transaction. Every order starts out Pending
-the moment it's created — before payment is even attempted — matching the
-brief's required "Pending Payment" → "Payment Successful"/"Payment Failed"
-lifecycle exactly. Payment status (Pending/Completed/Failed/Refunded) is
-tracked separately from order status, so a payment's history survives even
-after a later refund.
-
-> Racing to open Prisma Studio or the admin panel *after* placing an order is basically impossible — the whole thing settles in a couple of seconds. Open the watch loop below **first**, leave it running, then place the order in another window — you'll watch it flip from `PENDING` to `PAID`/`CANCELLED` live, no timing needed:
-> ```
-> watch -n 1 'docker exec i-love-shopping-postgres-1 psql -U villi -d villi -c "SELECT id, status, \"updatedAt\" FROM \"Order\" ORDER BY \"createdAt\" DESC LIMIT 1;"'
-> ```
-> (No `watch` command on your machine, e.g. plain macOS? Just rerun the `docker exec ...` line inside the quotes by hand every second or two instead.)
 
 ---
 
