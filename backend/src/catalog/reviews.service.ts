@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/review.dto';
 import { decrypt } from '../common/utils/encryption.util';
@@ -46,6 +46,28 @@ export class ReviewsService {
     });
   }
 
+  /** A review only counts as verified purchase feedback once the order for
+   *  that item actually paid — a still-pending or cancelled order doesn't
+   *  count, since the customer never actually received the product. */
+  private async hasPurchased(userId: string, productId: string): Promise<boolean> {
+    const orderItem = await this.prisma.orderItem.findFirst({
+      where: {
+        productId,
+        order: {
+          userId,
+          status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED] },
+        },
+      },
+      select: { id: true },
+    });
+    return !!orderItem;
+  }
+
+  async canReview(idOrSlug: string, userId: string): Promise<{ canReview: boolean }> {
+    const productId = await this.resolveProductId(idOrSlug);
+    return { canReview: await this.hasPurchased(userId, productId) };
+  }
+
   async list(idOrSlug: string) {
     const productId = await this.resolveProductId(idOrSlug);
     const reviews = await this.prisma.review.findMany({
@@ -78,14 +100,14 @@ export class ReviewsService {
   /**
    * Creates (or updates) the current user's review for a product. One review per
    * user per product is enforced by a unique constraint; re-submitting edits it.
-   * Note: purchase-verification gating belongs to the Commerce phase (orders),
-   * so for the Foundation any authenticated user may review.
+   * Requires a paid order containing this product — reviews are purchase-verified.
    */
   async upsertForUser(idOrSlug: string, userId: string, dto: CreateReviewDto) {
     const productId = await this.resolveProductId(idOrSlug);
 
-    // Purchase-verification gating belongs to the Commerce phase (orders),
-    // so for the Foundation any authenticated user may review.
+    if (!(await this.hasPurchased(userId, productId))) {
+      throw new ForbiddenException('You can only review products you have purchased.');
+    }
 
     const review = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.review.upsert({

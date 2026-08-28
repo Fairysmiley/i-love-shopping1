@@ -1,3 +1,57 @@
+**Student can explain CIA (Confidentiality, Integrity, Availability) principles.**
+
+- **Confidentiality** — keeping data away from anyone who shouldn't see it. AES-256-GCM encryption on everything sensitive at rest (user PII, 2FA secrets, shipping addresses, order/payment details — `backend/src/common/utils/encryption.util.ts`), access tokens held in memory only rather than `localStorage` (limits what an XSS payload could steal), refresh tokens as httpOnly cookies (invisible to JavaScript entirely), and role checks on every admin route (`RolesGuard`) so even a logged-in customer can't reach admin data by guessing a URL.
+- **Integrity** — making sure data is accurate and hasn't been tampered with. JWTs are HMAC-signed, so altering a token's payload invalidates the signature instantly. Refresh-token rotation with reuse detection (`docs/review-guide-part-1.md`) treats a replayed old token as evidence of theft, not a retry. Database transactions (`prisma.$transaction`) keep multi-step writes — like decrementing stock and creating an order — atomic, so a crash mid-write can't leave half-applied state. Foreign keys and unique constraints stop structurally invalid data (an order item pointing at a deleted product, two reviews from the same user on the same product) from ever being written at all.
+- **Availability** — keeping the system reachable for legitimate users. Token-bucket rate limiting (`docs/review-guide-part-3.md`) throttles abusive clients before they can exhaust backend capacity, without punishing a normal user's burst of page loads. RabbitMQ decouples payment processing from the checkout HTTP response, so a slow downstream step never blocks the customer. Redis caching absorbs read-heavy catalog/search traffic. Docker health checks make sure the API doesn't start accepting traffic before Postgres/Redis/RabbitMQ are actually ready to serve it.
+
+> **Verbal**
+
+---
+
+**Student can explain the importance of semantic HTML for accessibility.**
+
+Semantic elements (`<nav>`, `<main>`, `<button>`, `<h1>`-`<h6>`, `<article>`)
+carry meaning a `<div>` doesn't — and that meaning is what assistive
+technology and browsers actually rely on:
+
+- **Screen readers build a page outline from landmarks** — `<nav>`, `<main>`, `<aside>` (used for the shop's filter sidebar, `CatalogPage.tsx`) let a screen-reader user jump straight to the content they want instead of tabbing through every element on the page in order.
+- **Native elements come with behavior for free.** A `<button>` is focusable, triggers on both Enter and Space, and gets an implicit `role="button"` with no extra code. A `<div onClick>` styled to look like a button needs `tabindex`, a manual `role`, and hand-written keyboard handlers to reach the same baseline — every one of those is a place to get it wrong. The header search suggestions dropdown (`Navbar.tsx`) uses real `role="option"` list items with full arrow-key navigation for exactly this reason.
+- **Heading hierarchy (`<h1>`→`<h2>`→…) is a navigation tool, not just styling** — screen readers can jump heading-to-heading, so a page with one clear `<h1>` and logically nested `<h2>`s (as on `ProductPage.tsx`) is genuinely faster to navigate non-visually, not just "more correct."
+- **The same markup that helps accessibility helps SEO** — search engines parse heading hierarchy and semantic landmarks the same way assistive tech does, so getting this right is a single investment that pays off in both places at once (see `docs/review-guide-part-3.md`'s SEO item).
+
+> **Verbal**
+
+---
+
+**Student can explain their approach to testing, integration of automated and usage of manual tests throughout the development process.**
+
+Four layers, used throughout development rather than bolted on at the end:
+
+- **Unit tests** — fast, no I/O, run on every save during development. Pin down business-logic edge cases precisely: token rotation, DTO validation rules, unit conversion, cart/checkout math (`backend/src/**/*.spec.ts`).
+- **API integration tests** — spin up the real NestJS app against a real Postgres/Redis/RabbitMQ in Docker and hit it over HTTP, so what's actually asserted is persisted database state and real response shapes, not mocked behavior (`backend/test/app.e2e-spec.ts`, `commerce.e2e-spec.ts`).
+- **Security tests** — live in the same e2e suite: malformed/SQLi-shaped input, auth bypass attempts on role-guarded routes, and the rate-limiter actually returning `429` under a real burst of requests, not just asserted against a mock.
+- **Manual testing against the live stack** — anything that depends on a real third-party service (Stripe test-mode webhooks, actual browser zoom/viewport behavior, screen-reader landmark navigation) was verified by hand against the running Docker stack, since those are impractical to fully automate and the guides in `docs/review-guide-part-*.md` were themselves built by doing exactly that.
+
+New features got unit + integration coverage as they were built, and two real bugs this project's own review process surfaced (a payment-retry data-loss bug and an order-cancel response-shape crash, both fixed and covered by regression tests) were caught by combining automated coverage with actually clicking through the live app rather than trusting the test suite alone.
+
+> **Verbal**
+
+---
+
+**Student has identified potential bottlenecks and can propose solutions.**
+
+From `docs/load_test_report.md` §5 — even without finding a hard breaking
+point at 400 concurrent users, the load test data points at where load
+would start to matter first:
+
+- **RabbitMQ CPU relative to message volume** — peak CPU (113-124% of one core) was disproportionate to how few messages actually flowed through it. This looks like overhead from the management/stats-polling plugin, not real message throughput. *Proposed fix:* disable stats polling in production, or drop the `management` image tag for a plain `rabbitmq:3.13-alpine` with lower baseline overhead.
+- **Unverified connection pool tuning** — Postgres CPU stayed low throughout, but Prisma's pool size was never explicitly tuned against Postgres's `max_connections`. *Proposed fix:* set `connection_limit`/`pool_timeout` explicitly in `DATABASE_URL` before a genuine production-scale test, so scaling the API to multiple replicas later doesn't silently exhaust connections.
+- **Load-generator/target co-location** — k6 and the app under test shared the same 4-core host, so some of the measured capacity was actually consumed by the tool doing the measuring. *Proposed fix:* run k6 from a separate machine (or k6 Cloud) against a deployed instance so the full target host's CPU is available to the app.
+
+> **Verbal**
+
+---
+
 **Student can explain the concept of PCI DSS compliance and why sensitive payment data should not be stored on application servers.**
 
 PCI DSS is the card networks' security standard for anyone who stores,
@@ -33,13 +87,13 @@ Three layers, each catching a different kind of bug:
 | Layer | Count | Where |
 |---|---|---|
 | Unit | 108 tests, 12 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
-| API integration / Critical Flow | 63 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
+| API integration / Critical Flow | 64 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
 
 > Ask to see it run live. Unit suite (no database needed, about 20 seconds):
 > ```
 > cd backend && npm test
 > ```
-> Or everything — unit and integration together, 171 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
+> Or everything — unit and integration together, 172 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
 > ```
 > docker compose --profile test run --rm e2e
 > ```

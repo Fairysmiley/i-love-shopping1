@@ -643,13 +643,31 @@ describe('Villi API (e2e)', () => {
 
   describe('reviews: ratings derived from real review rows', () => {
     let slug: string;
+    let productId: string;
     let token: string;
 
     beforeAll(async () => {
-      const list = await api().get('/api/v1/products?limit=1').expect(200);
+      const list = await api().get('/api/v1/products?limit=2').expect(200);
       slug = list.body.data[0].slug;
+      productId = list.body.data[0].id;
       const login = await api().post('/api/v1/auth/login').send({ email, password }).expect(200);
       token = login.body.accessToken;
+
+      // Reviews are purchase-gated — simulate a completed order for this
+      // product directly via Prisma, since a real Stripe checkout is out of
+      // scope for this suite (covered separately in commerce.e2e-spec.ts).
+      const prisma = app.get(PrismaService);
+      const me = await api().get('/api/v1/users/me').set('Authorization', `Bearer ${token}`).expect(200);
+      await prisma.order.create({
+        data: {
+          userId: me.body.id,
+          status: 'PAID',
+          totalAmount: 1,
+          currency: 'eur',
+          shippingAddress: 'encrypted-test-address',
+          items: { create: [{ productId, quantity: 1, unitPrice: 1 }] },
+        },
+      });
     });
 
     it('lists reviews with a rating summary (public)', async () => {
@@ -674,6 +692,16 @@ describe('Villi API (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ rating: 6 })
         .expect(400);
+    });
+
+    it('blocks review creation for a product the user never purchased (403)', async () => {
+      const list = await api().get('/api/v1/products?limit=2').expect(200);
+      const unpurchasedSlug = list.body.data[1].slug;
+      await api()
+        .post(`/api/v1/products/${unpurchasedSlug}/reviews`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rating: 5 })
+        .expect(403);
     });
 
     it('creates a review and recomputes the product rating aggregates', async () => {

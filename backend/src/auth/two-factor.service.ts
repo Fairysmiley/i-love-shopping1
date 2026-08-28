@@ -5,6 +5,7 @@ import { authenticator } from 'otplib';
 import { randomBytes } from 'crypto';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
+import { encrypt, decrypt } from '../common/utils/encryption.util';
 
 export interface TwoFactorSetup {
   otpauthUrl: string;
@@ -33,8 +34,8 @@ export class TwoFactorService {
 
     await this.prisma.twoFactorSecret.upsert({
       where: { userId },
-      create: { userId, secret, enabled: false, recoveryCodes: hashedCodes },
-      update: { secret, enabled: false, recoveryCodes: hashedCodes, confirmedAt: null },
+      create: { userId, secret: encrypt(secret), enabled: false, recoveryCodes: hashedCodes },
+      update: { secret: encrypt(secret), enabled: false, recoveryCodes: hashedCodes, confirmedAt: null },
     });
 
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
@@ -45,7 +46,7 @@ export class TwoFactorService {
   async confirm(userId: string, code: string): Promise<void> {
     const record = await this.prisma.twoFactorSecret.findUnique({ where: { userId } });
     if (!record) throw new NotFoundException('2FA setup not started');
-    if (!authenticator.check(code, record.secret)) {
+    if (!authenticator.check(code, decrypt(record.secret))) {
       throw new BadRequestException('Invalid 2FA code');
     }
     await this.prisma.$transaction([
@@ -71,7 +72,7 @@ export class TwoFactorService {
     const record = await this.prisma.twoFactorSecret.findUnique({ where: { userId } });
     if (!record || !record.enabled) return false;
 
-    if (authenticator.check(code, record.secret)) return true;
+    if (authenticator.check(code, decrypt(record.secret))) return true;
 
     for (let i = 0; i < record.recoveryCodes.length; i++) {
       if (await argon2.verify(record.recoveryCodes[i], code)) {

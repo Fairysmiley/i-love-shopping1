@@ -417,13 +417,13 @@ Verbal item — see [`docs/Verbal.md`](Verbal.md).
 | Layer | Count | Where |
 |---|---|---|
 | Unit | 108 tests, 12 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
-| API integration / Critical Flow | 63 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
+| API integration / Critical Flow | 64 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
 
 > Ask to see it run live. Unit suite (no database needed, about 20 seconds):
 > ```
 > cd backend && npm test
 > ```
-> Or everything — unit and integration together, 171 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
+> Or everything — unit and integration together, 172 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
 > ```
 > docker compose --profile test run --rm e2e
 > ```

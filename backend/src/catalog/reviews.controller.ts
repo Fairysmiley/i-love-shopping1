@@ -49,6 +49,13 @@ export class ReviewsController {
     return this.reviews.list(idOrSlug);
   }
 
+  @Get(':idOrSlug/can-review')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Whether the current user purchased this product and may review it (auth)' })
+  canReview(@Param('idOrSlug') idOrSlug: string, @CurrentUser('userId') userId: string) {
+    return this.reviews.canReview(idOrSlug, userId);
+  }
+
   @Post(':idOrSlug/reviews')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create or update your review for a product (auth)' })

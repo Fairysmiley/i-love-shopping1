@@ -22,6 +22,7 @@ function formatDate(iso: string): string {
 export function ProductReviews({ slug, onChange }: Props) {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ReviewList | null>(null);
+  const [canReview, setCanReview] = useState(false);
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -36,6 +37,17 @@ export function ProductReviews({ slug, onChange }: Props) {
   }, [slug]);
 
   useEffect(loadReviews, [loadReviews]);
+
+  useEffect(() => {
+    if (!user) {
+      setCanReview(false);
+      return;
+    }
+    api
+      .get<{ canReview: boolean }>(`/products/${slug}/can-review`)
+      .then((r) => setCanReview(r.canReview))
+      .catch(() => setCanReview(false));
+  }, [slug, user]);
 
   const mine = user ? reviews?.data.find((r) => r.author.startsWith(user.firstName)) : undefined;
 
@@ -94,7 +106,7 @@ export function ProductReviews({ slug, onChange }: Props) {
         <p className="muted">No reviews yet. Be the first to share your experience.</p>
       )}
 
-      {user ? (
+      {user && canReview ? (
         <form className="review-form panel" onSubmit={submit}>
           <h3>{mine ? 'Update your review' : 'Write a review'}</h3>
           {error && <div className="alert alert-error">{error}</div>}
@@ -138,6 +150,8 @@ export function ProductReviews({ slug, onChange }: Props) {
             {busy ? 'Submitting...' : mine ? 'Update review' : 'Submit review'}
           </button>
         </form>
+      ) : user ? (
+        <p className="muted">Purchase this product to leave a review.</p>
       ) : (
         <p className="muted">
           <Link to="/login">Sign in</Link> to write a review.
