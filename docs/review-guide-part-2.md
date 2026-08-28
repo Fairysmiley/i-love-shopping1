@@ -427,23 +427,3 @@ Verbal item — see [`docs/Verbal.md`](Verbal.md).
 > ```
 > docker compose --profile test run --rm e2e
 > ```
-
----
-
-**Project application is containerized using Docker. / Docker and payment simulation CLI are the only prerequisites for running and reviewing this project.**
-
-`docker-compose.yml` defines every service the app needs — Postgres, Redis,
-RabbitMQ, Mailhog, the API, the web frontend, and a proxy — plus a separate
-`test` profile with its own throwaway database containers. `./start.sh`
-builds and runs the whole stack in one command, and warns you clearly if
-`STRIPE_SECRET_KEY` is missing or the Stripe CLI isn't installed, rather
-than letting you discover it later as an unexplained 500 during checkout.
-Everything else — Postgres, Redis, RabbitMQ, Node, npm packages — is fully
-contained inside Docker; nothing needs to be installed on your machine
-beyond Docker itself and the Stripe CLI.
-
-> From a fresh clone:
-> ```
-> ./start.sh
-> ```
-> Follow the Stripe reminder it prints, then open `http://localhost:8080` — the whole app should be reachable with nothing else installed on your machine.
