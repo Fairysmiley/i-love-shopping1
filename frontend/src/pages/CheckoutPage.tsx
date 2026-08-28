@@ -149,12 +149,34 @@ export function CheckoutPage() {
 
       // 2. Create Stripe Payment Intent — amount is derived server-side from
       // the order we just created, never trusted from the client.
-      const intent = await api.post<{ clientSecret: string, intentId: string }>('/checkout/create-intent', {
-        orderId: order.id,
-      });
-      setClientSecret(intent.clientSecret);
+      await requestPaymentIntent(order.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Order creation failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Step 2 of placing an order, pulled out on its own so it can be retried
+   *  independently of step 1. Unlike a declined card, a failure here (e.g. a
+   *  gateway timeout talking to Stripe) means no PaymentIntent was ever
+   *  created — the order is still a clean PENDING order, so retrying is just
+   *  calling this again, not starting a whole new order. */
+  const requestPaymentIntent = async (id: string) => {
+    const intent = await api.post<{ clientSecret: string, intentId: string }>('/checkout/create-intent', {
+      orderId: id,
+    });
+    setClientSecret(intent.clientSecret);
+  };
+
+  const retryPaymentIntent = async () => {
+    if (!orderId) return;
+    setError('');
+    setBusy(true);
+    try {
+      await requestPaymentIntent(orderId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start the payment step. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -345,17 +367,24 @@ export function CheckoutPage() {
                     Start a new order
                   </button>
                 </div>
+              ) : clientSecret ? (
+                <Elements stripe={stripePromise} options={{ clientSecret }}>
+                  <StripePaymentForm
+                    orderId={orderId}
+                    onSuccess={handlePaymentSuccess}
+                    onError={handlePaymentError}
+                    onProcessing={setBusy}
+                  />
+                </Elements>
               ) : (
-                clientSecret && (
-                  <Elements stripe={stripePromise} options={{ clientSecret }}>
-                    <StripePaymentForm
-                      orderId={orderId}
-                      onSuccess={handlePaymentSuccess}
-                      onError={handlePaymentError}
-                      onProcessing={setBusy}
-                    />
-                  </Elements>
-                )
+                <div>
+                  <p className="muted">
+                    Your order was placed, but we couldn't reach the payment step — no card was charged yet.
+                  </p>
+                  <button type="button" className="btn btn-primary" onClick={retryPaymentIntent} disabled={busy}>
+                    {busy ? 'Retrying...' : 'Retry payment setup'}
+                  </button>
+                </div>
               )}
 
               {busy && <p className="muted center" style={{ marginTop: 16 }}>Processing your payment securely...</p>}

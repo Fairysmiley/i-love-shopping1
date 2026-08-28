@@ -12,11 +12,19 @@ export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }:
   const stripe = useStripe();
   const elements = useElements();
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    // Without this guard, a double-click (or an impatient second tap while
+    // the first request is still in flight) fires two concurrent
+    // stripe.confirmPayment() calls against the same PaymentIntent — Stripe
+    // accepts the first and rejects the second with a 400
+    // (payment_intent_unexpected_state), which surfaces as a confusing
+    // console error even though the payment itself still went through.
+    if (!stripe || !elements || submitting) return;
 
+    setSubmitting(true);
     onProcessing(true);
     setErrorMessage('');
 
@@ -37,6 +45,7 @@ export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }:
       setErrorMessage(error.message || 'An unexpected error occurred.');
       onError(error.message || 'Payment failed');
       onProcessing(false);
+      setSubmitting(false);
     } else if (paymentIntent && paymentIntent.status === 'succeeded') {
       // Stripe has confirmed the charge, but Order.status only becomes PAID once
       // our backend's webhook handler processes the async callback (see the
@@ -45,8 +54,12 @@ export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }:
       // browser, since that would mean shipping a webhook secret to the client.
       onProcessing(false);
       onSuccess();
+      // Deliberately leave `submitting` true — onSuccess navigates away, and
+      // re-enabling the button would just let a stray extra click fire
+      // another confirm() against an intent that's already succeeded.
     } else {
       onProcessing(false);
+      setSubmitting(false);
     }
   };
 
@@ -62,13 +75,13 @@ export function StripePaymentForm({ orderId, onSuccess, onError, onProcessing }:
         
         {errorMessage && <div className="alert alert-error" style={{ fontSize: "0.8125rem", padding: 8, marginTop: 12 }}>{errorMessage}</div>}
         
-        <button 
-          type="submit" 
-          disabled={!stripe}
-          className="btn btn-primary btn-block" 
+        <button
+          type="submit"
+          disabled={!stripe || submitting}
+          className="btn btn-primary btn-block"
           style={{ marginTop: 16 }}
         >
-          Pay Now
+          {submitting ? 'Processing...' : 'Pay Now'}
         </button>
       </form>
     </div>
