@@ -148,6 +148,8 @@ enforced by `TwoFactorScopeGuard` (`backend/src/common/guards/two-factor-scope.g
 It cannot call any other route until enrollment finishes.
 
 > As `shopper@villi.test`: Account → Enable 2FA → scan the QR → sign out → sign back in → code prompt appears. Automated: `'enrolls 2FA and requires a TOTP code on login'` and `'gates ADMIN role behind mandatory 2FA, via a scoped bootstrap token that can only enroll'`, `app.e2e-spec.ts:433` and `:492`.
+>
+> To see the same mandatory-enrollment screen on `admin@villi.test`: if a prior session on this machine already enrolled it, the login form will ask for a code instead of showing the QR — see the README's [Troubleshooting](../README.md#troubleshooting) table for the one-line fix (deletes just that account's 2FA secret; Postgres data persists across `docker compose up`/`down` in the named `pgdata` volume).
 
 ---
 

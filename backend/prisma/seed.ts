@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   });
 
   const customerPassword = await argon2.hash('Shopper!Passw0rd');
-  await prisma.user.upsert({
+  const customer = await prisma.user.upsert({
     where: { emailHash: hashForLookup('shopper@villi.test') },
     update: {},
     create: encryptedUser({
@@ -84,6 +84,23 @@ async function main(): Promise<void> {
       isEmailVerified: true,
     }),
   });
+
+  // A saved default address so checkout's "pre-fill known information for
+  // logged-in users" (task2.txt) is demonstrable against seed data out of
+  // the box, without a reviewer having to save one manually first.
+  const hasAddress = await prisma.address.count({ where: { userId: customer.id } });
+  if (hasAddress === 0) {
+    await prisma.address.create({
+      data: {
+        userId: customer.id,
+        label: 'Home',
+        isDefault: true,
+        data: encrypt(
+          JSON.stringify({ street: 'Mannerheimintie 12', city: 'Helsinki', postalCode: '00100', country: 'Finland' }),
+        ),
+      },
+    });
+  }
 
   // --- Delivery options ---
   await prisma.deliveryOption.upsert({

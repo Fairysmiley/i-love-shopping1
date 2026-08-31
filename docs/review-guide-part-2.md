@@ -68,9 +68,19 @@ The cart endpoints (`cart.controller.ts`) all route through
 `addItem`/`updateItem`/`removeItem` in `cart.service.ts`, and every one of
 them returns a freshly recomputed cart (e.g. `cart.service.ts:138,177,197`)
 — the total is calculated from the current product price on every request,
-never stored and left to go stale.
+never stored and left to go stale. `updateItem` (`cart.service.ts:145-173`)
+validates the new quantity against live stock before writing it.
 
-> Go to `/cart`, bump a quantity up and down and remove an item — the line total and the cart total should update instantly with no page reload.
+Because every listing is pre-loved and one-of-a-kind, seeded stock is always
+`1` (`backend/prisma/seed.ts:812,821`), so day-to-day there's only ever one
+unit to select — the `+` button on `/cart` correctly refuses to go to `2`
+("Only 1 in stock"). To actually exercise the "up and down" part of the
+control, temporarily give one product some stock:
+> ```
+> PRODUCT_ID=$(curl -s "http://localhost:8080/api/v1/products?limit=1" | jq -r '.data[0].id')
+> docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c "UPDATE \"Product\" SET \"stockQuantity\" = 5 WHERE id = '$PRODUCT_ID';"
+> ```
+> Add that product to your cart, open `/cart`, and bump its quantity up and down and remove an item — the line total and the cart total should update instantly with no page reload. Re-seeding (or setting the stock back to `1`) restores the normal one-of-a-kind state.
 
 ---
 

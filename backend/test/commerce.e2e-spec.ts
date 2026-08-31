@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { UsersService } from '../src/users/users.service';
+import { MailService } from '../src/mail/mail.service';
 import { decrypt } from '../src/common/utils/encryption.util';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy';
@@ -356,6 +357,14 @@ describe('Commerce E2E (Task 2)', () => {
     });
 
     it('applies PENDING -> PAID / CANCELLED via a signed Stripe webhook, asynchronously through the queue', async () => {
+      // The queue consumer's email side effect (order-status-consumer.service.ts)
+      // is what actually satisfies "notification system sends appropriate emails
+      // for both successful and failed payment scenarios" — assert it's called
+      // with the right order, not just that Order.status/stock end up correct.
+      const mailService = app.get(MailService);
+      const confirmationSpy = jest.spyOn(mailService, 'sendOrderConfirmation').mockResolvedValue();
+      const failedSpy = jest.spyOn(mailService, 'sendPaymentFailed').mockResolvedValue();
+
       // First, create a valid order to test webhook against
       const productSuccess = await prisma.product.findFirst({ where: { stockQuantity: { gte: 1 } } });
 
@@ -387,6 +396,7 @@ describe('Commerce E2E (Task 2)', () => {
 
       const orderSuccess = await waitForOrderStatus(prisma, orderId);
       expect(orderSuccess?.status).toBe('PAID');
+      expect(confirmationSpy).toHaveBeenCalledWith('edge-cases@test.com', orderId);
 
       // 2. We create another order to test FAILURE (which reverts stock)
       const productFail = await prisma.product.findFirst({ where: { stockQuantity: { gte: 1 } } });
@@ -420,11 +430,15 @@ describe('Commerce E2E (Task 2)', () => {
 
       const orderFailed = await waitForOrderStatus(prisma, failOrderId);
       expect(orderFailed?.status).toBe('CANCELLED');
+      expect(failedSpy).toHaveBeenCalledWith('edge-cases@test.com', failOrderId, 'Insufficient funds');
 
       // Check stock reverted
       const revertedProduct = await prisma.product.findUnique({ where: { id: productFail!.id } });
       // startingStockFail was reduced by 1 in the checkout, but then failed, so it should revert to startingStockFail
       expect(revertedProduct?.stockQuantity).toBe(startingStockFail);
+
+      confirmationSpy.mockRestore();
+      failedSpy.mockRestore();
     });
 
     it('is idempotent: a duplicate webhook for an already-settled order does not double-revert stock', async () => {

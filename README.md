@@ -137,6 +137,7 @@ Accounts (email/password), catalog, 2FA, and password reset (via
 | `api` container restart-looping, log shows `ENOENT ... certs/key.pem` | Delete the empty `certs/` dir if Docker auto-created it root-owned (`sudo rm -rf certs`), then re-run `./start.sh` — it regenerates the cert as your user. |
 | API crashes with `RangeError: Invalid key length` | `ENCRYPTION_KEY` in `.env` must be exactly 32 bytes/characters. Regenerate: `openssl rand -hex 16`. |
 | Port `3001`/`5173`/`8080` already in use | Set `API_HOST_PORT`/`WEB_HOST_PORT`/`PROXY_HOST_PORT` in `.env`, then re-run `./start.sh`. |
+| Signing in as `admin@villi.test` prompts for a 2FA code instead of the QR-enrollment screen | Postgres data lives in a named volume (`pgdata`) that survives `docker compose up`/`down`, so a 2FA enrollment from an earlier session is still there — that's expected once enrolled, not a bug. To see the mandatory-enrollment flow again, delete that one account's 2FA secret (`emailHash` is a plain SHA-256 of the address, used only for O(1) lookup — safe to compute yourself): `HASH=$(echo -n "admin@villi.test" \| sha256sum \| cut -d' ' -f1); docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c "DELETE FROM \"TwoFactorSecret\" WHERE \"userId\" = (SELECT id FROM \"User\" WHERE \"emailHash\" = '$HASH');"` |
 
 ---
 
