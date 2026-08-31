@@ -166,7 +166,7 @@ and bulk CSV/JSON product uploads — from a role-gated admin dashboard.
 | **Security** | Self-signed TLS end-to-end, AES-256-GCM encryption at rest for all PII/order/payment/session data, Redis-backed token-bucket rate limiting, client + server syntactic/semantic input validation with whitelisting. |
 | **API-first** | Versioned (`/api/v1`), documented with Swagger/OpenAPI, global validation, consistent error shape. |
 | **Ops** | Fully containerized; one command builds + runs the whole stack. |
-| **Business model** | **B2C** — Villi sells directly to individual consumers; see [B2C e-commerce model](docs/REFERENCE.md#b2c-e-commerce-model). |
+| **Business model** | **B2C** — Villi sells directly to individual consumers;
 
 Architecture, tech stack, and the full B2C-model writeup: [`docs/REFERENCE.md`](docs/REFERENCE.md).
 
