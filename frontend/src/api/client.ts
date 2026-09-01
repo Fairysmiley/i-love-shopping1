@@ -8,6 +8,29 @@ import { config } from '../config';
 let accessToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
 
+const GUEST_CART_ID_KEY = 'villi-guest-cart-id';
+
+/**
+ * Created lazily on first use (not in a mount effect elsewhere) so there's
+ * no window where a cart request can go out before an id exists. Returns
+ * null if localStorage is unavailable (private-browsing/storage-blocked
+ * profiles) rather than throwing — the request still goes out, just without
+ * guest identity, and the backend surfaces that as a clear error instead of
+ * silently no-op'ing.
+ */
+function getOrCreateGuestCartId(): string | null {
+  try {
+    let id = localStorage.getItem(GUEST_CART_ID_KEY);
+    if (!id) {
+      id = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem(GUEST_CART_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
@@ -47,7 +70,7 @@ async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
   if (opts.auth !== false && accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
-  const guestCartId = localStorage.getItem('villi-guest-cart-id');
+  const guestCartId = getOrCreateGuestCartId();
   if (guestCartId) {
     headers['x-guest-cart-id'] = guestCartId;
   }

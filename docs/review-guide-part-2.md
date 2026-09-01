@@ -75,7 +75,9 @@ Because every listing is pre-loved and one-of-a-kind, seeded stock is always
 `1` (`backend/prisma/seed.ts:812,821`), so day-to-day there's only ever one
 unit to select — the `+` button on `/cart` correctly refuses to go to `2`
 ("Only 1 in stock"). To actually exercise the "up and down" part of the
-control, temporarily give one product some stock:
+control, temporarily give one product some stock (this and the other snippets
+below use `jq` to pull the id out of the API's JSON response — install it
+first if you don't have it: `sudo apt install jq`):
 > ```
 > PRODUCT_ID=$(curl -s "http://localhost:8080/api/v1/products?limit=1" | jq -r '.data[0].id')
 > docker exec -it i-love-shopping-postgres-1 psql -U villi -d villi -c "UPDATE \"Product\" SET \"stockQuantity\" = 5 WHERE id = '$PRODUCT_ID';"

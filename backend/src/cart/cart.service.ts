@@ -19,6 +19,18 @@ export class CartService {
     return `cart:guest:${guestId}`;
   }
 
+  /**
+   * Every cart mutation needs an identity to write against. Without this,
+   * a request missing both the auth token and the `x-guest-cart-id` header
+   * (e.g. a client that failed to persist its guest id) would silently no-op
+   * and still report success with an empty cart.
+   */
+  private requireIdentity(userId?: string, guestId?: string): void {
+    if (!userId && !guestId) {
+      throw new BadRequestException('Could not identify your cart. Please reload the page and try again.');
+    }
+  }
+
   async getCart(userId?: string, guestId?: string) {
     let items: { productId: string; quantity: number }[] = [];
 
@@ -76,6 +88,8 @@ export class CartService {
   }
 
   async addItem(dto: AddToCartDto, userId?: string, guestId?: string) {
+    this.requireIdentity(userId, guestId);
+
     const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -139,6 +153,8 @@ export class CartService {
   }
 
   async updateItem(productId: string, dto: UpdateCartItemDto, userId?: string, guestId?: string) {
+    this.requireIdentity(userId, guestId);
+
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -178,6 +194,8 @@ export class CartService {
   }
 
   async removeItem(productId: string, userId?: string, guestId?: string) {
+    this.requireIdentity(userId, guestId);
+
     if (userId) {
       const cart = await this.prisma.cart.findFirst({ where: { userId } });
       if (cart) {

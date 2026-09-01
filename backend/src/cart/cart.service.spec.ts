@@ -160,6 +160,14 @@ describe('CartService', () => {
       });
     });
 
+    it('throws BadRequestException instead of silently no-op-ing when neither userId nor guestId is provided', async () => {
+      await expect(
+        service.addItem({ productId: PRODUCT_A.id, quantity: 1 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.product.findUnique).not.toHaveBeenCalled();
+    });
+
     describe('guest user (Redis)', () => {
       it('stores a new item in Redis under the guest key', async () => {
         prisma.product.findUnique.mockResolvedValue(PRODUCT_A);
@@ -312,6 +320,14 @@ describe('CartService', () => {
         ).rejects.toBeInstanceOf(NotFoundException);
       });
     });
+
+    it('throws BadRequestException when neither userId nor guestId is provided', async () => {
+      await expect(
+        service.updateItem(PRODUCT_A.id, { quantity: 1 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.product.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   /* ================================================================ */
@@ -359,6 +375,13 @@ describe('CartService', () => {
 
       expect(prisma.cartItem.deleteMany).not.toHaveBeenCalled();
       expect(result).toEqual({ items: [], total: 0 });
+    });
+
+    it('throws BadRequestException when neither userId nor guestId is provided', async () => {
+      await expect(service.removeItem(PRODUCT_A.id)).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.cart.findFirst).not.toHaveBeenCalled();
+      expect(redis.get).not.toHaveBeenCalled();
     });
   });
 

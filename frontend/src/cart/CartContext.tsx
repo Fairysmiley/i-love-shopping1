@@ -40,15 +40,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
 
-  useEffect(() => {
-    // Ensure we have a guest cart ID generated if not logged in
-    let guestId = localStorage.getItem('villi-guest-cart-id');
-    if (!guestId) {
-      guestId = Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('villi-guest-cart-id', guestId);
-    }
-  }, []);
-
   const refreshCart = useCallback(async () => {
     setIsLoading(true);
     try {
