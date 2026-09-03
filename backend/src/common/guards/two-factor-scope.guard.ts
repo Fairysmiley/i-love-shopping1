@@ -24,7 +24,9 @@ export class TwoFactorScopeGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!allowed) {
-      throw new ForbiddenException('Complete Two-Factor Authentication enrollment before continuing.');
+      throw new ForbiddenException(
+        'Complete Two-Factor Authentication enrollment before continuing.',
+      );
     }
     return true;
   }

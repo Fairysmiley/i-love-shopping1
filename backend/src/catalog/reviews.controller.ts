@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -51,7 +42,9 @@ export class ReviewsController {
 
   @Get(':idOrSlug/can-review')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Whether the current user purchased this product and may review it (auth)' })
+  @ApiOperation({
+    summary: 'Whether the current user purchased this product and may review it (auth)',
+  })
   canReview(@Param('idOrSlug') idOrSlug: string, @CurrentUser('userId') userId: string) {
     return this.reviews.canReview(idOrSlug, userId);
   }
@@ -78,10 +71,7 @@ export class ReviewsController {
   @Post(':idOrSlug/reviews/:reviewId/helpful')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Toggle a helpful vote on a review' })
-  voteHelpful(
-    @Param('reviewId') reviewId: string,
-    @CurrentUser('userId') userId: string,
-  ) {
+  voteHelpful(@Param('reviewId') reviewId: string, @CurrentUser('userId') userId: string) {
     return this.reviews.voteHelpful(reviewId, userId);
   }
 }

@@ -6,7 +6,9 @@ import type { ConfigService } from '@nestjs/config';
  */
 export function resolveCorsOrigin(
   config: ConfigService,
-): string | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void) {
+):
+  | string
+  | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void) {
   const primary = config.get<string>('webPublicUrl') ?? 'http://localhost:8080';
   const isDev = (config.get<string>('env') ?? 'development') !== 'production';
 
@@ -14,7 +16,9 @@ export function resolveCorsOrigin(
     return primary;
   }
 
-  const allowed = new Set([primary, config.get<string>('apiPublicUrl')].filter(Boolean) as string[]);
+  const allowed = new Set(
+    [primary, config.get<string>('apiPublicUrl')].filter(Boolean) as string[],
+  );
 
   return (origin, callback) => {
     if (!origin) {
@@ -26,7 +30,10 @@ export function resolveCorsOrigin(
       return;
     }
     // Dev-only: accept any localhost origin (5173, 5174, 8080, 8081, …).
-    if (/^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    if (
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin)
+    ) {
       callback(null, true);
       return;
     }

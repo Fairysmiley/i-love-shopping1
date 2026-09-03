@@ -146,7 +146,8 @@ export function CatalogPage() {
       const current = p.getAll('brands');
       p.delete('brands');
       const set = new Set(current);
-      set.has(slug) ? set.delete(slug) : set.add(slug);
+      if (set.has(slug)) set.delete(slug);
+      else set.add(slug);
       set.forEach((b) => p.append('brands', b));
     });
   };
@@ -343,7 +344,8 @@ export function CatalogPage() {
                                 const cur = p.getAll('attributes');
                                 p.delete('attributes');
                                 const set = new Set(cur);
-                                set.has(token) ? set.delete(token) : set.add(token);
+                                if (set.has(token)) set.delete(token);
+                                else set.add(token);
                                 set.forEach((t) => p.append('attributes', t));
                               })
                             }

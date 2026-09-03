@@ -19,7 +19,14 @@ export interface AddressView {
 export class AddressesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private toView(row: { id: string; label: string | null; data: string; isDefault: boolean; createdAt: Date; updatedAt: Date }): AddressView {
+  private toView(row: {
+    id: string;
+    label: string | null;
+    data: string;
+    isDefault: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): AddressView {
     const parsed = JSON.parse(decrypt(row.data));
     return {
       id: row.id,
@@ -44,7 +51,10 @@ export class AddressesService {
 
   async create(userId: string, dto: AddressDto): Promise<AddressView> {
     if (dto.isDefault) {
-      await this.prisma.address.updateMany({ where: { userId, isDefault: true }, data: { isDefault: false } });
+      await this.prisma.address.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
     }
     // The first address a user saves becomes their default automatically.
     const existingCount = await this.prisma.address.count({ where: { userId } });
@@ -54,7 +64,12 @@ export class AddressesService {
         label: dto.label ?? null,
         isDefault: dto.isDefault ?? existingCount === 0,
         data: encrypt(
-          JSON.stringify({ street: dto.street, city: dto.city, postalCode: dto.postalCode, country: dto.country }),
+          JSON.stringify({
+            street: dto.street,
+            city: dto.city,
+            postalCode: dto.postalCode,
+            country: dto.country,
+          }),
         ),
       },
     });
@@ -75,7 +90,12 @@ export class AddressesService {
         label: dto.label ?? null,
         isDefault: dto.isDefault ?? undefined,
         data: encrypt(
-          JSON.stringify({ street: dto.street, city: dto.city, postalCode: dto.postalCode, country: dto.country }),
+          JSON.stringify({
+            street: dto.street,
+            city: dto.city,
+            postalCode: dto.postalCode,
+            country: dto.country,
+          }),
         ),
       },
     });

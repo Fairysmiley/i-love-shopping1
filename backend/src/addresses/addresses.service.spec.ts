@@ -61,7 +61,15 @@ describe('AddressesService', () => {
     expect(created.label).toBe('Home');
 
     prisma.address.findMany.mockResolvedValue([
-      { id: 'a1', userId: 'u1', label: 'Home', data: persistedBlob, isDefault: true, createdAt: new Date(), updatedAt: new Date() },
+      {
+        id: 'a1',
+        userId: 'u1',
+        label: 'Home',
+        data: persistedBlob,
+        isDefault: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     ]);
     const [listed] = await service.list('u1');
     expect(listed.street).toBe('123 Main St');
@@ -70,7 +78,9 @@ describe('AddressesService', () => {
 
   it('makes the first saved address the default automatically', async () => {
     prisma.address.count.mockResolvedValue(0);
-    prisma.address.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'a1', ...data, createdAt: new Date(), updatedAt: new Date() }));
+    prisma.address.create.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: 'a1', ...data, createdAt: new Date(), updatedAt: new Date() }),
+    );
 
     const created = await service.create('u1', address());
     expect(created.isDefault).toBe(true);
@@ -78,7 +88,9 @@ describe('AddressesService', () => {
 
   it('unsets the previous default when a new address is saved as default', async () => {
     prisma.address.count.mockResolvedValue(1);
-    prisma.address.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'a2', ...data, createdAt: new Date(), updatedAt: new Date() }));
+    prisma.address.create.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: 'a2', ...data, createdAt: new Date(), updatedAt: new Date() }),
+    );
 
     await service.create('u1', address({ isDefault: true }));
 

@@ -173,6 +173,19 @@ export class ProductsService {
     return result;
   }
 
+  /** Clears the search/facets/suggest caches so an admin write (create,
+   *  update, delete, bulk upload) is reflected immediately instead of
+   *  waiting out the 60s TTL — a stale storefront right after an edit is
+   *  confusing during a live demo and indistinguishable from "it didn't
+   *  save." */
+  private async invalidateCatalogCache(): Promise<void> {
+    await Promise.all([
+      this.redis.deleteByPattern('catalog:search:*'),
+      this.redis.deleteByPattern('catalog:facets:*'),
+      this.redis.deleteByPattern('suggest:*'),
+    ]);
+  }
+
   /** Type-ahead suggestions, cached in Redis to absorb keystroke traffic. */
   async suggest(prefix: string, limit = 8): Promise<string[]> {
     const q = prefix.trim().toLowerCase();
@@ -223,6 +236,7 @@ export class ProductsService {
       },
       include: productInclude,
     });
+    await this.invalidateCatalogCache();
     return this.toPublic(product);
   }
 
@@ -245,6 +259,7 @@ export class ProductsService {
       },
       include: productInclude,
     });
+    await this.invalidateCatalogCache();
     return this.toPublic(product);
   }
 
@@ -252,9 +267,12 @@ export class ProductsService {
     await this.getOrThrow(id);
     // Soft-delete keeps the row for historical references (orders, reviews).
     await this.prisma.product.update({ where: { id }, data: { isActive: false } });
+    await this.invalidateCatalogCache();
   }
 
-  async bulkCreate(items: BulkProductItemDto[]): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  async bulkCreate(
+    items: BulkProductItemDto[],
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -262,7 +280,7 @@ export class ProductsService {
     for (const item of items) {
       try {
         // Find or create category
-        let category = await this.prisma.category.findUnique({
+        const category = await this.prisma.category.findUnique({
           where: { slug: item.categorySlug },
         });
 
@@ -292,7 +310,9 @@ export class ProductsService {
         }
 
         // Generate slug from name or use provided slug
-        const slug = item.slug ? await this.uniqueSlug(item.slug) : await this.uniqueSlug(item.name);
+        const slug = item.slug
+          ? await this.uniqueSlug(item.slug)
+          : await this.uniqueSlug(item.name);
 
         // Check if SKU already exists (upsert logic)
         const existing = await this.prisma.product.findFirst({
@@ -300,7 +320,7 @@ export class ProductsService {
             OR: [
               { slug },
               // Assuming SKU might be stored in a custom field or description
-            ]
+            ],
           },
         });
 
@@ -357,6 +377,7 @@ export class ProductsService {
       }
     }
 
+    if (imported > 0) await this.invalidateCatalogCache();
     return { imported, skipped, errors };
   }
 
@@ -368,12 +389,12 @@ export class ProductsService {
    * whole upload, since there's nothing salvageable in those cases.
    */
   parseCsvToProducts(csvContent: string): { products: BulkProductItemDto[]; errors: string[] } {
-    const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
+    const lines = csvContent.split(/\r?\n/).filter((line) => line.trim());
     if (lines.length < 2) {
       throw new BadRequestException('CSV must have a header row and at least one data row');
     }
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ''));
     const required = ['sku', 'name', 'price', 'stockquantity', 'categoryslug'];
 
     for (const col of required) {
@@ -386,7 +407,7 @@ export class ProductsService {
     const errors: string[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const values = lines[i].split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
       const row: Record<string, string> = {};
       headers.forEach((h, idx) => {
         row[h] = values[idx] ?? '';
@@ -396,7 +417,9 @@ export class ProductsService {
       const stockQuantity = parseInt(row['stockquantity'], 10);
 
       if (!row['sku'] || !row['name'] || isNaN(price) || isNaN(stockQuantity)) {
-        errors.push(`Row ${i + 1}: invalid or missing required data (sku, name, price, stockQuantity)`);
+        errors.push(
+          `Row ${i + 1}: invalid or missing required data (sku, name, price, stockQuantity)`,
+        );
         continue;
       }
 

@@ -44,8 +44,9 @@ export class OrderStatusConsumerService implements OnModuleInit {
       return;
     }
 
+    const attempt = msg.properties.headers?.['x-retry-count'] ?? 0;
     try {
-      await this.applyStatus(message);
+      await this.applyStatus(message, attempt);
       channel.ack(msg);
     } catch (err) {
       const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) + 1;
@@ -69,15 +70,25 @@ export class OrderStatusConsumerService implements OnModuleInit {
     }
   }
 
-  private async applyStatus(message: PaymentMessage): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+  private async applyStatus(message: PaymentMessage, attempt: number): Promise<void> {
+    // Whether we should (re-)send the email for this delivery. True whenever
+    // this call actually transitions the order — the normal case. Also true
+    // on a retried delivery (attempt > 0) that finds the order *already*
+    // transitioned: that combination means a *previous* attempt got the DB
+    // write through but then threw (most likely from this very mail call),
+    // so retrying the email is exactly the point of the retry. Only a
+    // brand-new delivery (attempt === 0) that finds the order already
+    // terminal is a genuine duplicate — e.g. the broker never saw our ack
+    // and redelivered a message we'd already fully handled, mail included —
+    // and that one case must not re-send.
+    const sendMail = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: message.orderId },
         include: { items: true },
       });
       if (!order) {
         this.logger.warn(`Order ${message.orderId} not found; skipping status update`);
-        return;
+        return false;
       }
 
       // Idempotency: a retried/duplicate webhook must not double-apply
@@ -102,7 +113,7 @@ export class OrderStatusConsumerService implements OnModuleInit {
             `Order ${message.orderId} already in terminal state ${order.status}; skipping duplicate message`,
           );
         }
-        return;
+        return attempt > 0;
       }
 
       const newStatus = message.status === 'succeeded' ? OrderStatus.PAID : OrderStatus.CANCELLED;
@@ -116,7 +127,10 @@ export class OrderStatusConsumerService implements OnModuleInit {
           });
         }
       }
+      return true;
     });
+
+    if (!sendMail) return;
 
     if (message.status === 'succeeded') {
       await this.mail.sendOrderConfirmation(message.email, message.orderId);

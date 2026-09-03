@@ -108,7 +108,11 @@ describe('CartService', () => {
         // First call (addItem logic), second call (trailing getCart)
         prisma.cart.findFirst
           .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID })
-          .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID, items: [{ productId: PRODUCT_A.id, quantity: 3 }] });
+          .mockResolvedValueOnce({
+            id: CART_ID,
+            userId: USER_ID,
+            items: [{ productId: PRODUCT_A.id, quantity: 3 }],
+          });
         prisma.cartItem.findUnique.mockResolvedValue({
           id: 'ci-1',
           cartId: CART_ID,
@@ -231,7 +235,11 @@ describe('CartService', () => {
         // First call (updateItem logic), second call (trailing getCart)
         prisma.cart.findFirst
           .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID })
-          .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID, items: [{ productId: PRODUCT_A.id, quantity: 3 }] });
+          .mockResolvedValueOnce({
+            id: CART_ID,
+            userId: USER_ID,
+            items: [{ productId: PRODUCT_A.id, quantity: 3 }],
+          });
         prisma.cartItem.findUnique.mockResolvedValue({ id: 'ci-1' });
         prisma.cartItem.update.mockResolvedValue({});
         prisma.product.findMany.mockResolvedValue([PRODUCT_A]);
@@ -322,9 +330,9 @@ describe('CartService', () => {
     });
 
     it('throws BadRequestException when neither userId nor guestId is provided', async () => {
-      await expect(
-        service.updateItem(PRODUCT_A.id, { quantity: 1 }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.updateItem(PRODUCT_A.id, { quantity: 1 })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
 
       expect(prisma.product.findUnique).not.toHaveBeenCalled();
     });
@@ -455,7 +463,11 @@ describe('CartService', () => {
       const productWithThumb = {
         ...PRODUCT_A,
         images: [
-          { url: 'https://cdn.example.com/keb.png', thumbnailUrl: 'https://cdn.example.com/keb-thumb.png', isPrimary: true },
+          {
+            url: 'https://cdn.example.com/keb.png',
+            thumbnailUrl: 'https://cdn.example.com/keb-thumb.png',
+            isPrimary: true,
+          },
         ],
       };
       prisma.cart.findFirst.mockResolvedValue({
@@ -499,7 +511,7 @@ describe('CartService', () => {
   /* ================================================================ */
 
   describe('mergeCart', () => {
-    it('copies guest items into the user\'s DB cart and clears the guest cart', async () => {
+    it("copies guest items into the user's DB cart and clears the guest cart", async () => {
       redis._store.set(
         `cart:guest:${GUEST_ID}`,
         JSON.stringify([{ productId: PRODUCT_A.id, quantity: 2 }]),
@@ -527,7 +539,11 @@ describe('CartService', () => {
       // First call (mergeCart logic), second call (trailing getCart)
       prisma.cart.findFirst
         .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID })
-        .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID, items: [{ productId: PRODUCT_A.id, quantity: 3 }] });
+        .mockResolvedValueOnce({
+          id: CART_ID,
+          userId: USER_ID,
+          items: [{ productId: PRODUCT_A.id, quantity: 3 }],
+        });
       prisma.cartItem.findUnique.mockResolvedValue({
         id: 'ci-existing',
         quantity: 1,
@@ -553,7 +569,11 @@ describe('CartService', () => {
       // First call (mergeCart logic), second call (trailing getCart)
       prisma.cart.findFirst
         .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID })
-        .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID, items: [{ productId: PRODUCT_A.id, quantity: 5 }] });
+        .mockResolvedValueOnce({
+          id: CART_ID,
+          userId: USER_ID,
+          items: [{ productId: PRODUCT_A.id, quantity: 5 }],
+        });
       prisma.cartItem.findUnique.mockResolvedValue({
         id: 'ci-existing',
         quantity: 3,
@@ -579,8 +599,8 @@ describe('CartService', () => {
         ]),
       );
       prisma.product.findUnique
-        .mockResolvedValueOnce(null)                                    // missing
-        .mockResolvedValueOnce({ ...PRODUCT_B, stockQuantity: 0 });     // out of stock
+        .mockResolvedValueOnce(null) // missing
+        .mockResolvedValueOnce({ ...PRODUCT_B, stockQuantity: 0 }); // out of stock
       // First call (mergeCart logic), second call (trailing getCart)
       prisma.cart.findFirst
         .mockResolvedValueOnce({ id: CART_ID, userId: USER_ID })

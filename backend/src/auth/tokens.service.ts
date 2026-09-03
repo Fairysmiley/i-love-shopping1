@@ -112,11 +112,21 @@ export class TokensService {
    * session. No refresh token is created — this isn't a session, just enough
    * access to call the 2FA setup/enable endpoints and finish enrolling.
    */
-  issueTwoFactorSetupToken(user: Pick<User, 'id' | 'email' | 'role'>): { accessToken: string; expiresIn: number } {
+  issueTwoFactorSetupToken(user: Pick<User, 'id' | 'email' | 'role'>): {
+    accessToken: string;
+    expiresIn: number;
+  } {
     const jti = randomUUID();
     const expiresIn = 300; // 5 minutes — just long enough to scan a QR code and enter a code.
     const accessToken = this.jwt.sign(
-      { sub: user.id, email: user.email, role: user.role, jti, twoFactorEnabled: false, scope: 'twofa_setup' } satisfies AccessTokenPayload,
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        jti,
+        twoFactorEnabled: false,
+        scope: 'twofa_setup',
+      } satisfies AccessTokenPayload,
       { expiresIn },
     );
     return { accessToken, expiresIn };

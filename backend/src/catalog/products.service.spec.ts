@@ -95,3 +95,70 @@ describe('ProductsService.toPublic (product data model shape)', () => {
     ]);
   });
 });
+
+/**
+ * A write to a product must invalidate the Redis-cached search/facets/
+ * suggest results — otherwise an admin's create/edit/delete is invisible on
+ * the storefront for up to the cache's 60s TTL, which looks exactly like
+ * "the change didn't save."
+ */
+describe('ProductsService cache invalidation on writes', () => {
+  const minimalProduct: any = {
+    id: 'p1',
+    name: 'Test Jacket',
+    slug: 'test-jacket',
+    price: new Prisma.Decimal('10.00'),
+    stockQuantity: 5,
+    weightGrams: null,
+    lengthMm: null,
+    widthMm: null,
+    heightMm: null,
+    category: { id: 'c1', name: 'Cat', slug: 'cat' },
+    brand: { id: 'b1', name: 'Brand', slug: 'brand' },
+    images: [],
+    attributes: [],
+  };
+
+  let prisma: { product: { findUnique: jest.Mock; create: jest.Mock; update: jest.Mock } };
+  let redis: { deleteByPattern: jest.Mock };
+  let service: ProductsService;
+
+  beforeEach(() => {
+    prisma = {
+      product: {
+        findUnique: jest.fn().mockResolvedValue(null), // slug is unique
+        create: jest.fn().mockResolvedValue(minimalProduct),
+        update: jest.fn().mockResolvedValue(minimalProduct),
+      },
+    };
+    redis = { deleteByPattern: jest.fn().mockResolvedValue(undefined) };
+    service = new ProductsService(prisma as any, redis as any);
+  });
+
+  it('invalidates the catalog caches after creating a product', async () => {
+    await service.create({
+      name: 'Test Jacket',
+      description: 'desc',
+      price: 10,
+      stockQuantity: 5,
+      categoryId: 'c1',
+      brandId: 'b1',
+    } as any);
+
+    expect(redis.deleteByPattern).toHaveBeenCalledWith('catalog:search:*');
+    expect(redis.deleteByPattern).toHaveBeenCalledWith('catalog:facets:*');
+    expect(redis.deleteByPattern).toHaveBeenCalledWith('suggest:*');
+  });
+
+  it('invalidates the catalog caches after updating a product', async () => {
+    prisma.product.findUnique.mockResolvedValue(minimalProduct); // getOrThrow finds it
+    await service.update('p1', { name: 'Renamed' } as any);
+    expect(redis.deleteByPattern).toHaveBeenCalledWith('catalog:search:*');
+  });
+
+  it('invalidates the catalog caches after removing a product', async () => {
+    prisma.product.findUnique.mockResolvedValue(minimalProduct); // getOrThrow finds it
+    await service.remove('p1');
+    expect(redis.deleteByPattern).toHaveBeenCalledWith('catalog:search:*');
+  });
+});

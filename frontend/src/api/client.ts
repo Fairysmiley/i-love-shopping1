@@ -66,7 +66,12 @@ interface RequestOptions {
 }
 
 async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // A FormData body (file uploads) must go out as multipart, with the
+  // browser setting its own Content-Type (including the boundary) — never
+  // JSON.stringify it (that silently serializes to "{}", since FormData
+  // exposes no enumerable own properties) or force application/json here.
+  const isFormData = opts.body instanceof FormData;
+  const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (opts.auth !== false && accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -88,7 +93,12 @@ async function rawRequest<T>(path: string, opts: RequestOptions): Promise<T> {
       method: opts.method ?? 'GET',
       headers,
       credentials: 'include',
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body:
+        opts.body === undefined
+          ? undefined
+          : isFormData
+            ? (opts.body as FormData)
+            : JSON.stringify(opts.body),
       signal: timeoutController.signal,
     });
   } catch (err) {

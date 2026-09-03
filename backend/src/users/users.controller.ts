@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
@@ -22,7 +32,7 @@ export class UsersController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Update the current user\'s profile (first/last name)' })
+  @ApiOperation({ summary: "Update the current user's profile (first/last name)" })
   async updateProfile(@CurrentUser('userId') userId: string, @Body() dto: UpdateProfileDto) {
     const updated = await this.users.update(userId, dto);
     return this.users.toPublic(updated);
@@ -60,7 +70,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin: List all users' })
   async listAll() {
     const allUsers = await this.users.findAll();
-    return allUsers.map(u => this.users.toPublic(u));
+    return allUsers.map((u) => this.users.toPublic(u));
   }
 
   @Patch(':id/role')

@@ -22,8 +22,7 @@ const round = (n: number, dp = 2): number => {
 };
 
 const mmToIn = (mm: number | null): number | null => (mm == null ? null : round(mm / MM_PER_INCH));
-const gToOz = (g: number | null): number | null =>
-  g == null ? null : round(g / GRAMS_PER_OUNCE);
+const gToOz = (g: number | null): number | null => (g == null ? null : round(g / GRAMS_PER_OUNCE));
 
 /** Builds the dual metric/imperial dimensions view from canonical metric data. */
 export function buildDimensions(p: {

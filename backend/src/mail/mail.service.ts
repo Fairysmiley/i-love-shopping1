@@ -97,7 +97,12 @@ export class MailService implements OnModuleInit {
 
   /** Forwards a Contact/Support form submission to the support inbox, and
    * sends the submitter a confirmation that it was received. */
-  async sendContactMessage(input: { name: string; email: string; subject: string; message: string }): Promise<void> {
+  async sendContactMessage(input: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+  }): Promise<void> {
     await this.send(
       this.supportInbox,
       `[Contact] ${input.subject} — ${input.name}`,

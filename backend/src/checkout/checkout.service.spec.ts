@@ -280,7 +280,9 @@ describe('CheckoutService', () => {
     it('does not set an errorDetail for a successful payment', async () => {
       await service.handleStripeWebhook({
         type: 'payment_intent.succeeded',
-        data: { object: { id: 'pi_1', amount: 1500, currency: 'eur', metadata: { orderId: 'o1' } } },
+        data: {
+          object: { id: 'pi_1', amount: 1500, currency: 'eur', metadata: { orderId: 'o1' } },
+        },
       });
 
       expect(paymentQueue.publishStatusUpdate).toHaveBeenCalledWith(

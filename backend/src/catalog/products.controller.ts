@@ -15,7 +15,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../common/decorators/public.decorator';
@@ -73,7 +80,8 @@ export class ProductsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Image file (JPEG, PNG, WebP). Max 10MB. Will be resized to 320px, 768px, and 1440px.',
+          description:
+            'Image file (JPEG, PNG, WebP). Max 10MB. Will be resized to 320px, 768px, and 1440px.',
         },
         altText: {
           type: 'string',
@@ -170,7 +178,8 @@ export class ProductsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'CSV file with headers: sku,name,description,price,stockQuantity,categorySlug,brandName'
+          description:
+            'CSV file with headers: sku,name,description,price,stockQuantity,categorySlug,brandName',
         },
       },
     },

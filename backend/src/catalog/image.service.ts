@@ -25,7 +25,11 @@ export class ImageService {
   };
 
   constructor() {
-    this.ensureUploadDir();
+    // Fire-and-forget on boot so the directory is usually already there by
+    // the time the first request lands, but processProductImage() below
+    // still awaits it directly too — a fresh container with an empty
+    // volume mount shouldn't lose a race against its very first upload.
+    void this.ensureUploadDir();
   }
 
   private async ensureUploadDir(): Promise<void> {
@@ -42,6 +46,7 @@ export class ImageService {
   async processProductImage(file: Express.Multer.File): Promise<ProcessedImage> {
     // Validate file
     this.validateFile(file);
+    await this.ensureUploadDir();
 
     // Generate unique filename
     const imageId = randomUUID();
@@ -108,7 +113,7 @@ export class ImageService {
   /**
    * Get file extension from mime type
    */
-  private getExtension(mimetype: string): string {
+  private getExtension(_mimetype: string): string {
     // We always convert to WebP, but this could be made configurable
     return 'webp';
   }

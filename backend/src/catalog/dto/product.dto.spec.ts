@@ -8,10 +8,7 @@ async function errorsFor<T extends object>(cls: new () => T, payload: object): P
   const errors = await validate(dto as object, { whitelist: true, forbidNonWhitelisted: true });
   // Flatten constraints across the (possibly nested) error tree.
   const collect = (errs: typeof errors): string[] =>
-    errs.flatMap((e) => [
-      ...Object.values(e.constraints ?? {}),
-      ...collect(e.children ?? []),
-    ]);
+    errs.flatMap((e) => [...Object.values(e.constraints ?? {}), ...collect(e.children ?? [])]);
   return collect(errors);
 }
 
@@ -46,12 +43,18 @@ describe('Product data model validation', () => {
     });
 
     it('rejects a negative price', async () => {
-      expect((await errorsFor(CreateProductDto, { ...valid, price: -5 })).length).toBeGreaterThan(0);
+      expect((await errorsFor(CreateProductDto, { ...valid, price: -5 })).length).toBeGreaterThan(
+        0,
+      );
     });
 
     it('rejects a non-integer / negative stock quantity', async () => {
-      expect((await errorsFor(CreateProductDto, { ...valid, stockQuantity: -1 })).length).toBeGreaterThan(0);
-      expect((await errorsFor(CreateProductDto, { ...valid, stockQuantity: 2.5 })).length).toBeGreaterThan(0);
+      expect(
+        (await errorsFor(CreateProductDto, { ...valid, stockQuantity: -1 })).length,
+      ).toBeGreaterThan(0);
+      expect(
+        (await errorsFor(CreateProductDto, { ...valid, stockQuantity: 2.5 })).length,
+      ).toBeGreaterThan(0);
     });
 
     it('validates nested image and attribute structures', async () => {

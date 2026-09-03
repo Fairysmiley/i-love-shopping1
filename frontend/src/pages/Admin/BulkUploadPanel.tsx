@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 
 interface BulkUploadResult {
   imported: number;
@@ -33,8 +33,8 @@ export function BulkUploadPanel() {
 
       setResult(response);
       setCsvFile(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to upload CSV');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to upload CSV');
     } finally {
       setLoading(false);
     }
@@ -55,11 +55,11 @@ export function BulkUploadPanel() {
       const response = await api.post<BulkUploadResult>('/products/bulk', { products });
       setResult(response);
       setJsonText('');
-    } catch (err: any) {
+    } catch (err) {
       if (err instanceof SyntaxError) {
         setError('Invalid JSON format');
       } else {
-        setError(err.response?.data?.message || 'Failed to upload products');
+        setError(err instanceof ApiError ? err.message : 'Failed to upload products');
       }
     } finally {
       setLoading(false);

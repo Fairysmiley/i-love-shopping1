@@ -23,6 +23,21 @@ export class RedisService implements OnModuleDestroy {
     await this.client.del(key);
   }
 
+  /** Deletes every key matching `pattern` (e.g. `catalog:search:*`). Uses
+   *  SCAN rather than KEYS so it doesn't block Redis under real traffic. */
+  async deleteByPattern(pattern: string): Promise<void> {
+    const stream = this.client.scanStream({ match: pattern, count: 100 });
+    const pipeline = this.client.pipeline();
+    let queued = 0;
+    for await (const keys of stream as AsyncIterable<string[]>) {
+      for (const key of keys) {
+        pipeline.del(key);
+        queued++;
+      }
+    }
+    if (queued > 0) await pipeline.exec();
+  }
+
   /** Adds a token jti to the access-token denylist until it would expire. */
   async denylistAccessToken(jti: string, ttlSeconds: number): Promise<void> {
     if (ttlSeconds <= 0) return;

@@ -32,7 +32,12 @@ export class CategoriesService {
 
   async create(dto: CreateCategoryDto) {
     return this.prisma.category.create({
-      data: { name: dto.name, slug: slugify(dto.name), description: dto.description, parentId: dto.parentId },
+      data: {
+        name: dto.name,
+        slug: slugify(dto.name),
+        description: dto.description,
+        parentId: dto.parentId,
+      },
     });
   }
 

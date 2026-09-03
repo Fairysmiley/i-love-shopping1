@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { HomeRoute } from './components/HomeRoute';
 import { Navbar } from './components/Navbar';
 import { CatalogPage } from './pages/CatalogPage';
@@ -19,11 +20,17 @@ import { ContactPage } from './pages/ContactPage';
 import { TermsPage } from './pages/TermsPage';
 import { FAQPage } from './pages/FAQPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { AdminDashboardPage } from './pages/Admin/AdminDashboardPage';
 import { useAuth } from './auth/AuthContext';
 import { CartSidebar } from './cart/CartSidebar';
 import { Footer } from './components/Footer';
 import type { ReactNode } from 'react';
+
+// Code-split the admin dashboard (and every panel it pulls in) into its own
+// chunk — regular shoppers, who never touch /admin, don't pay for it on
+// initial load.
+const AdminDashboardPage = lazy(() =>
+  import('./pages/Admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+);
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -77,7 +84,9 @@ export function App() {
             path="/admin"
             element={
               <Protected>
-                <AdminDashboardPage />
+                <Suspense fallback={<div className="container">Loading...</div>}>
+                  <AdminDashboardPage />
+                </Suspense>
               </Protected>
             }
           />

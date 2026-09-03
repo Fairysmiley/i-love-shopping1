@@ -81,7 +81,9 @@ export class TokenBucketThrottlerStorage implements ThrottlerStorage {
     const tokensRemaining = Number(result[1]);
     const isBlocked = !allowed;
     // How long until the bucket has refilled enough for one more request.
-    const msUntilNextToken = isBlocked ? Math.max(0, Math.ceil((1 - tokensRemaining) / refillRatePerMs)) : 0;
+    const msUntilNextToken = isBlocked
+      ? Math.max(0, Math.ceil((1 - tokensRemaining) / refillRatePerMs))
+      : 0;
 
     return {
       totalHits: Math.max(0, Math.round(limit - tokensRemaining)),

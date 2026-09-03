@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 
 describe('AuthService password recovery', () => {
@@ -17,7 +18,7 @@ describe('AuthService password recovery', () => {
     updatedAt: new Date(),
   };
 
-  let users: { findByEmail: jest.Mock };
+  let users: { findByEmail: jest.Mock; create: jest.Mock };
   let mail: { sendPasswordReset: jest.Mock; sendWelcome: jest.Mock };
   let prisma: {
     passwordResetToken: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
@@ -30,8 +31,11 @@ describe('AuthService password recovery', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    users = { findByEmail: jest.fn() };
-    mail = { sendPasswordReset: jest.fn().mockResolvedValue(undefined), sendWelcome: jest.fn() };
+    users = { findByEmail: jest.fn(), create: jest.fn() };
+    mail = {
+      sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+      sendWelcome: jest.fn().mockResolvedValue(undefined),
+    };
     prisma = {
       passwordResetToken: {
         create: jest.fn().mockResolvedValue({ id: 'prt-1' }),
@@ -81,10 +85,7 @@ describe('AuthService password recovery', () => {
 
   it('resets the password, marks the token used, and revokes refresh sessions', async () => {
     const rawToken = 'reset-token-plain';
-    const tokenHash = require('crypto')
-      .createHash('sha256')
-      .update(rawToken)
-      .digest('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
     prisma.passwordResetToken.findUnique.mockResolvedValue({
       id: 'prt-1',
@@ -115,5 +116,34 @@ describe('AuthService password recovery', () => {
     await expect(service.resetPassword('bad', 'NewStr0ng!Pass')).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('does not fail a password reset request when the mail service is down', async () => {
+    users.findByEmail.mockResolvedValue(user);
+    mail.sendPasswordReset.mockRejectedValue(new Error('SMTP unreachable'));
+
+    // Must resolve, not throw — a mail outage would otherwise turn this
+    // into a 500 only for real accounts (the unknown-email branch never
+    // calls mail at all), reopening the user-enumeration side channel this
+    // endpoint is designed to avoid.
+    await expect(service.forgotPassword({ email: user.email })).resolves.toBeUndefined();
+    expect(prisma.passwordResetToken.create).toHaveBeenCalled();
+  });
+
+  it('registers the user even if the welcome email fails to send', async () => {
+    users.findByEmail.mockResolvedValue(null);
+    users.create.mockResolvedValue(user);
+    mail.sendWelcome.mockRejectedValue(new Error('SMTP unreachable'));
+
+    const result = await service.register({
+      email: user.email,
+      password: 'NewStr0ng!Pass',
+      firstName: user.firstName,
+      lastName: user.lastName,
+      captchaToken: 'token',
+    } as any);
+
+    expect(result).toBe(user);
+    expect(users.create).toHaveBeenCalled();
   });
 });

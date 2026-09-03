@@ -27,9 +27,15 @@ describe('User input validation', () => {
     });
 
     it('rejects weak passwords (too short / missing classes)', async () => {
-      expect((await errorsFor(RegisterDto, { ...valid, password: 'short' })).length).toBeGreaterThan(0);
-      expect((await errorsFor(RegisterDto, { ...valid, password: 'alllowercase1!' })).length).toBeGreaterThan(0);
-      expect((await errorsFor(RegisterDto, { ...valid, password: 'NoSymbols123' })).length).toBeGreaterThan(0);
+      expect(
+        (await errorsFor(RegisterDto, { ...valid, password: 'short' })).length,
+      ).toBeGreaterThan(0);
+      expect(
+        (await errorsFor(RegisterDto, { ...valid, password: 'alllowercase1!' })).length,
+      ).toBeGreaterThan(0);
+      expect(
+        (await errorsFor(RegisterDto, { ...valid, password: 'NoSymbols123' })).length,
+      ).toBeGreaterThan(0);
     });
 
     it('rejects empty names', async () => {

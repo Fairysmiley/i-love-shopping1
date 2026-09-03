@@ -72,31 +72,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user, refreshCart]);
 
   const addItem = async (productId: string, quantity = 1) => {
-    try {
-      const updated = await api.post<CartData>('/cart/items', { productId, quantity });
-      setCart(updated);
-      setIsOpen(true); // Auto-open cart
-    } catch (err) {
-      throw err;
-    }
+    const updated = await api.post<CartData>('/cart/items', { productId, quantity });
+    setCart(updated);
+    setIsOpen(true); // Auto-open cart
   };
 
   const updateItem = async (productId: string, quantity: number) => {
-    try {
-      const updated = await api.patch<CartData>(`/cart/items/${productId}`, { quantity });
-      setCart(updated);
-    } catch (err) {
-      throw err;
-    }
+    const updated = await api.patch<CartData>(`/cart/items/${productId}`, { quantity });
+    setCart(updated);
   };
 
   const removeItem = async (productId: string) => {
-    try {
-      const updated = await api.del<CartData>(`/cart/items/${productId}`);
-      setCart(updated);
-    } catch (err) {
-      throw err;
-    }
+    const updated = await api.del<CartData>(`/cart/items/${productId}`);
+    setCart(updated);
   };
 
   return (

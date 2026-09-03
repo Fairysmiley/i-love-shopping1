@@ -27,15 +27,18 @@ export class TwoFactorService {
     const appName = this.config.get<string>('twoFactorAppName') ?? 'Villi';
     const otpauthUrl = authenticator.keyuri(email, appName, secret);
 
-    const recoveryCodes = Array.from({ length: 8 }, () =>
-      randomBytes(5).toString('hex'),
-    );
+    const recoveryCodes = Array.from({ length: 8 }, () => randomBytes(5).toString('hex'));
     const hashedCodes = await Promise.all(recoveryCodes.map((c) => argon2.hash(c)));
 
     await this.prisma.twoFactorSecret.upsert({
       where: { userId },
       create: { userId, secret: encrypt(secret), enabled: false, recoveryCodes: hashedCodes },
-      update: { secret: encrypt(secret), enabled: false, recoveryCodes: hashedCodes, confirmedAt: null },
+      update: {
+        secret: encrypt(secret),
+        enabled: false,
+        recoveryCodes: hashedCodes,
+        confirmedAt: null,
+      },
     });
 
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);

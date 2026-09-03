@@ -27,7 +27,9 @@ export class CartService {
    */
   private requireIdentity(userId?: string, guestId?: string): void {
     if (!userId && !guestId) {
-      throw new BadRequestException('Could not identify your cart. Please reload the page and try again.');
+      throw new BadRequestException(
+        'Could not identify your cart. Please reload the page and try again.',
+      );
     }
   }
 

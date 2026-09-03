@@ -43,11 +43,7 @@ export class CartController {
 
   @Public()
   @Delete('items/:productId')
-  removeItem(
-    @Req() req: Request,
-    @CurrentUser() user: any,
-    @Param('productId') productId: string,
-  ) {
+  removeItem(@Req() req: Request, @CurrentUser() user: any, @Param('productId') productId: string) {
     const { userId, guestId } = this.extractIds(req, user);
     return this.cartService.removeItem(productId, userId, guestId);
   }

@@ -38,7 +38,10 @@ export class CheckoutController {
     @Body() dto: CreatePaymentIntentDto,
   ) {
     const { userId } = this.extractCtx(req, user);
-    const intent = await this.checkoutService.createStripePaymentIntentForOrder(dto.orderId, userId);
+    const intent = await this.checkoutService.createStripePaymentIntentForOrder(
+      dto.orderId,
+      userId,
+    );
     return { clientSecret: intent.client_secret, intentId: intent.id };
   }
 

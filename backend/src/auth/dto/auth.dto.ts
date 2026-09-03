@@ -9,8 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-const PASSWORD_RULE =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/;
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/;
 
 export class RegisterDto {
   @ApiProperty({ example: 'shopper@example.com' })
@@ -26,8 +25,7 @@ export class RegisterDto {
   @MinLength(10, { message: 'Password must be at least 10 characters.' })
   @MaxLength(128)
   @Matches(PASSWORD_RULE, {
-    message:
-      'Password must include uppercase, lowercase, a number and a special character.',
+    message: 'Password must include uppercase, lowercase, a number and a special character.',
   })
   password!: string;
 
@@ -82,8 +80,7 @@ export class ResetPasswordDto {
   @MinLength(10)
   @MaxLength(128)
   @Matches(PASSWORD_RULE, {
-    message:
-      'Password must include uppercase, lowercase, a number and a special character.',
+    message: 'Password must include uppercase, lowercase, a number and a special character.',
   })
   newPassword!: string;
 }

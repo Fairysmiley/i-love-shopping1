@@ -73,10 +73,7 @@ export class ReviewsService {
     const reviews = await this.prisma.review.findMany({
       where: { productId },
       include: reviewInclude,
-      orderBy: [
-        { helpfulVotes: 'desc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy: [{ helpfulVotes: 'desc' }, { createdAt: 'desc' }],
     });
 
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -198,9 +195,9 @@ export class ReviewsService {
     const reviews = await this.prisma.review.findMany({
       include: {
         ...reviewInclude,
-        product: { select: { name: true, slug: true } }
+        product: { select: { name: true, slug: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
     return reviews.map((r) => ({ ...this.toPublic(r), product: r.product }));
   }
@@ -209,10 +206,10 @@ export class ReviewsService {
     await this.prisma.$transaction(async (tx) => {
       const review = await tx.review.findUnique({
         where: { id: reviewId },
-        select: { productId: true }
+        select: { productId: true },
       });
       if (!review) throw new NotFoundException('Review not found');
-      
+
       await tx.review.delete({ where: { id: reviewId } });
       await this.recomputeAggregates(tx, review.productId);
     });

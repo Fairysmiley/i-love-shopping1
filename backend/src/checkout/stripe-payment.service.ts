@@ -71,11 +71,18 @@ export class StripePaymentService {
       );
     } catch (error) {
       if (error?.code === 'charge_already_refunded') return null;
-      if (error?.message?.includes('has not been charged') || error?.code === 'payment_intent_unexpected_state') {
-        this.logger.warn(`Refund skipped for ${paymentIntentId}: intent was never successfully charged.`);
+      if (
+        error?.message?.includes('has not been charged') ||
+        error?.code === 'payment_intent_unexpected_state'
+      ) {
+        this.logger.warn(
+          `Refund skipped for ${paymentIntentId}: intent was never successfully charged.`,
+        );
         return null;
       }
-      this.logger.error(`Failed to refund Stripe Payment Intent ${paymentIntentId}: ${error.message}`);
+      this.logger.error(
+        `Failed to refund Stripe Payment Intent ${paymentIntentId}: ${error.message}`,
+      );
       throw error;
     }
   }

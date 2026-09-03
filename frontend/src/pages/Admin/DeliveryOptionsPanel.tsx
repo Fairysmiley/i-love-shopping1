@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 
 interface DeliveryOption {
   id: string;
@@ -45,7 +45,7 @@ export function DeliveryOptionsPanel() {
     try {
       const response = await api.get<DeliveryOption[]>('/delivery-options');
       setOptions(response);
-    } catch (err: any) {
+    } catch {
       setError('Failed to load delivery options');
     } finally {
       setLoading(false);
@@ -74,8 +74,8 @@ export function DeliveryOptionsPanel() {
 
       await fetchOptions();
       resetForm();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to save delivery option');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save delivery option');
     }
   };
 
@@ -100,8 +100,8 @@ export function DeliveryOptionsPanel() {
     try {
       await api.del(`/delivery-options/${id}`);
       await fetchOptions();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete delivery option');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to delete delivery option');
     }
   };
 
@@ -111,8 +111,8 @@ export function DeliveryOptionsPanel() {
         isActive: !option.isActive,
       });
       await fetchOptions();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update delivery option');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update delivery option');
     }
   };
 

@@ -31,7 +31,9 @@ interface StripeLastPaymentError {
  * (e.g. insufficient funds); `code` covers Stripe-side validation errors
  * (e.g. an expired or malformed card number) that never reach the issuer.
  */
-function describeStripeFailure(lastPaymentError: StripeLastPaymentError | null | undefined): string | undefined {
+function describeStripeFailure(
+  lastPaymentError: StripeLastPaymentError | null | undefined,
+): string | undefined {
   if (!lastPaymentError) return undefined;
   switch (lastPaymentError.decline_code ?? lastPaymentError.code) {
     case 'insufficient_funds':
@@ -213,7 +215,11 @@ export class CheckoutService {
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException('This order is no longer awaiting payment.');
     }
-    return this.stripePayment.createPaymentIntent(Number(order.totalAmount), order.currency, orderId);
+    return this.stripePayment.createPaymentIntent(
+      Number(order.totalAmount),
+      order.currency,
+      orderId,
+    );
   }
 
   verifyWebhookSignature(signature: string, rawBody: Buffer) {
@@ -279,7 +285,11 @@ export class CheckoutService {
     // order.user/order.guestEmail are raw encrypted columns here (this query
     // bypasses UsersService/decryptOrder) — decrypt before using as an
     // actual email address.
-    const notifyEmail = order.user ? decrypt(order.user.email) : order.guestEmail ? decrypt(order.guestEmail) : '';
+    const notifyEmail = order.user
+      ? decrypt(order.user.email)
+      : order.guestEmail
+        ? decrypt(order.guestEmail)
+        : '';
     await this.paymentQueue.publishStatusUpdate({
       orderId: order.id,
       email: notifyEmail,

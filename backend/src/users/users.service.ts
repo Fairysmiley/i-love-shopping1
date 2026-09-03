@@ -41,7 +41,7 @@ export class UsersService {
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return users.map(u => this.decryptUser(u) as User);
+    return users.map((u) => this.decryptUser(u) as User);
   }
 
   async updateRole(id: string, role: Role): Promise<User> {
@@ -60,7 +60,8 @@ export class UsersService {
       updateData.email = encrypt(normalizedEmail);
       updateData.emailHash = hashForLookup(normalizedEmail);
     }
-    if (typeof updateData.firstName === 'string') updateData.firstName = encrypt(updateData.firstName);
+    if (typeof updateData.firstName === 'string')
+      updateData.firstName = encrypt(updateData.firstName);
     if (typeof updateData.lastName === 'string') updateData.lastName = encrypt(updateData.lastName);
     const user = await this.prisma.user.update({ where: { id }, data: updateData });
     return this.decryptUser(user) as User;

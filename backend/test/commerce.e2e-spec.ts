@@ -12,14 +12,23 @@ import { decrypt } from '../src/common/utils/encryption.util';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy';
 
 function testAddress() {
-  return { street: '123 E2E Street', city: 'Helsinki', postalCode: '00100', country: 'Finland', phone: '+358401234567' };
+  return {
+    street: '123 E2E Street',
+    city: 'Helsinki',
+    postalCode: '00100',
+    country: 'Finland',
+    phone: '+358401234567',
+  };
 }
 
 /** Signs a webhook payload exactly the way Stripe would, so the controller's
  * signature verification (not bypassed for tests) accepts it. */
 function signedWebhook(server: any, payload: object) {
   const body = JSON.stringify(payload);
-  const signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret: WEBHOOK_SECRET });
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload: body,
+    secret: WEBHOOK_SECRET,
+  });
   return request(server)
     .post('/api/v1/checkout/webhook')
     .set('Content-Type', 'application/json')
@@ -57,7 +66,9 @@ describe('Commerce E2E (Task 2)', () => {
     app.setGlobalPrefix('api', { exclude: [] });
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     app.use(cookieParser());
-    app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
+    );
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -70,7 +81,9 @@ describe('Commerce E2E (Task 2)', () => {
     const usersService = app.get(UsersService);
     const staleUsers = (
       await Promise.all(
-        ['e2e-shopper@test.com', 'edge-cases@test.com'].map((email) => usersService.findByEmail(email)),
+        ['e2e-shopper@test.com', 'edge-cases@test.com'].map((email) =>
+          usersService.findByEmail(email),
+        ),
       )
     ).filter((u): u is NonNullable<typeof u> => u !== null);
     if (staleUsers.length > 0) {
@@ -101,14 +114,12 @@ describe('Commerce E2E (Task 2)', () => {
     originalStock = product.stockQuantity;
 
     // 2. Register
-    const regRes = await request(app.getHttpServer())
-      .post('/api/v1/auth/register')
-      .send({
-        email: 'e2e-shopper@test.com',
-        password: 'Password123!',
-        firstName: 'E2E',
-        lastName: 'Shopper',
-      });
+    const regRes = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      email: 'e2e-shopper@test.com',
+      password: 'Password123!',
+      firstName: 'E2E',
+      lastName: 'Shopper',
+    });
     expect(regRes.status).toBe(201);
 
     // 3. Login
@@ -153,7 +164,9 @@ describe('Commerce E2E (Task 2)', () => {
     expect(orderRes.body.items).toHaveLength(1);
 
     // 6b. Public confirmation summary is reachable without auth too.
-    const confirmationRes = await request(app.getHttpServer()).get(`/api/v1/orders/${orderId}/confirmation`);
+    const confirmationRes = await request(app.getHttpServer()).get(
+      `/api/v1/orders/${orderId}/confirmation`,
+    );
     expect(confirmationRes.status).toBe(200);
     expect(confirmationRes.body.items).toHaveLength(1);
 
@@ -194,7 +207,11 @@ describe('Commerce E2E (Task 2)', () => {
     const noEmailRes = await request(app.getHttpServer())
       .post('/api/v1/checkout')
       .set('x-guest-cart-id', guestId)
-      .send({ paymentMethodId: 'tok_mastercard', shippingAddress: testAddress(), deliveryOptionId });
+      .send({
+        paymentMethodId: 'tok_mastercard',
+        shippingAddress: testAddress(),
+        deliveryOptionId,
+      });
     expect(noEmailRes.status).toBe(400);
     expect(noEmailRes.body.message).toMatch(/email/i);
 
@@ -204,7 +221,13 @@ describe('Commerce E2E (Task 2)', () => {
       .set('x-guest-cart-id', guestId)
       .send({
         paymentMethodId: 'tok_mastercard',
-        shippingAddress: { street: '456 Guest Ave', city: 'Testing City', postalCode: '10001', country: 'Finland', phone: '+358501234567' },
+        shippingAddress: {
+          street: '456 Guest Ave',
+          city: 'Testing City',
+          postalCode: '10001',
+          country: 'Finland',
+          phone: '+358501234567',
+        },
         deliveryOptionId,
         email: 'guest.shopper@test.com',
       });
@@ -227,7 +250,9 @@ describe('Commerce E2E (Task 2)', () => {
     expect(createdOrder?.items[0].productId).toBe(guestProductId);
 
     // 5b. Guests can fetch their order confirmation without an account.
-    const confirmationRes = await request(app.getHttpServer()).get(`/api/v1/orders/${guestOrderId}/confirmation`);
+    const confirmationRes = await request(app.getHttpServer()).get(
+      `/api/v1/orders/${guestOrderId}/confirmation`,
+    );
     expect(confirmationRes.status).toBe(200);
     expect(confirmationRes.body.status).toBe('PENDING');
 
@@ -249,14 +274,12 @@ describe('Commerce E2E (Task 2)', () => {
 
     beforeAll(async () => {
       // Create a fresh user for edge cases
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'edge-cases@test.com',
-          password: 'Password123!',
-          firstName: 'Edge',
-          lastName: 'Cases',
-        });
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+        email: 'edge-cases@test.com',
+        password: 'Password123!',
+        firstName: 'Edge',
+        lastName: 'Cases',
+      });
 
       const loginRes = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
@@ -266,7 +289,11 @@ describe('Commerce E2E (Task 2)', () => {
 
     it('returns 400 Bad Request when attempting to check out an empty cart', async () => {
       // Ensure cart is empty initially
-      await prisma.cartItem.deleteMany({ where: { cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id } } });
+      await prisma.cartItem.deleteMany({
+        where: {
+          cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id },
+        },
+      });
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/checkout')
@@ -294,7 +321,9 @@ describe('Commerce E2E (Task 2)', () => {
         .send({ shippingAddress: testAddress(), deliveryOptionId }); // missing paymentMethodId
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toEqual(expect.arrayContaining([expect.stringContaining('paymentMethodId should not be empty')]));
+      expect(res.body.message).toEqual(
+        expect.arrayContaining([expect.stringContaining('paymentMethodId should not be empty')]),
+      );
     });
 
     it('fails with 400 on an incomplete/invalid shipping address', async () => {
@@ -304,7 +333,13 @@ describe('Commerce E2E (Task 2)', () => {
         .send({
           paymentMethodId: 'tok_visa',
           deliveryOptionId,
-          shippingAddress: { street: '', city: 'Helsinki', postalCode: '###', country: 'Finland', phone: '+358401234567' },
+          shippingAddress: {
+            street: '',
+            city: 'Helsinki',
+            postalCode: '###',
+            country: 'Finland',
+            phone: '+358401234567',
+          },
         });
 
       expect(res.status).toBe(400);
@@ -343,7 +378,9 @@ describe('Commerce E2E (Task 2)', () => {
         .send({ paymentMethodId: '', shippingAddress: testAddress(), deliveryOptionId });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toEqual(expect.arrayContaining([expect.stringContaining('paymentMethodId should not be empty')]));
+      expect(res.body.message).toEqual(
+        expect.arrayContaining([expect.stringContaining('paymentMethodId should not be empty')]),
+      );
     });
 
     it('rejects a webhook with an invalid Stripe signature', async () => {
@@ -366,10 +403,16 @@ describe('Commerce E2E (Task 2)', () => {
       const failedSpy = jest.spyOn(mailService, 'sendPaymentFailed').mockResolvedValue();
 
       // First, create a valid order to test webhook against
-      const productSuccess = await prisma.product.findFirst({ where: { stockQuantity: { gte: 1 } } });
+      const productSuccess = await prisma.product.findFirst({
+        where: { stockQuantity: { gte: 1 } },
+      });
 
       // Ensure the cart is clean and has our test product
-      await prisma.cartItem.deleteMany({ where: { cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id } } });
+      await prisma.cartItem.deleteMany({
+        where: {
+          cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id },
+        },
+      });
 
       await request(app.getHttpServer())
         .post('/api/v1/cart/items')
@@ -391,7 +434,9 @@ describe('Commerce E2E (Task 2)', () => {
       // 1. Simulate SUCCESS callback (signed, as the real gateway would send it)
       await signedWebhook(app.getHttpServer(), {
         type: 'payment_intent.succeeded',
-        data: { object: { metadata: { orderId }, amount: 1500, currency: 'eur', id: 'pi_test123' } },
+        data: {
+          object: { metadata: { orderId }, amount: 1500, currency: 'eur', id: 'pi_test123' },
+        },
       }).expect(201);
 
       const orderSuccess = await waitForOrderStatus(prisma, orderId);
@@ -423,14 +468,21 @@ describe('Commerce E2E (Task 2)', () => {
             amount: 1500,
             currency: 'eur',
             id: 'pi_fail123',
-            last_payment_error: { decline_code: 'insufficient_funds', message: 'Your card has insufficient funds.' },
+            last_payment_error: {
+              decline_code: 'insufficient_funds',
+              message: 'Your card has insufficient funds.',
+            },
           },
         },
       });
 
       const orderFailed = await waitForOrderStatus(prisma, failOrderId);
       expect(orderFailed?.status).toBe('CANCELLED');
-      expect(failedSpy).toHaveBeenCalledWith('edge-cases@test.com', failOrderId, 'Insufficient funds');
+      expect(failedSpy).toHaveBeenCalledWith(
+        'edge-cases@test.com',
+        failOrderId,
+        'Insufficient funds',
+      );
 
       // Check stock reverted
       const revertedProduct = await prisma.product.findUnique({ where: { id: productFail!.id } });
@@ -445,7 +497,11 @@ describe('Commerce E2E (Task 2)', () => {
       const product = await prisma.product.findFirst({ where: { stockQuantity: { gte: 1 } } });
       const startingStock = product!.stockQuantity;
 
-      await prisma.cartItem.deleteMany({ where: { cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id } } });
+      await prisma.cartItem.deleteMany({
+        where: {
+          cart: { userId: (await app.get(UsersService).findByEmail('edge-cases@test.com'))!.id },
+        },
+      });
       await request(app.getHttpServer())
         .post('/api/v1/cart/items')
         .set('Authorization', `Bearer ${userToken}`)
@@ -465,7 +521,10 @@ describe('Commerce E2E (Task 2)', () => {
             amount: 1500,
             currency: 'eur',
             id: 'pi_dup_fail',
-            last_payment_error: { decline_code: 'insufficient_funds', message: 'Your card has insufficient funds.' },
+            last_payment_error: {
+              decline_code: 'insufficient_funds',
+              message: 'Your card has insufficient funds.',
+            },
           },
         },
       };

@@ -223,7 +223,10 @@ export class AuthController {
       // the full session now instead of making them log in a second time.
       const fullUser = await this.users.findById(user.userId);
       if (!fullUser) throw new UnauthorizedException('User not found');
-      const pair = await this.tokens.issuePair({ ...fullUser, twoFactorEnabled: true }, this.ctx(req));
+      const pair = await this.tokens.issuePair(
+        { ...fullUser, twoFactorEnabled: true },
+        this.ctx(req),
+      );
       this.setRefreshCookie(res, pair.refreshToken);
       return {
         enabled: true,
@@ -301,7 +304,9 @@ export class AuthController {
     const webUrl = this.config.get<string>('webPublicUrl');
 
     if (['ADMIN', 'SUPPORT', 'SALES'].includes(user.role)) {
-      res.redirect(`${webUrl}/login?error=Staff accounts must log in with email and password to complete Two-Factor Authentication.`);
+      res.redirect(
+        `${webUrl}/login?error=Staff accounts must log in with email and password to complete Two-Factor Authentication.`,
+      );
       return;
     }
 

@@ -100,7 +100,11 @@ describe('OrdersService — refunds', () => {
     });
 
     it('rejects an order that has no payment record', async () => {
-      prisma.order.findUnique.mockResolvedValue({ id: 'o1', status: OrderStatus.PENDING, payment: null });
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'o1',
+        status: OrderStatus.PENDING,
+        payment: null,
+      });
       await expect(service.processRefund('o1')).rejects.toThrow(BadRequestException);
       expect(stripePayment.refundPayment).not.toHaveBeenCalled();
     });
@@ -168,7 +172,7 @@ describe('OrdersService — refunds', () => {
       expect(prisma.payment.update).not.toHaveBeenCalled();
     });
 
-    it('rejects cancelling another user\'s order when not an admin', async () => {
+    it("rejects cancelling another user's order when not an admin", async () => {
       prisma.order.findUnique.mockResolvedValue({
         id: 'o1',
         userId: 'someone-else',

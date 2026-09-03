@@ -142,7 +142,9 @@ export class OrdersService {
    *  for a payment that was never actually charged. */
   private async refundStripePayment(transactionId: string | null): Promise<void> {
     if (!transactionId) {
-      throw new BadRequestException('Payment is marked completed but has no Stripe transaction id.');
+      throw new BadRequestException(
+        'Payment is marked completed but has no Stripe transaction id.',
+      );
     }
     await this.stripePayment.refundPayment(decrypt(transactionId));
   }
@@ -208,7 +210,10 @@ export class OrdersService {
 
   async updateOrderStatus(orderId: string, dto: UpdateOrderStatusDto) {
     // Admin only method (protected by controller role guard)
-    const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { payment: true } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { payment: true },
+    });
     if (!order) throw new NotFoundException('Order not found');
 
     if (order.status === OrderStatus.CANCELLED && dto.status !== OrderStatus.CANCELLED) {

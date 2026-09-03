@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { User } from '@prisma/client';
@@ -18,6 +19,8 @@ const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
@@ -42,7 +45,16 @@ export class AuthService {
       lastName: dto.lastName,
     });
 
-    await this.mail.sendWelcome(user.email, user.firstName);
+    // The account is already durably created at this point — a flaky mail
+    // service must not turn an otherwise-successful registration into a
+    // 500 that leaves the caller thinking they need to try again (they'd
+    // just hit "account already exists" on the retry, with no clean way
+    // back in). Log loudly instead so mail outages are visible in ops.
+    try {
+      await this.mail.sendWelcome(user.email, user.firstName);
+    } catch (err) {
+      this.logger.error(`Failed to send welcome email to ${user.id}: ${(err as Error).message}`);
+    }
     return user;
   }
 
@@ -71,7 +83,9 @@ export class AuthService {
    */
   async login(
     dto: LoginDto,
-  ): Promise<{ user: User } | { requiresTwoFactor: true } | { requiresTwoFactorSetup: true; user: User }> {
+  ): Promise<
+    { user: User } | { requiresTwoFactor: true } | { requiresTwoFactorSetup: true; user: User }
+  > {
     const user = await this.validateCredentials(dto.email, dto.password);
     const isTwoFactorEnabled = await this.twoFactor.isEnabled(user.id);
 
@@ -105,7 +119,18 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
       },
     });
-    await this.mail.sendPasswordReset(user.email, rawToken);
+    // Must not throw past this point: forgotPassword() always responds the
+    // same way whether or not the email exists (no user enumeration) — a
+    // mail-service hiccup turning this into a 500 only for real accounts
+    // (the not-found branch above never even calls mail) would reopen that
+    // exact side channel. Log loudly instead so mail outages are visible.
+    try {
+      await this.mail.sendPasswordReset(user.email, rawToken);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send password reset email to ${user.id}: ${(err as Error).message}`,
+      );
+    }
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {

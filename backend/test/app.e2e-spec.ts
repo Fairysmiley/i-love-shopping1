@@ -139,10 +139,14 @@ describe('Villi API (e2e)', () => {
     it('full-text search (?q=) matches by product name, case-insensitively', async () => {
       // Pick a distinctive, plain-ASCII word from the sample product's name
       // as the search term (mirrors how a shopper would type a partial name).
-      const words: string[] = sample.name.split(/\s+/).filter((w: string) => /^[A-Za-z-]{4,}$/.test(w));
+      const words: string[] = sample.name
+        .split(/\s+/)
+        .filter((w: string) => /^[A-Za-z-]{4,}$/.test(w));
       const term = (words.sort((a, b) => b.length - a.length)[0] ?? sample.name).toUpperCase();
 
-      const res = await api().get(`/api/v1/products?q=${encodeURIComponent(term)}`).expect(200);
+      const res = await api()
+        .get(`/api/v1/products?q=${encodeURIComponent(term)}`)
+        .expect(200);
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(res.body.data.some((p: any) => p.id === sample.id)).toBe(true);
     });
@@ -178,11 +182,15 @@ describe('Villi API (e2e)', () => {
 
     it('pagination handles edge-case bounds gracefully (negative page or massive limit)', async () => {
       const negativePage = await api().get('/api/v1/products?page=-1&limit=5').expect(400);
-      expect(negativePage.body.message).toEqual(expect.arrayContaining([expect.stringMatching(/page/i)]));
+      expect(negativePage.body.message).toEqual(
+        expect.arrayContaining([expect.stringMatching(/page/i)]),
+      );
 
       // DTO limits max page size (usually 100)
       const massiveLimit = await api().get('/api/v1/products?limit=1000').expect(400);
-      expect(massiveLimit.body.message).toEqual(expect.arrayContaining([expect.stringMatching(/limit/i)]));
+      expect(massiveLimit.body.message).toEqual(
+        expect.arrayContaining([expect.stringMatching(/limit/i)]),
+      );
     });
 
     it('faceted search returns empty gracefully for impossible combinations', async () => {
@@ -227,7 +235,10 @@ describe('Villi API (e2e)', () => {
     });
 
     it('rejects login with a wrong password (401)', async () => {
-      await api().post('/api/v1/auth/login').send({ email, password: 'WrongPassw0rd!' }).expect(401);
+      await api()
+        .post('/api/v1/auth/login')
+        .send({ email, password: 'WrongPassw0rd!' })
+        .expect(401);
     });
 
     it('retrieves the persisted user via /users/me with a bearer token', async () => {
@@ -329,10 +340,7 @@ describe('Villi API (e2e)', () => {
       expect(oldCookie).toContain('refresh_token=');
 
       // First refresh: succeeds and issues a brand-new refresh cookie.
-      const first = await api()
-        .post('/api/v1/auth/refresh')
-        .set('Cookie', oldCookie)
-        .expect(200);
+      const first = await api().post('/api/v1/auth/refresh').set('Cookie', oldCookie).expect(200);
       expect(first.body.accessToken).toEqual(expect.any(String));
       const newCookie = refreshCookie(first);
       expect(newCookie).not.toBe(oldCookie);
@@ -499,7 +507,7 @@ describe('Villi API (e2e)', () => {
         .expect(200);
       expect(step2.body.accessToken).toEqual(expect.any(String));
 
-      const step3 = await api()
+      await api()
         .post('/api/v1/auth/login')
         .send({ email: tfaEmail, password: tfaPassword, twoFactorCode: tfaRecoveryCode })
         .expect(401);
@@ -551,10 +559,7 @@ describe('Villi API (e2e)', () => {
       expect(fullToken).toEqual(expect.any(String));
 
       // The full session can now use admin-only routes.
-      await api()
-        .get('/api/v1/orders/all')
-        .set('Authorization', `Bearer ${fullToken}`)
-        .expect(200);
+      await api().get('/api/v1/orders/all').set('Authorization', `Bearer ${fullToken}`).expect(200);
 
       // Subsequent logins authenticate normally (2FA code required, no more setup gate).
       const relogin = await api()
@@ -582,7 +587,7 @@ describe('Villi API (e2e)', () => {
 
     it('treats SQL-injection-style search input as data, not commands', async () => {
       const res = await api()
-        .get(`/api/v1/products?q=${encodeURIComponent("'; DROP TABLE \"Product\";--")}`)
+        .get(`/api/v1/products?q=${encodeURIComponent('\'; DROP TABLE "Product";--')}`)
         .expect(200);
       expect(Array.isArray(res.body.data)).toBe(true);
       // Catalog still intact after the malicious string.
@@ -601,7 +606,7 @@ describe('Villi API (e2e)', () => {
       const results: any[] = [];
       for (let i = 0; i < 15; i++) {
         results.push(
-          await api().post('/api/v1/auth/forgot-password').send({ email: 'ratelimit@example.com' })
+          await api().post('/api/v1/auth/forgot-password').send({ email: 'ratelimit@example.com' }),
         );
       }
       // At least one of these requests must have hit the 429 status code
@@ -657,7 +662,10 @@ describe('Villi API (e2e)', () => {
       // product directly via Prisma, since a real Stripe checkout is out of
       // scope for this suite (covered separately in commerce.e2e-spec.ts).
       const prisma = app.get(PrismaService);
-      const me = await api().get('/api/v1/users/me').set('Authorization', `Bearer ${token}`).expect(200);
+      const me = await api()
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
       await prisma.order.create({
         data: {
           userId: me.body.id,
