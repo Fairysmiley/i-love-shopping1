@@ -243,7 +243,7 @@ npm run test:cov  # unit tests with coverage
 npm run test:e2e  # API integration + security tests (needs DB + Redis)
 ```
 
-**Unit tests (108 across 12 spec files)** cover JWT token handling incl.
+**Unit tests (120 across 13 spec files)** cover JWT token handling incl.
 rotation/reuse-detection (`auth/tokens.service.spec.ts`), auth DTO validation
 incl. injection-style input (`auth/dto/auth.dto.spec.ts`), CAPTCHA
 skip/enforce logic (`auth/captcha.service.spec.ts`), the product data model +
@@ -258,13 +258,14 @@ decimal-precision rounding, stock deduction, Stripe failure-reason mapping)
 plus `orders/orders.service.spec.ts` (cancellation restocking, refund
 gating).
 
-**API integration + security tests (63 across two files)**:
-`test/app.e2e-spec.ts` (52) covers catalog listing/facets/sorting, full-text
+**API integration + security tests (64 across two files)**:
+`test/app.e2e-spec.ts` (53) covers catalog listing/facets/sorting, full-text
 search by name (the task3 "critical user flow" requirement), reviews
-(auth-gated create, rating validation, aggregate recompute, owner delete),
-auth (register/login/persistence), refresh-token rotation + reuse detection,
-logout revocation, and security cases (malformed input, SQLi-as-data,
-injection in path params, admin guards). `test/commerce.e2e-spec.ts` (11) is
+(auth-gated create, rating validation, aggregate recompute, owner delete,
+helpful-vote sorting), auth (register/login/persistence), mandatory-2FA
+enrollment for staff roles, refresh-token rotation + reuse detection, logout
+revocation, and security cases (malformed input, SQLi-as-data, injection in
+path params, admin guards, rate limiting). `test/commerce.e2e-spec.ts` (11) is
 the Commerce phase's required "critical user flow" coverage: full
 register → add-to-cart → checkout → order → inventory-deduction flow, the
 same flow for a guest cart/checkout, checkout validation edge cases (empty

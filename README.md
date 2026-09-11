@@ -565,8 +565,6 @@ Beyond the mandatory checklist, a few things worth calling out:
 - **Dual metric/imperial product dimensions**, verified-authenticity and
   condition trust badges on every listing.
 
-Full list with code references: [`docs/REFERENCE.md`](docs/REFERENCE.md#bonus-features).
-
 ---
 
 ## Performance Analysis Report
