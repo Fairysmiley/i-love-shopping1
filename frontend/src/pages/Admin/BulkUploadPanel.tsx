@@ -132,10 +132,11 @@ export function BulkUploadPanel() {
         <div className="card" style={{ padding: 24, marginBottom: 24 }}>
           <h3>JSON Upload</h3>
           <p className="muted" style={{ marginBottom: 16 }}>
-            Paste a JSON array of products. Required per product: <code>name</code>,{' '}
-            <code>price</code>, <code>categorySlug</code>. Optional: <code>description</code>,{' '}
-            <code>stockQuantity</code> (defaults to 0), <code>brandName</code> (defaults to
-            "Unbranded"), <code>slug</code>, and dimensions.
+            Paste a JSON array with one or more products in it — the whole
+            array is imported in a single request. Required per product:{' '}
+            <code>name</code>, <code>price</code>, <code>categorySlug</code>. Optional:{' '}
+            <code>description</code>, <code>stockQuantity</code> (defaults to 0),{' '}
+            <code>brandName</code> (defaults to "Unbranded"), <code>slug</code>, and dimensions.
           </p>
 
           <div style={{ marginBottom: 16 }}>
@@ -146,7 +147,12 @@ export function BulkUploadPanel() {
               id="json-text"
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
-              placeholder='[{"name":"Test Product","price":99.99,"categorySlug":"outdoor-jackets"}]'
+              placeholder={
+                '[\n' +
+                '  {"name":"Winter Jacket","price":149.99,"categorySlug":"shell-jackets"},\n' +
+                '  {"name":"Fleece Pullover","price":89.99,"categorySlug":"fleece-midlayers"}\n' +
+                ']'
+              }
               rows={12}
               style={{
                 width: '100%',
@@ -209,8 +215,8 @@ export function BulkUploadPanel() {
         <h4>CSV Format Example</h4>
         <pre style={{ fontSize: 12, overflow: 'auto', marginTop: 12 }}>
 {`name,price,categorySlug,description,stockQuantity,brandName
-Winter Jacket,149.99,outdoor-jackets,Warm winter jacket,10,North Face
-Hiking Boots,89.99,footwear,Durable hiking boots,15,Salomon`}
+Winter Jacket,149.99,shell-jackets,Warm winter jacket,10,North Face
+Fleece Pullover,89.99,fleece-midlayers,Cosy midlayer fleece,15,Salomon`}
         </pre>
       </div>
     </div>

@@ -1,16 +1,15 @@
 # Review Guide — Part 3: Experience
 
-This walks through every mandatory item at the bottom of `task3.txt` (the
-assignment brief — not checked into this repo) in the same order it appears
-there, so you can go down the list and check things off as you go. Each
+This walks through every mandatory item. Each
 item says where the relevant code lives, then gives you something concrete
 to click through or run to see it working yourself.
 
 A few things worth knowing before you start:
 
-- Four items below are verbal ("Student can explain...") rather than something to click through — each one links out to its answer in [`docs/Verbal.md`](Verbal.md), which also has the answer to "Student has identified potential bottlenecks and can propose solutions" (itself pulled from the full write-up in `docs/load_test_report.md` §5).
 - Code paths are relative to the repo root. API routes are relative to `https://localhost:3001` (hitting the API directly — genuinely HTTPS, see the TLS item below) or `http://localhost:8080` (the unified proxy — what you'll normally use for the storefront itself).
-- Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`. `shopper@villi.test` also comes with one already-`PAID` order seeded (the Fjällräven Keb Eco-Shell Jacket), so the review-writing item below is demoable immediately — no need to run a real checkout first just to unlock it.
+- Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`.
+- Writing a review requires having actually paid for the product first — there's no seeded "already purchased" data for `shopper@villi.test`, so to demo the review form you'll need to complete a real checkout first (see `docs/review-guide-part-2.md` for the Stripe CLI setup), then go back to that product's page.
+- Mandatory admin 2FA is already covered in `docs/review-guide-part-1.md`'s "Two-factor authentication" item — this guide doesn't repeat that walkthrough, just confirms it applies specifically to the ADMIN role where task3 asks for it.
 - The `docker exec`/`docker compose` commands below assume the stack was started with `./start.sh` or `docker compose up`, which names the containers `i-love-shopping-postgres-1`, `i-love-shopping-api-1`, etc. If you renamed the project folder, swap in whatever `docker ps` shows you.
 
 ---
@@ -57,9 +56,7 @@ either the write-review form, a "Purchase this product to leave a review."
 message, or a sign-in prompt, instead of showing a form that would just
 fail on submit.
 
-> **Fast path:** Log in as `shopper@villi.test` and open the **Fjällräven Keb Eco-Shell Jacket** product page — that account already has a seeded `PAID` order for it (`backend/prisma/seed.ts`, the "Demo 'already purchased' order" block), so the write-review form is there immediately, no checkout needed. (That one product shows as "Sold" — pre-loved items are one-of-a-kind, so the seeded purchase correctly zeroes its stock, same as a real checkout would.)
->
-> **To see the gate itself:** open a *different* product you haven't bought (e.g. anything else in the catalog) — confirm you see "Purchase this product to leave a review." instead of the form. Then, to test the real end-to-end flow, complete an actual checkout for that product (`docs/review-guide-part-2.md` has the Stripe setup), reopen its page, and the write-review form now appears there too. Automated: `'blocks review creation for a product the user never purchased (403)'` and `'creates a review and recomputes the product rating aggregates'` (after seeding a paid order directly), `backend/test/app.e2e-spec.ts:705,715`.
+> Log in as `shopper@villi.test`, open a product you haven't bought, and confirm you see "Purchase this product to leave a review." instead of the form. Then complete a real checkout for that product (`docs/review-guide-part-2.md` has the Stripe setup), reopen its page, and the write-review form now appears. Automated: `'blocks review creation for a product the user never purchased (403)'` and `'creates a review and recomputes the product rating aggregates'` (after seeding a paid order directly), `backend/test/app.e2e-spec.ts:705,715`.
 
 ---
 
@@ -81,15 +78,10 @@ inside a transaction so the counter can't drift from the actual vote rows.
 `AuthService.login()` (`backend/src/auth/auth.service.ts:84`) checks
 `['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !isTwoFactorEnabled`
 — a privileged account without TOTP configured can't complete a normal
-login at all; it's issued a narrowly-scoped setup-only token instead. This
-is the same mechanism as the optional 2FA available to regular `USER`
-accounts, just made mandatory and unskippable for the three staff roles.
-The enrollment screen itself (scanning the QR code, entering the first
-TOTP code) is the same one shown for optional user 2FA and is already
-walked through step-by-step in `docs/review-guide-part-1.md`'s
-"Two-factor authentication" item — this item doesn't repeat those clicks,
-it's specifically about confirming the *mandatory, unskippable* part of
-the mechanism applies to `ADMIN`, which is what task3 asks for here.
+login at all; it's issued a narrowly-scoped setup-only token instead (full
+walkthrough in `docs/review-guide-part-1.md`'s 2FA item). This is the same
+mechanism as the optional 2FA available to regular `USER` accounts, just
+made mandatory and unskippable for the three staff roles.
 
 > Log out of `admin@villi.test` and log back in — the TOTP prompt is unavoidable, unlike for a regular shopper account where 2FA is opt-in. Automated: `'gates ADMIN role behind mandatory 2FA, via a scoped bootstrap token that can only enroll'`, `app.e2e-spec.ts:516`.
 
@@ -152,19 +144,10 @@ registered account with decrypted email and current role. `PATCH
 Both formats are real, separate endpoints sharing one underlying
 `bulkCreate()`: `POST /products/bulk` (`products.controller.ts:157-165`,
 JSON array body) and `POST /products/bulk-csv` (`:168-204`,
-`multipart/form-data`), both admin-only. Both upsert by slug, so
-re-uploading the same file (or a file naming an existing product's `slug`)
-updates it instead of duplicating it.
+`multipart/form-data`), both admin-only. Both upsert by SKU, so re-uploading
+the same file updates existing products instead of duplicating them.
 
-Only three fields are actually required per product: `name`, `price`, and
-`categorySlug` (a category can't be invented on the fly the way a brand
-can). Everything else has a real fallback rather than being rejected —
-`stockQuantity` defaults to 0, and an unnamed `brandName` falls back to a
-shared "Unbranded" brand — so a minimal two-column-of-data CSV/JSON row is
-enough to demo this item; you don't need to fill in every field a full
-product listing would eventually want.
-
-> In the admin panel's Bulk Upload tab, upload a small CSV with just `name,price,categorySlug` columns and a couple of rows — the import count is shown on success, the products appear immediately in the catalog (as "Unbranded", 0 in stock, since those weren't supplied), and re-uploading the same file updates those same rows instead of creating duplicates.
+> In the admin panel's Bulk Upload tab, upload a small CSV with `sku,name,price,stockQuantity,categorySlug` columns (`brandName` and `description` are optional) and a couple of rows — the import count is shown on success, and the products appear immediately in the catalog.
 
 ---
 
