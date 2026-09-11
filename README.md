@@ -35,8 +35,33 @@ buyers can filter on, with stock fixed at one unit per item.
 
 ## Quick start (for reviewers)
 
-**Two prerequisites, both host-level, nothing else to install** (task3.txt:
-*"Docker and payment simulation CLI are the only prerequisites"*):
+**Reviewing task3 (Experience)?** The only host-level prerequisite is
+**Docker Desktop** (running) — `.env.example` already has everything task3
+needs filled in with working defaults. Skip straight to:
+
+```bash
+git clone <this-repo>
+cd i-love-shopping1
+cp .env.example .env
+./start.sh
+```
+
+Then open **http://localhost:8080**, sign in with a seeded account (table
+below), and follow [`docs/review-guide-part-3.md`](docs/review-guide-part-3.md)
+— it's a self-contained walkthrough of every task3 item. You do **not** need
+the CAPTCHA/OAuth/Stripe setup below for task3: reviews already have a
+seeded "purchased" order so the review-writing item works with zero extra
+config, and CAPTCHA/OAuth are task1 integrations covered separately in
+[`docs/review-guide-part-1.md`](docs/review-guide-part-1.md). Stripe is only
+needed if you specifically want to complete a real checkout charge or test
+the admin refund flow — see [Payments and Stripe CLI setup](#payments-and-stripe-cli-setup)
+if so.
+
+---
+
+**Reviewing the full project (tasks 1–3)?** Two prerequisites, both
+host-level, nothing else to install (task3.txt: *"Docker and payment
+simulation CLI are the only prerequisites"*):
 
 1. **Docker Desktop** (running).
 2. **[Stripe CLI](https://docs.stripe.com/stripe-cli)** — the "payment
