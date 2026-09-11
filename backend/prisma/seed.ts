@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, Role } from '@prisma/client';
+import { PrismaClient, Prisma, Role, OrderStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { encrypt, hashForLookup } from '../src/common/utils/encryption.util';
 
@@ -944,6 +944,56 @@ async function main(): Promise<void> {
         ratingCount: agg._count,
       },
     });
+  }
+
+  // --- Demo "already purchased" order (review-guide-part-3.md's review item) ---
+  // Reviewing a product requires a genuine PAID order — that's the actual
+  // requirement, not just a seed-data convenience. Without this, a reviewer
+  // has to run the full Stripe CLI + webhook setup and complete a real
+  // checkout just to see the write-review form once. Seeding one already
+  // exercises the same `hasPurchased()` check the live checkout flow would,
+  // so the shortcut doesn't weaken what's being demonstrated.
+  //
+  // No `Payment` row is created on purpose — it's not a real Stripe charge,
+  // and `OrdersService`'s cancel/refund paths already treat a payment-less
+  // order as "nothing to refund" (`processRefund` → 400, `cancelOrder` skips
+  // the Stripe call) rather than calling Stripe with a fake transaction id.
+  const reviewDemoProduct = await prisma.product.findUnique({
+    where: { slug: 'fjallraven-keb-eco-shell-jacket' },
+  });
+  if (reviewDemoProduct) {
+    const alreadyPurchased = await prisma.orderItem.findFirst({
+      where: { productId: reviewDemoProduct.id, order: { userId: customer.id } },
+    });
+    if (!alreadyPurchased) {
+      const standardShipping = await prisma.deliveryOption.findUnique({
+        where: { name: 'Standard Shipping' },
+      });
+      await prisma.order.create({
+        data: {
+          userId: customer.id,
+          status: OrderStatus.PAID,
+          totalAmount: reviewDemoProduct.price,
+          currency: reviewDemoProduct.currency,
+          shippingAddress: encrypt(
+            JSON.stringify({
+              street: 'Mannerheimintie 12',
+              city: 'Helsinki',
+              postalCode: '00100',
+              country: 'Finland',
+              phone: '+358401234567',
+            }),
+          ),
+          deliveryOptionId: standardShipping?.id,
+          items: { create: [{ productId: reviewDemoProduct.id, quantity: 1, unitPrice: reviewDemoProduct.price }] },
+        },
+      });
+    }
+    // Pre-loved items are one-of-a-kind — once "purchased" by the demo
+    // order, mark it sold. Enforced unconditionally (not just on create)
+    // because the products loop above resets every product's stock to 1 on
+    // every re-seed, which would otherwise silently un-sell this one.
+    await prisma.product.update({ where: { id: reviewDemoProduct.id }, data: { stockQuantity: 0 } });
   }
 
   console.log(

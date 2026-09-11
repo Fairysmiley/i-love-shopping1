@@ -179,7 +179,7 @@ export class ProductsController {
           type: 'string',
           format: 'binary',
           description:
-            'CSV file with headers: sku,name,description,price,stockQuantity,categorySlug,brandName',
+            'CSV file with headers: name,price,categorySlug (required) plus optional description,stockQuantity,brandName,slug,weightGrams,lengthMm,widthMm,heightMm',
         },
       },
     },

@@ -277,6 +277,12 @@ export class ProductsService {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Bulk uploads don't name a brand for every row (it's genuinely optional
+    // data, e.g. a quick manual catalog entry) — new products still need a
+    // real brandId, so unbranded rows fall back to this one shared brand
+    // instead of being rejected outright.
+    let fallbackBrandId: string | null = null;
+
     for (const item of items) {
       try {
         // Find or create category
@@ -285,13 +291,13 @@ export class ProductsService {
         });
 
         if (!category) {
-          errors.push(`Row with SKU ${item.sku}: Category '${item.categorySlug}' not found`);
+          errors.push(`Row '${item.name}': Category '${item.categorySlug}' not found`);
           skipped++;
           continue;
         }
 
-        // Find or create brand if provided
-        let brandId: string | null = null;
+        // Find or create brand if provided; otherwise use the shared fallback.
+        let brandId: string;
         if (item.brandName) {
           const brandSlug = slugify(item.brandName);
           let brand = await this.prisma.brand.findUnique({
@@ -307,6 +313,16 @@ export class ProductsService {
             });
           }
           brandId = brand.id;
+        } else {
+          if (!fallbackBrandId) {
+            const fallback = await this.prisma.brand.upsert({
+              where: { slug: 'unbranded' },
+              update: {},
+              create: { name: 'Unbranded', slug: 'unbranded' },
+            });
+            fallbackBrandId = fallback.id;
+          }
+          brandId = fallbackBrandId;
         }
 
         // Generate slug from name or use provided slug
@@ -314,44 +330,31 @@ export class ProductsService {
           ? await this.uniqueSlug(item.slug)
           : await this.uniqueSlug(item.name);
 
-        // Check if SKU already exists (upsert logic)
-        const existing = await this.prisma.product.findFirst({
-          where: {
-            OR: [
-              { slug },
-              // Assuming SKU might be stored in a custom field or description
-            ],
-          },
-        });
+        // Products are matched/upserted by slug — there's no separate SKU
+        // column on the schema, so re-uploading a row with the same name (or
+        // an explicit `slug`) updates that same product instead of creating
+        // a duplicate.
+        const existing = await this.prisma.product.findFirst({ where: { slug } });
+
+        const stockQuantity = item.stockQuantity ?? 0;
 
         if (existing) {
-          // Update existing product
-          const updateData: any = {
-            name: item.name,
-            description: item.description,
-            price: new Prisma.Decimal(item.price),
-            stockQuantity: item.stockQuantity,
-            category: { connect: { id: category.id } },
-            weightGrams: item.weightGrams,
-            lengthMm: item.lengthMm,
-            widthMm: item.widthMm,
-            heightMm: item.heightMm,
-          };
-          if (brandId) {
-            updateData.brand = { connect: { id: brandId } };
-          }
           await this.prisma.product.update({
             where: { id: existing.id },
-            data: updateData,
+            data: {
+              name: item.name,
+              description: item.description,
+              price: new Prisma.Decimal(item.price),
+              stockQuantity,
+              category: { connect: { id: category.id } },
+              brand: { connect: { id: brandId } },
+              weightGrams: item.weightGrams,
+              lengthMm: item.lengthMm,
+              widthMm: item.widthMm,
+              heightMm: item.heightMm,
+            },
           });
         } else {
-          // Create new product - brandId is required for creation, skip if missing
-          if (!brandId) {
-            errors.push(`Row with SKU ${item.sku}: Brand is required for new products`);
-            skipped++;
-            continue;
-          }
-
           await this.prisma.product.create({
             data: {
               name: item.name,
@@ -359,7 +362,7 @@ export class ProductsService {
               description: item.description || '',
               price: new Prisma.Decimal(item.price),
               currency: 'EUR',
-              stockQuantity: item.stockQuantity,
+              stockQuantity,
               categoryId: category.id,
               brandId,
               weightGrams: item.weightGrams,
@@ -372,7 +375,7 @@ export class ProductsService {
 
         imported++;
       } catch (error) {
-        errors.push(`Row with SKU ${item.sku}: ${error.message}`);
+        errors.push(`Row '${item.name}': ${error.message}`);
         skipped++;
       }
     }
@@ -395,7 +398,10 @@ export class ProductsService {
     }
 
     const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-    const required = ['sku', 'name', 'price', 'stockquantity', 'categoryslug'];
+    // Bare minimum to actually create a product: a name, a price, and a
+    // category to file it under. Everything else (stock, brand, dimensions,
+    // description) has a sensible fallback — see bulkCreate().
+    const required = ['name', 'price', 'categoryslug'];
 
     for (const col of required) {
       if (!headers.includes(col)) {
@@ -414,17 +420,14 @@ export class ProductsService {
       });
 
       const price = parseFloat(row['price']);
-      const stockQuantity = parseInt(row['stockquantity'], 10);
+      const stockQuantity = row['stockquantity'] ? parseInt(row['stockquantity'], 10) : 0;
 
-      if (!row['sku'] || !row['name'] || isNaN(price) || isNaN(stockQuantity)) {
-        errors.push(
-          `Row ${i + 1}: invalid or missing required data (sku, name, price, stockQuantity)`,
-        );
+      if (!row['name'] || !row['categoryslug'] || isNaN(price) || isNaN(stockQuantity)) {
+        errors.push(`Row ${i + 1}: invalid or missing required data (name, price, categorySlug)`);
         continue;
       }
 
       products.push({
-        sku: row['sku'],
         name: row['name'],
         description: row['description'] || '',
         slug: row['slug'],

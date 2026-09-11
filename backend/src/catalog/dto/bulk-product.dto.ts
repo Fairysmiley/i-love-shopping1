@@ -11,10 +11,6 @@ import {
 } from 'class-validator';
 
 export class BulkProductItemDto {
-  @ApiProperty({ example: 'PROD-001' })
-  @IsString()
-  sku: string;
-
   @ApiProperty({ example: 'Warm Winter Jacket' })
   @IsString()
   name: string;
@@ -34,16 +30,21 @@ export class BulkProductItemDto {
   @Min(0)
   price: number;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({ required: false, example: 10, description: 'Defaults to 0 (out of stock) if omitted.' })
   @IsInt()
+  @IsOptional()
   @Min(0)
-  stockQuantity: number;
+  stockQuantity?: number;
 
   @ApiProperty({ example: 'outdoor-jackets' })
   @IsString()
   categorySlug: string;
 
-  @ApiProperty({ required: false, example: 'North Face' })
+  @ApiProperty({
+    required: false,
+    example: 'North Face',
+    description: "Falls back to a generic 'Unbranded' brand if omitted.",
+  })
   @IsString()
   @IsOptional()
   brandName?: string;

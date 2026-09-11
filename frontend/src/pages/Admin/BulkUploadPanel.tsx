@@ -96,9 +96,10 @@ export function BulkUploadPanel() {
         <div className="card" style={{ padding: 24, marginBottom: 24 }}>
           <h3>CSV Upload</h3>
           <p className="muted" style={{ marginBottom: 16 }}>
-            Upload a CSV file with the following columns:
+            Required columns: <code>name, price, categorySlug</code>.
             <br />
-            <code>sku, name, description, price, stockQuantity, categorySlug, brandName, weightGrams, lengthMm, widthMm, heightMm</code>
+            Optional: <code>description, stockQuantity, brandName, slug, weightGrams, lengthMm, widthMm, heightMm</code> —
+            missing stock defaults to 0, and a missing brand falls back to "Unbranded".
           </p>
 
           <div style={{ marginBottom: 16 }}>
@@ -131,7 +132,10 @@ export function BulkUploadPanel() {
         <div className="card" style={{ padding: 24, marginBottom: 24 }}>
           <h3>JSON Upload</h3>
           <p className="muted" style={{ marginBottom: 16 }}>
-            Paste JSON array of products. Each product should have: sku, name, description, price, stockQuantity, categorySlug, brandName (optional: dimensions)
+            Paste a JSON array of products. Required per product: <code>name</code>,{' '}
+            <code>price</code>, <code>categorySlug</code>. Optional: <code>description</code>,{' '}
+            <code>stockQuantity</code> (defaults to 0), <code>brandName</code> (defaults to
+            "Unbranded"), <code>slug</code>, and dimensions.
           </p>
 
           <div style={{ marginBottom: 16 }}>
@@ -142,7 +146,7 @@ export function BulkUploadPanel() {
               id="json-text"
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
-              placeholder='[{"sku":"PROD-001","name":"Test Product","price":99.99,"stockQuantity":10,"categorySlug":"outdoor-jackets","brandName":"TestBrand"}]'
+              placeholder='[{"name":"Test Product","price":99.99,"categorySlug":"outdoor-jackets"}]'
               rows={12}
               style={{
                 width: '100%',
@@ -204,9 +208,9 @@ export function BulkUploadPanel() {
       <div className="card" style={{ padding: 24, marginTop: 24, backgroundColor: '#fffbeb' }}>
         <h4>CSV Format Example</h4>
         <pre style={{ fontSize: 12, overflow: 'auto', marginTop: 12 }}>
-{`sku,name,description,price,stockQuantity,categorySlug,brandName,weightGrams,lengthMm,widthMm,heightMm
-PROD-001,Winter Jacket,Warm winter jacket,149.99,10,outdoor-jackets,North Face,1200,700,500,100
-PROD-002,Hiking Boots,Durable hiking boots,89.99,15,footwear,Salomon,1500,300,250,150`}
+{`name,price,categorySlug,description,stockQuantity,brandName
+Winter Jacket,149.99,outdoor-jackets,Warm winter jacket,10,North Face
+Hiking Boots,89.99,footwear,Durable hiking boots,15,Salomon`}
         </pre>
       </div>
     </div>
