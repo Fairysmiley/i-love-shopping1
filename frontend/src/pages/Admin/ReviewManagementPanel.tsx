@@ -52,6 +52,7 @@ export function ReviewManagementPanel() {
   return (
     <div>
       <h2 style={{ marginBottom: 16 }}>Reviews</h2>
+      <div className="table-responsive">
       <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
@@ -90,6 +91,7 @@ export function ReviewManagementPanel() {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

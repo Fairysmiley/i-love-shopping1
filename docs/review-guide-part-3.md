@@ -8,6 +8,7 @@ to click through or run to see it working yourself.
 
 A few things worth knowing before you start:
 
+- Four items below are verbal ("Student can explain...") rather than something to click through — each one links out to its answer in [`docs/Verbal.md`](Verbal.md), which also has the answer to "Student has identified potential bottlenecks and can propose solutions" (itself pulled from the full write-up in `docs/load_test_report.md` §5).
 - Code paths are relative to the repo root. API routes are relative to `https://localhost:3001` (hitting the API directly — genuinely HTTPS, see the TLS item below) or `http://localhost:8080` (the unified proxy — what you'll normally use for the storefront itself).
 - Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`.
 - Writing a review requires having actually paid for the product first — there's no seeded "already purchased" data for `shopper@villi.test`, so to demo the review form you'll need to complete a real checkout first (see `docs/review-guide-part-2.md` for the Stripe CLI setup), then go back to that product's page.
@@ -31,11 +32,11 @@ headings, with the last one linking out to
 
 **Star rating system is implemented with the average star rating calculated from all reviews.**
 
-`ReviewsService.recomputeAggregates()` (`backend/src/catalog/reviews.service.ts:26-47`)
+`ReviewsService.recomputeAggregates()` (`backend/src/catalog/reviews.service.ts:31-46`)
 runs a Prisma `aggregate()` over every review row for a product and writes
 the result onto `Product.averageRating`/`ratingCount` — inside the same
 transaction as the write that triggered it, so the denormalized number can
-never drift from the actual rows. `list()` (`reviews.service.ts:71-98`)
+never drift from the actual rows. `list()` (`reviews.service.ts:71-93`)
 also computes the same average live from the full review set as a
 double-check, returned alongside the review list itself.
 
@@ -45,28 +46,28 @@ double-check, returned alongside the review list itself.
 
 **The review system allows users to submit text reviews for purchased products.**
 
-`ReviewsService.upsertForUser()` (`reviews.service.ts:105-134`) now checks
-`hasPurchased()` (`reviews.service.ts:52-64`) before accepting a review —
+`ReviewsService.upsertForUser()` (`reviews.service.ts:102-129`) now checks
+`hasPurchased()` (`reviews.service.ts:52-63`) before accepting a review —
 it looks for an `OrderItem` for that product on an `Order` belonging to
 that `userId` with status `PAID`, `SHIPPED`, or `DELIVERED` (a still-`PENDING`
 or `CANCELLED` order doesn't count, since the customer never actually
 received anything). If there's no such order, the request is rejected with
 `403 "You can only review products you have purchased."` A
-`GET /products/:idOrSlug/can-review` endpoint (`reviews.controller.ts:52-57`)
+`GET /products/:idOrSlug/can-review` endpoint (`reviews.controller.ts:43-48`)
 lets the frontend check this ahead of time, so `ProductReviews.tsx` shows
 either the write-review form, a "Purchase this product to leave a review."
 message, or a sign-in prompt, instead of showing a form that would just
 fail on submit.
 
-> Log in as `shopper@villi.test`, open a product you haven't bought, and confirm you see "Purchase this product to leave a review." instead of the form. Then complete a real checkout for that product (`docs/review-guide-part-2.md` has the Stripe setup), reopen its page, and the write-review form now appears. Automated: `'blocks review creation for a product the user never purchased (403)'` and `'creates a review and recomputes the product rating aggregates'` (after seeding a paid order directly), `backend/test/app.e2e-spec.ts:697,707`.
+> Log in as `shopper@villi.test`, open a product you haven't bought, and confirm you see "Purchase this product to leave a review." instead of the form. Then complete a real checkout for that product (`docs/review-guide-part-2.md` has the Stripe setup), reopen its page, and the write-review form now appears. Automated: `'blocks review creation for a product the user never purchased (403)'` and `'creates a review and recomputes the product rating aggregates'` (after seeding a paid order directly), `backend/test/app.e2e-spec.ts:705,715`.
 
 ---
 
 **The review sorting system orders reviews by helpfulness votes.**
 
 `ReviewsService.list()` orders reviews by `[{ helpfulVotes: 'desc' }, { createdAt: 'desc' }]`
-(`reviews.service.ts:76-79`). `POST /products/:idOrSlug/reviews/:reviewId/helpful`
-(`reviews.controller.ts:78-86` → `voteHelpful()`, `reviews.service.ts:149-179`)
+(`reviews.service.ts:76`). `POST /products/:idOrSlug/reviews/:reviewId/helpful`
+(`reviews.controller.ts:71-75` → `voteHelpful()`, `reviews.service.ts:146-175`)
 toggles a helpful vote — one per user per review, enforced by a unique
 `ReviewHelpfulVote` row — incrementing or decrementing `Review.helpfulVotes`
 inside a transaction so the counter can't drift from the actual vote rows.
@@ -77,7 +78,7 @@ inside a transaction so the counter can't drift from the actual vote rows.
 
 **The system enforces 2FA for all admin accounts.**
 
-`AuthService.login()` (`backend/src/auth/auth.service.ts:78`) checks
+`AuthService.login()` (`backend/src/auth/auth.service.ts:84`) checks
 `['ADMIN', 'SUPPORT', 'SALES'].includes(user.role) && !isTwoFactorEnabled`
 — a privileged account without TOTP configured can't complete a normal
 login at all; it's issued a narrowly-scoped setup-only token instead (full
@@ -85,7 +86,7 @@ walkthrough in `docs/review-guide-part-1.md`'s 2FA item). This is the same
 mechanism as the optional 2FA available to regular `USER` accounts, just
 made mandatory and unskippable for the three staff roles.
 
-> Log out of `admin@villi.test` and log back in — the TOTP prompt is unavoidable, unlike for a regular shopper account where 2FA is opt-in. Automated: `'gates ADMIN role behind mandatory 2FA, via a scoped bootstrap token that can only enroll'`, `app.e2e-spec.ts:492`.
+> Log out of `admin@villi.test` and log back in — the TOTP prompt is unavoidable, unlike for a regular shopper account where 2FA is opt-in. Automated: `'gates ADMIN role behind mandatory 2FA, via a scoped bootstrap token that can only enroll'`, `app.e2e-spec.ts:516`.
 
 ---
 
@@ -93,10 +94,10 @@ made mandatory and unskippable for the three staff roles.
 
 | Operation | Endpoint | Notes |
 |---|---|---|
-| Create | `POST /products` | `products.controller.ts:121-128`, admin-only, `CreateProductDto` validates all required fields |
-| Update | `PATCH /products/:id` | `:130-137`, partial update |
-| Delete | `DELETE /products/:id` | `:139-147`, soft delete |
-| Image upload | `POST /products/:id/images` | `:63-113`, generates thumbnail/medium/full variants (see the images item below) |
+| Create | `POST /products` | `products.controller.ts:129-135`, admin-only, `CreateProductDto` validates all required fields |
+| Update | `PATCH /products/:id` | `:138-144`, partial update |
+| Delete | `DELETE /products/:id` | `:147-155`, soft delete |
+| Image upload | `POST /products/:id/images` | `:70-116`, generates thumbnail/medium/full variants (see the images item below) |
 
 All four are guarded by `@Roles(Role.ADMIN)` + `RolesGuard`, so they're
 rejected server-side for any other role even if someone bypasses the UI.
@@ -133,9 +134,9 @@ those stages, shipping included, via the same `PATCH /orders/:id/status`.
 
 **Admins can view all users and assign roles.**
 
-`GET /users` (`users.controller.ts:57-64`, admin-only) lists every
+`GET /users` (`users.controller.ts:67-74`, admin-only) lists every
 registered account with decrypted email and current role. `PATCH
-/users/:id/role` (`:66-73`) changes it.
+/users/:id/role` (`:76-82`) changes it.
 
 > In the admin panel's Users tab, find a non-admin account and change its role — log in as that user afterward (or check `GET /users/me`) to confirm the new role actually took effect, not just in the list view.
 
@@ -144,18 +145,18 @@ registered account with decrypted email and current role. `PATCH
 **Platform supports bulk upload products via JSON/CSV files.**
 
 Both formats are real, separate endpoints sharing one underlying
-`bulkCreate()`: `POST /products/bulk` (`products.controller.ts:149-158`,
-JSON array body) and `POST /products/bulk-csv` (`:160-196`,
+`bulkCreate()`: `POST /products/bulk` (`products.controller.ts:157-165`,
+JSON array body) and `POST /products/bulk-csv` (`:168-204`,
 `multipart/form-data`), both admin-only. Both upsert by SKU, so re-uploading
 the same file updates existing products instead of duplicating them.
 
-> In the admin panel's Bulk Upload tab, upload a small CSV with `sku,name,brand,price,stock,categorySlug` columns and a couple of rows — the import count is shown on success, and the products appear immediately in the catalog.
+> In the admin panel's Bulk Upload tab, upload a small CSV with `sku,name,price,stockQuantity,categorySlug` columns (`brandName` and `description` are optional) and a couple of rows — the import count is shown on success, and the products appear immediately in the catalog.
 
 ---
 
 **Home page showcases featured products and collections.**
 
-`LandingPage.tsx` renders a "Featured Today" grid of top-rated products
+`LandingPage.tsx` renders a "Featured products" grid of top-rated products
 (`:39-43,125-152`, sorted by rating) and a "Shop by category" section
 showing the first several categories from the category tree
 (`:45-49,104-123`), each linking straight into the filtered shop view.
@@ -168,9 +169,9 @@ showing the first several categories from the category tree
 
 `CatalogPage.tsx` (the `/shop` route) shows each product's thumbnail,
 name, brand, price, and star rating via `ProductCard`; a filter sidebar for
-category/brand/price/rating/attributes (`:181-360`); a grid/list view
-toggle (`:378-395`, `viewMode` state with `⊞`/`☰` buttons); a sort
-dropdown; and pagination (`:437-469`).
+category/brand/price/rating/attributes (`:183-365`); a grid/list view
+toggle (`:380-397`, `viewMode` state with `⊞`/`☰` buttons); a sort
+dropdown; and pagination (`:439-471`).
 
 > On `/shop`, apply a category and price filter together, switch to list view, change the sort order, and page through results — everything narrows the same grid without a full page reload.
 
@@ -232,7 +233,7 @@ There's no separate search-results route — `CatalogPage.tsx` doubles as
 both. When a `?q=` query param is present, the same page applies it as an
 additional filter on top of category/brand/price/rating, with the same
 sort dropdown and pagination still functional, and a result count above
-the grid (`:367-376`).
+the grid (`:369-378`).
 
 > Use the header search box to search for a term, then apply a category filter and change the sort on the results — the result count updates and all the same controls from the plain `/shop` page keep working on top of the search.
 
@@ -240,8 +241,9 @@ the grid (`:367-376`).
 
 **Admin page provides CRUD functionality for products, order management, user management, review moderation, and bulk uploads.**
 
-`/admin` is a tabbed panel (`frontend/src/pages/Admin/`), visible only to
-`ADMIN`/`SUPPORT`: `ProductManagementPanel`, `CategoryBrandManagementPanel`,
+`/admin` is a tabbed panel (`frontend/src/pages/Admin/`), gated to the
+`ADMIN` role only (`AdminDashboardPage.tsx:20` redirects anyone else away,
+`SUPPORT` included): `ProductManagementPanel`, `CategoryBrandManagementPanel`,
 `OrderManagementPanel` (status updates + refunds), `UserManagementPanel`
 (role assignment), `ReviewManagementPanel` (moderation — see below), and
 `BulkUploadPanel`. Every tab is backed by the admin-only, role-guarded
@@ -275,7 +277,7 @@ them, `:71+`) with proper `rel="noopener noreferrer"` on external links.
 
 **Error page (404) includes catch-all error message.**
 
-`<Route path="*" element={<NotFoundPage />} />` (`frontend/src/App.tsx:90`)
+`<Route path="*" element={<NotFoundPage />} />` (`frontend/src/App.tsx:99`)
 catches anything that doesn't match another route. `NotFoundPage.tsx`
 shows a friendly explanatory message rather than a blank screen or a raw
 router error.
@@ -301,7 +303,7 @@ Checkout/View Cart CTAs, without leaving the current page.
 The header search box in `Navbar.tsx` debounces keystrokes and calls
 `GET /products/suggest?q=<term>` (`:52`), showing up to 8 matching product
 names in a dropdown. The dropdown supports full keyboard navigation —
-arrow keys to move, Enter to select, Escape to close (`:88-101`) — not
+arrow keys to move, Enter to select, Escape to close (`:87-109`) — not
 just mouse interaction.
 
 > Start typing a product name (e.g. "jacket") into the header search box on any page — a dropdown of matching suggestions appears after a couple of characters, and you can navigate it with the arrow keys.
@@ -310,7 +312,7 @@ just mouse interaction.
 
 **Product images are stored and served in multiple sizes to support different views (e.g., thumbnails, full-size images).**
 
-`ImageService.processProductImage()` (`backend/src/catalog/image.service.ts:21-57`)
+`ImageService.processProductImage()` (`backend/src/catalog/image.service.ts:46-62`)
 uses `sharp` to generate three WebP variants in parallel for every uploaded
 image — `thumbnail` (320px), `medium` (768px), and `full` (1440px) — each
 saved separately with its own URL. The frontend picks the right one for
@@ -332,8 +334,13 @@ close enough in intent: 767px covers the 768px case, and everything from
 900px up to very wide screens uses the same centered desktop layout
 without breaking (relative units and flex-wrap throughout mean there's no
 hard-coded layout that would snap or overflow at exactly 1024px or 1440px).
+The admin panel's data tables (Products, Orders, Users, Reviews, Delivery
+Options, Categories & Brands) are wrapped in a `.table-responsive`
+(`overflow-x: auto`) container (`styles.css`) so a wide table scrolls
+independently at 320px instead of forcing the whole page to scroll
+sideways.
 
-> Open DevTools → Device Toolbar and manually set the viewport to 320, 768, 1024, and 1440px in turn on `/shop`, `/cart`, and `/checkout` — confirm nothing overlaps, clips, or requires horizontal scrolling at any of the four.
+> Open DevTools → Device Toolbar and manually set the viewport to 320, 768, 1024, and 1440px in turn on `/shop`, `/cart`, `/checkout`, and (logged in as `admin@villi.test`) `/admin` — confirm nothing overlaps, clips, or requires the *page* to scroll horizontally at any of the four (a table itself scrolling within its own box on `/admin` at 320px is fine and expected).
 
 ---
 
@@ -364,7 +371,7 @@ ciphertext):
 |---|---|
 | User credentials (password) | `User.passwordHash` — one-way argon2, never reversible at all (`schema.prisma:40`) |
 | User PII (email, name) | `User.email`/`firstName`/`lastName` — AES-256-GCM; `User.emailHash` is a separate deterministic SHA-256 used only for login lookups, never the plaintext |
-| 2FA secret | `TwoFactorSecret.secret` — AES-256-GCM (`two-factor.service.ts:37-38`, decrypted only at the moment of TOTP verification, `:49,75`); recovery codes are separately one-way argon2-hashed |
+| 2FA secret | `TwoFactorSecret.secret` — AES-256-GCM (`two-factor.service.ts:35-38`, decrypted only at the moment of TOTP verification, `:52,78`); recovery codes are separately one-way argon2-hashed |
 | Shipping address | `Order.shippingAddress` — AES-256-GCM (confirmed in `docs/review-guide-part-2.md`) |
 | Order details | `Order.guestEmail`, `Payment.transactionId` — AES-256-GCM (same guide) |
 | Session tokens | `RefreshToken.tokenHash` — SHA-256 hash; the raw refresh token is never stored anywhere, only ever held by the browser as an httpOnly cookie. Access tokens are never persisted at all — memory-only on the client (`docs/review-guide-part-1.md`) |
@@ -385,7 +392,7 @@ same encrypt-at-rest standard as everything else sensitive in the schema.
 
 **Token bucket rate limiting is implemented.**
 
-`TokenBucketThrottlerStorage` (`backend/src/common/throttler/token-bucket-throttler.storage.ts:22-47`)
+`TokenBucketThrottlerStorage` (`backend/src/common/throttler/token-bucket-throttler.storage.ts:23-95`)
 backs NestJS's global `ThrottlerGuard` (wired in `app.module.ts`) with a
 real Redis-based token bucket rather than a simple fixed window: 120
 tokens per 60-second window per client by default
@@ -394,17 +401,17 @@ continuously rather than resetting all at once, so a burst right at the
 window boundary can't double the effective limit the way a naive
 fixed-window counter would. Sensitive endpoints override that default with
 a much tighter per-route bucket via `@Throttle(...)` — e.g. `forgot-password`
-is capped at 5 requests/minute (`auth.controller.ts:168-169`), since that's
+is capped at 5 requests/minute (`auth.controller.ts:169-170`), since that's
 an endpoint worth throttling hard regardless of the general site-wide
 limit. High-traffic public reads like the product catalog go the other
-way and opt out entirely with `@SkipThrottle()` (`products.controller.ts:39-40`),
+way and opt out entirely with `@SkipThrottle()` (`products.controller.ts:44-46`),
 a deliberate choice so normal browsing never gets anywhere near a limit
 meant for abuse, not legitimate page loads.
 
 > ```
 > for i in {1..8}; do curl -sk -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/api/v1/auth/forgot-password -H "Content-Type: application/json" -d '{"email":"ratelimit@example.com"}'; done
 > ```
-> The first 5 responses are `202`; the rest come back `429`. Automated: `'enforces rate-limiting on authentication endpoints (429)'`, `app.e2e-spec.ts:599-609`.
+> The first 5 responses are `202`; the rest come back `429`. Automated: `'enforces rate-limiting on authentication endpoints (429)'`, `app.e2e-spec.ts:604-614`.
 
 ---
 
@@ -417,14 +424,20 @@ Verbal item — see [`docs/Verbal.md`](Verbal.md).
 **The platform implements basic SEO best practices including title tags under 60 characters, proper heading hierarchy (H2-H6), logical URL structure, and descriptive alt text for images.**
 
 Every page sets its title via `usePageTitle()`/`<SEO title=...>`
-(`frontend/src/components/SEO.tsx:37,131-139`), formatted as `"<page> |
+(`frontend/src/components/SEO.tsx:39,131-139`), formatted as `"<page> |
 Villi"`. A few real examples: "Sign In | Villi" (16 chars), "Shopping Cart
 | Villi" (21), "Order Confirmed | Villi" (23), "Page Not Found | Villi"
-(22) — all comfortably under 60. Heading hierarchy is real, not just
-visual: `ProductPage.tsx` has a single `<h1>{product.name}</h1>` (`:106`)
-followed by `<h2>Specifications</h2>` (`:137`); `CatalogPage.tsx` has a
-visually-hidden-but-present `<h1 className="sr-only">Catalog</h1>`
-(`:365`) so screen readers still get exactly one page heading. URLs are
+(22) — all comfortably under 60. `SEO.tsx` also caps every title at
+60 characters total (`truncateTitle()`, `:24-28`), so an unbounded
+admin-entered product or category name can never push a page's title tag
+over the limit. Heading hierarchy is real, not just visual:
+`ProductPage.tsx` has a single `<h1>{product.name}</h1>` (`:106`) followed
+by `<h2>Specifications</h2>` (`:137`); `CatalogPage.tsx` has a
+visually-hidden-but-present `<h1 className="sr-only">{pageTitle}</h1>`
+(`:182`), placed before the filter sidebar's own `<h2>` so it's genuinely
+the first heading in the DOM, not just the first one a sighted user
+notices — a screen reader gets exactly one page heading before anything
+else. URLs are
 lowercase and descriptive throughout (`/shop`, `/product/:id`, `/cart`,
 `/checkout`, `/order-confirmation`), with no query-string-only "pages".
 `SEO.tsx` also sets a meta description and OpenGraph/Twitter tags on every
@@ -475,18 +488,18 @@ Verbal item — see [`docs/Verbal.md`](Verbal.md).
 
 | Layer | Where | Covers |
 |---|---|---|
-| Unit | `backend/src/**/*.spec.ts` | JWT issue/rotate/reuse (`tokens.service.spec.ts`), product data model validation (`catalog/dto/product.dto.spec.ts`), user input validation (`auth/dto/auth.dto.spec.ts`), plus cart/checkout/order/units/captcha specs — 108 tests, 12 suites |
-| API integration | `backend/test/app.e2e-spec.ts`, `commerce.e2e-spec.ts` | Endpoint responses, DB persistence, product search (`app.e2e-spec.ts:139,194`), reviews (`:644-`) — 64 tests, 2 suites |
-| Security | `app.e2e-spec.ts` `'security: input validation & injection'` block | Malformed/SQLi-shaped input, auth bypass attempts, and a dedicated rate-limiting test (`'enforces rate-limiting on authentication endpoints (429)'`, `:599-608`) that hits the throttle 15x and asserts a `429` shows up |
+| Unit | `backend/src/**/*.spec.ts` | JWT issue/rotate/reuse (`tokens.service.spec.ts`), product data model validation (`catalog/dto/product.dto.spec.ts`), user input validation (`auth/dto/auth.dto.spec.ts`), plus cart/checkout/order/units/captcha specs — 120 tests, 13 suites |
+| API integration | `backend/test/app.e2e-spec.ts`, `commerce.e2e-spec.ts` | Endpoint responses, DB persistence, product search (`app.e2e-spec.ts:139,154`), reviews (`:649-`) — 64 tests, 2 suites |
+| Security | `app.e2e-spec.ts` `'security: input validation & injection'` block | Malformed/SQLi-shaped input, auth bypass attempts, and a dedicated rate-limiting test (`'enforces rate-limiting on authentication endpoints (429)'`, `:604-614`) that hits the throttle 15x and asserts a `429` shows up |
 | User flow | `commerce.e2e-spec.ts` | Full register → cart → checkout → order lifecycle end to end |
 
-172 tests total across both suites.
+184 tests total across both suites.
 
 > Unit suite (no database needed, ~10 seconds):
 > ```
 > cd backend && npm test
 > ```
-> Everything — unit + API integration + security + user flow, 172 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
+> Everything — unit + API integration + security + user flow, 184 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
 > ```
 > docker compose --profile test run --rm e2e
 > ```
@@ -498,15 +511,17 @@ Verbal item — see [`docs/Verbal.md`](Verbal.md).
 
 Full report: [`docs/load_test_report.md`](load_test_report.md) §4. Using
 k6's `ceiling.js` script against the real Docker stack, concurrency was
-ramped to 400 VUs against the catalog browse endpoint. **No breaking point
-was found** — p95 latency stayed at 388.2ms (well under the 5s threshold)
-with a 0% error rate even at the 400-VU peak, so the true ceiling is
-higher than what this environment could reach. The report is explicit
-about this rather than inventing a number: §4's "Honest limitations"
-section explains that the load generator shared the same 4-core host as
-the app under test, which caps how far this specific run can be trusted.
+ramped up to 3,000 VUs against the catalog browse endpoint (an earlier,
+lower-VU run had found no breaking point at all, so the script's stages
+were extended). **A ceiling was found at ~1,600 concurrent VUs** — that's
+where the first connection-level failures (`dial: i/o timeout`) appear,
+escalating through the higher stages, with individual response times
+reaching as high as 6.16s. The run's *aggregate* p95 (1.58s) doesn't show
+this on its own, since it's computed cumulatively over tens of thousands
+of fast early-stage requests — §4 explains why the per-stage reality, not
+the cumulative number, is what answers this item.
 
-> Read `docs/load_test_report.md` §4 for the full stage-by-stage results table and the resource-utilization numbers (`docker stats` output) captured during the run.
+> Read `docs/load_test_report.md` §4 for the full stage-by-stage results, the ~1,600-VU onset finding, and the caveats around the cumulative-vs-per-stage p95 distinction.
 
 ---
 
@@ -514,8 +529,8 @@ the app under test, which caps how far this specific run can be trusted.
 
 `docs/load_test_report.md` §2 and §4: **34.4 req/s** sustained across five
 realistic mixed user flows at 69 peak VUs (comfortably over the brief's 10
-TPS objective), and **1,074 req/s** on the dedicated read-heavy ceiling run
-at 400 VUs. §2 also captures a live concurrency proof of the
+TPS objective), and **548.6 req/s** on the dedicated read-heavy ceiling run
+(ramped up to 3,000 VUs). §2 also captures a live concurrency proof of the
 overselling-prevention requirement: 40 simultaneous checkout attempts
 against 25 units of stock — 25 succeeded, 15 were correctly rejected, and
 final stock landed exactly on 0.

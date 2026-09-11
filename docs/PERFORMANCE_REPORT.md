@@ -32,13 +32,13 @@ Use the k6 script to iteratively answer the following questions. You can manipul
 **Goal:** Determine the maximum steady-state Transactions Per Second (TPS).
 *   **Procedure:** Run the test with a high but stable number of VUs (e.g., 50-100). Look at the `http_reqs` metric in the final k6 output.
 *   **Metric to Record:** `http_reqs` (rate/s).
-*   **Result:** **34.4 req/s** sustained across 5 mixed realistic flows at 69 peak VUs; **1,074 req/s** on a read-heavy (catalog browse) run at 400 VUs. Full breakdown in [`docs/load_test_report.md`](./load_test_report.md).
+*   **Result:** **34.4 req/s** sustained across 5 mixed realistic flows at 69 peak VUs; **548.6 req/s** on a read-heavy (catalog browse) run ramped up to 3,000 VUs (an earlier, lower-VU version of that run measured 1,074 req/s at its 400-VU peak, before it was extended to actually find the ceiling in §B below). Full breakdown in [`docs/load_test_report.md`](./load_test_report.md).
 
 ### B. Concurrent User Limit (< 5s Response Time)
 **Goal:** Find the exact number of concurrent Virtual Users (VUs) before the `http_req_duration` (p95) exceeds 5.0 seconds.
 *   **Procedure:** Slowly ramp up the VUs (e.g., 100, 200, 500, 1000). Monitor the `http_req_duration` output.
 *   **Metric to Record:** VUs at which `http_req_duration` `p(95) > 5000ms`.
-*   **Result:** **Not reached at 400 concurrent VUs** — p95 was 388.2ms, over 12x under the 5s threshold, with 0% errors throughout. See `load-testing/ceiling.js` and §4 of `docs/load_test_report.md` for the full run, including the honest caveat that the load generator shared the same 4-core host as the app under test.
+*   **Result:** **Found at ~1,600 concurrent VUs** — that's where connection-level failures (`dial: i/o timeout`) begin and escalate, with individual response times reaching 6.16s. See `load-testing/ceiling.js` and §4 of `docs/load_test_report.md` for the full run and why the run's *aggregate* p95 (1.58s) doesn't show this ceiling on its own.
 
 ### C. Resource Exhaustion (90% CPU/Memory)
 **Goal:** Determine the load required to push the API or Database containers beyond 90% CPU or Memory utilization.
@@ -47,7 +47,7 @@ Use the k6 script to iteratively answer the following questions. You can manipul
     2. Execute aggressive ramp-up stages in k6.
     3. Note the exact VU count and Request Rate when `i-love-shopping-api-1` or `i-love-shopping-postgres-1` crosses the 90% threshold.
 *   **Metric to Record:** Target VUs and RPS causing >90% usage.
-*   **Result:** **Not reached at 400 concurrent VUs / 1,074 req/s** — peak CPU was ~113% (`api`) and ~124% (`rabbitmq`) out of 400% total host capacity (4 cores), i.e. under 31% of the host either way; peak memory usage stayed under 4% for every container. See §4–5 of `docs/load_test_report.md` for the resource table and bottleneck analysis (RabbitMQ's management-plugin overhead was the most notable finding, disproportionate to actual message volume).
+*   **Result:** **Not reached at up to 400 concurrent VUs** (the only run resource utilization was captured for) — peak CPU was ~113% (`api`) and ~124% (`rabbitmq`) out of 400% total host capacity (4 cores), i.e. under 31% of the host either way; peak memory usage stayed under 4% for every container. This predates the higher-concurrency (3,000-VU) run that found the ~1,600-VU connection ceiling above, so it doesn't rule out resource exhaustion at that higher concurrency — just that it wasn't the *first* thing to break. See §4–5 of `docs/load_test_report.md` for the resource table and bottleneck analysis (RabbitMQ's management-plugin overhead was the most notable finding, disproportionate to actual message volume).
 
 ---
 

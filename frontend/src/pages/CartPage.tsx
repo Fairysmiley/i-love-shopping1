@@ -32,9 +32,9 @@ export function CartPage() {
     api
       .get<Product>(`/products/${cart.items[0].product.slug}`)
       .then((product) =>
-        api.get<{ items: Product[] }>(`/products?category=${product.category?.slug}&limit=8`),
+        api.get<{ data: Product[] }>(`/products?category=${product.category?.slug}&limit=8`),
       )
-      .then((res) => setRelated(res.items.filter((p) => !cartProductIds.has(p.id)).slice(0, 4)))
+      .then((res) => setRelated(res.data.filter((p) => !cartProductIds.has(p.id)).slice(0, 4)))
       .catch(() => setRelated([]));
   }, [cart?.items.length, cart?.items[0]?.productId]);
 

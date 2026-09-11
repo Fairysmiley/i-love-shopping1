@@ -1019,6 +1019,10 @@ textarea:focus {
     transform: translateY(-6px);
   }
 }
+.table-responsive {
+  overflow-x: auto;
+}
+
 @media (max-width: 900px) {
   .landing-hero-layout {
     grid-template-columns: 1fr;

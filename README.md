@@ -27,6 +27,7 @@ buyers can filter on, with stock fixed at one unit per item.
 - [Entity Relationship Diagram](#entity-relationship-diagram)
 - [Setup and installation](#setup-and-installation)
 - [Usage guide](#usage-guide)
+- [Additional features / bonus functionality](#additional-features--bonus-functionality)
 - [Performance Analysis Report](#performance-analysis-report)
 - [More documentation](#more-documentation) — tech stack, API reference, security, testing, review-criteria tables, project structure, roadmap
 
@@ -34,7 +35,7 @@ buyers can filter on, with stock fixed at one unit per item.
 
 ## Quick start (for reviewers)
 
-**Two prerequisites, both host-level, nothing else to install** (task2.txt:
+**Two prerequisites, both host-level, nothing else to install** (task3.txt:
 *"Docker and payment simulation CLI are the only prerequisites"*):
 
 1. **Docker Desktop** (running).
@@ -545,6 +546,29 @@ For more detailed review:
 
 ---
 
+## Additional features / bonus functionality
+
+Beyond the mandatory checklist, a few things worth calling out:
+
+- **Refresh-token family reuse detection** — replaying an already-rotated
+  refresh token revokes the whole token family (theft mitigation), not just
+  a silent retry.
+- **Redis-backed access-token revocation** — a logged-out or admin-revoked
+  session's JWT stops working immediately, before its natural expiry.
+- **Faceted search with live counts** — category, brand, price, rating, and
+  per-category attribute filters, each showing how many results it would
+  narrow to before you click it.
+- **GDPR data export & account erasure** — self-service from the account
+  page, not just a support-ticket process.
+- **Helpful-vote review sorting** — reviews re-rank live as votes come in,
+  not just a static list.
+- **Dual metric/imperial product dimensions**, verified-authenticity and
+  condition trust badges on every listing.
+
+Full list with code references: [`docs/REFERENCE.md`](docs/REFERENCE.md#bonus-features).
+
+---
+
 ## Performance Analysis Report
 
 - **Database & queries** — Redis caches catalog responses and facet
@@ -559,8 +583,15 @@ For more detailed review:
 - **Security & scalability overhead** — rate limiting uses a Redis-backed
   token-bucket (`common/throttler/token-bucket-throttler.storage.ts`, atomic
   via Lua script) so state is consistent across API replicas; JWTs are
-  stateless, so horizontal scaling adds no per-request lookup cost. Real
-  throughput/latency numbers: [`docs/load_test_report.md`](docs/load_test_report.md).
+  stateless, so horizontal scaling adds no per-request lookup cost.
+- **Load test headline numbers** — 34.4 req/s sustained across 5 realistic
+  mixed flows (69 peak VUs); 548.6 req/s on a read-heavy catalog-browse run
+  ramped to 3,000 VUs, which found the platform's actual ceiling at **~1,600
+  concurrent users** (connection-level failures begin there, escalating to a
+  6.16s max response time by higher VU counts). Full methodology, the
+  stage-by-stage results, and the CDN strategy for static assets:
+  [`docs/load_test_report.md`](docs/load_test_report.md) and
+  [`docs/PERFORMANCE_REPORT.md`](docs/PERFORMANCE_REPORT.md).
 
 ---
 

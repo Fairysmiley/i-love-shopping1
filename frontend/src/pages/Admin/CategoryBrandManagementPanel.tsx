@@ -237,6 +237,7 @@ export function CategoryBrandManagementPanel() {
         )}
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="table-responsive">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -284,6 +285,7 @@ export function CategoryBrandManagementPanel() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
 
@@ -354,6 +356,7 @@ export function CategoryBrandManagementPanel() {
         )}
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="table-responsive">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -401,6 +404,7 @@ export function CategoryBrandManagementPanel() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
     </div>

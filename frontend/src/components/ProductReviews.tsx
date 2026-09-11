@@ -51,6 +51,16 @@ export function ProductReviews({ slug, onChange }: Props) {
 
   const mine = user ? reviews?.data.find((r) => r.author.startsWith(user.firstName)) : undefined;
 
+  // Pre-fill the form with the user's existing review so re-submitting
+  // (e.g. just to change the rating) doesn't silently blank out their title/body.
+  useEffect(() => {
+    if (mine) {
+      setRating(mine.rating);
+      setTitle(mine.title ?? '');
+      setBody(mine.body ?? '');
+    }
+  }, [mine?.id]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');

@@ -40,13 +40,12 @@ New features got unit + integration coverage as they were built, and two real bu
 
 **Student has identified potential bottlenecks and can propose solutions.**
 
-From `docs/load_test_report.md` §5 — even without finding a hard breaking
-point at 400 concurrent users, the load test data points at where load
-would start to matter first:
+From `docs/load_test_report.md` §4-5:
 
-- **RabbitMQ CPU relative to message volume** — peak CPU (113-124% of one core) was disproportionate to how few messages actually flowed through it. This looks like overhead from the management/stats-polling plugin, not real message throughput. *Proposed fix:* disable stats polling in production, or drop the `management` image tag for a plain `rabbitmq:3.13-alpine` with lower baseline overhead.
-- **Unverified connection pool tuning** — Postgres CPU stayed low throughout, but Prisma's pool size was never explicitly tuned against Postgres's `max_connections`. *Proposed fix:* set `connection_limit`/`pool_timeout` explicitly in `DATABASE_URL` before a genuine production-scale test, so scaling the API to multiple replicas later doesn't silently exhaust connections.
-- **Load-generator/target co-location** — k6 and the app under test shared the same 4-core host, so some of the measured capacity was actually consumed by the tool doing the measuring. *Proposed fix:* run k6 from a separate machine (or k6 Cloud) against a deployed instance so the full target host's CPU is available to the app.
+- **Connection-level ceiling at ~1,600 concurrent VUs** — pushing `ceiling.js` up to 3,000 VUs found the actual breaking point: `dial: i/o timeout` failures start right as concurrency crosses ~1,600 VUs and escalate from there, with individual response times reaching 6.16s. It's a hard connection-acceptance wall on the single-process Node API, not a gradual latency climb — the run's cumulative p95 (1.58s) looks fine specifically because it's dominated by the tens of thousands of fast requests from lower-concurrency stages, not because responses stayed fast throughout. *Proposed fix:* run the API as multiple replicas behind a load balancer (it's already stateless — see the architecture verbal item) so no single process's connection-handling limit caps the whole platform.
+- **RabbitMQ CPU relative to message volume** — in the original (400-VU, 4-core) run, peak CPU (113-124% of one core) was disproportionate to how few messages actually flowed through it. This looks like overhead from the management/stats-polling plugin, not real message throughput. *Proposed fix:* disable stats polling in production, or drop the `management` image tag for a plain `rabbitmq:3.13-alpine` with lower baseline overhead.
+- **Unverified connection pool tuning** — Postgres CPU stayed low throughout, but Prisma's pool size was never explicitly tuned against Postgres's `max_connections`. *Proposed fix:* set `connection_limit`/`pool_timeout` explicitly in `DATABASE_URL` before a genuine production-scale test, so scaling the API to multiple replicas (the fix above) doesn't silently exhaust connections.
+- **Load-generator/target co-location** — both ceiling runs shared a host with the app under test (4 cores, then 16), so some of the measured capacity was consumed by the tool doing the measuring rather than the app, and the two runs' resource numbers aren't directly comparable. *Proposed fix:* run k6 from a separate machine (or k6 Cloud) against a deployed instance so the full target host's CPU is available to the app, and so CPU/memory figures can be captured alongside the higher-concurrency ceiling finding in one consistent run.
 
 > **Verbal**
 
@@ -86,14 +85,14 @@ Three layers, each catching a different kind of bug:
 
 | Layer | Count | Where |
 |---|---|---|
-| Unit | 108 tests, 12 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
+| Unit | 120 tests, 13 suites | `backend/src/**/*.spec.ts` — cart, checkout, and order-service specs cover add/update/remove/get/merge, totals, stock limits, guest checkout, and Stripe failure parsing |
 | API integration / Critical Flow | 64 tests, 2 suites | `backend/test/app.e2e-spec.ts` and `backend/test/commerce.e2e-spec.ts` — full register → cart → checkout → order flow, guest checkout, and checkout edge cases |
 
 > Ask to see it run live. Unit suite (no database needed, about 20 seconds):
 > ```
 > cd backend && npm test
 > ```
-> Or everything — unit and integration together, 172 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
+> Or everything — unit and integration together, 184 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
 > ```
 > docker compose --profile test run --rm e2e
 > ```
@@ -129,7 +128,7 @@ We use PostgreSQL. Four things keep it scaling as traffic grows:
 
 - **Atomicity** — "all or nothing." Refresh-token rotation (`TokensService.rotate()`) revokes the old token and issues the new one inside one `prisma.$transaction(...)` — if either step fails, both are undone.
 - **Consistency** — the database enforces rules the app can't accidentally break: money uses `Prisma.Decimal` (no floating-point rounding errors), foreign keys stop a `Product` pointing at a `Category` that doesn't exist, and unique constraints stop duplicate emails or duplicate reviews.
-- **Isolation** — concurrent transactions can't corrupt each other. Stock decrements use `UPDATE ... SET stockQuantity = stockQuantity - N` inside a transaction (`backend/src/checkout/checkout.service.ts:132-143`); Postgres locks that row for the duration, so if two people try to buy the last item at the same time, they're serialized — one succeeds, the other's transaction sees a negative result and rolls back.
+- **Isolation** — concurrent transactions can't corrupt each other. Stock decrements use `UPDATE ... SET stockQuantity = stockQuantity - N` inside a transaction (`backend/src/checkout/checkout.service.ts:160-172`); Postgres locks that row for the duration, so if two people try to buy the last item at the same time, they're serialized — one succeeds, the other's transaction sees a negative result and rolls back.
 - **Durability** — once a transaction commits, it survives a crash (Postgres's write-ahead log), and the data itself survives container restarts (persisted to a Docker volume).
 
 **To demonstrate the isolation guarantee live:** set a product's stock to 1, then fire two simultaneous checkout requests for it (two browser tabs, or two `curl`/Postman calls at once). One order succeeds; the other gets an out-of-stock error — never both succeeding.
@@ -143,7 +142,7 @@ We use PostgreSQL. Four things keep it scaling as traffic grows:
 Two related endpoints, both built on Prisma's parameterized query builder (so raw user input is never concatenated into SQL — no SQL-injection surface):
 
 - **Full search** — `GET /api/v1/products?q=<term>` does a case-insensitive `contains` match on the product's name and description (`buildWhere()`, `backend/src/catalog/products.service.ts:31-70`). The same function also layers on faceted filters — category, brand, price range, rating, custom attributes — built dynamically from whatever query params are present.
-- **Typeahead** — `GET /api/v1/products/suggest?q=<term>` returns up to 8 matching product names, ignores anything under 2 characters, and caches results in Redis for 60 seconds so fast typing doesn't hammer the database (`products.service.ts:176-194`).
+- **Typeahead** — `GET /api/v1/products/suggest?q=<term>` returns up to 8 matching product names, ignores anything under 2 characters, and caches results in Redis for 60 seconds so fast typing doesn't hammer the database (`products.service.ts:190-206`).
 
 **To demonstrate live:**
 1. Open the storefront and type into the header search box — after the 2nd character, a typeahead dropdown appears with live suggestions.
@@ -151,7 +150,7 @@ Two related endpoints, both built on Prisma's parameterized query builder (so ra
 3. Try a filter combo — e.g. pick a category and a price range — and show the result list narrowing.
 4. To show the SQL-injection point is safe, type something like `' OR 1=1 --` into the search box: it's treated as a literal (no-match) search string, not a query fragment.
 
-Covered by automated tests: `'GET /api/v1/products/suggest returns dynamic suggestions'` and `'treats SQL-injection-style search input as data, not commands'` (`app.e2e-spec.ts:178, 567`).
+Covered by automated tests: `'GET /api/v1/products/suggest returns dynamic suggestions'` and `'treats SQL-injection-style search input as data, not commands'` (`app.e2e-spec.ts:202, 588`).
 
 > **Self-testable**
 
@@ -172,7 +171,7 @@ Three automated layers, plus scheduled manual checks:
 **Ask the student to explain and demonstrate the functionality of the tests.**
 
 **Live demo, in order:**
-1. **Token rotation security** (`backend/test/app.e2e-spec.ts:310`) — rotate a refresh token, then try to reuse the original (now-revoked) one, and show it's rejected with `401`.
+1. **Token rotation security** (`backend/test/app.e2e-spec.ts:337`) — rotate a refresh token, then try to reuse the original (now-revoked) one, and show it's rejected with `401`.
 2. **CAPTCHA isolation** (`backend/src/auth/captcha.service.spec.ts`) — show the test skips real Google calls in dev mode but still enforces CAPTCHA when it's configured.
 3. **Unit conversion** (`backend/src/common/utils/units.spec.ts`) — metric→imperial conversion correctness, a plain input/output unit test.
 4. **A failing test, live** — open `app.e2e-spec.ts`, flip one `expect(res.status).toBe(400)` to `.toBe(200)`, rerun, point out the red failure output, then revert and rerun green.

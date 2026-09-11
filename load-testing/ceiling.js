@@ -10,6 +10,10 @@ import { check } from 'k6';
 // actually degrades.
 const BASE_URL = __ENV.BASE_URL || 'https://localhost:3001/api/v1';
 
+// The 400-VU run (docs/load_test_report.md §4) never broke 5s (p95=388ms at
+// its peak), so this pushes substantially further — up to 3000 VUs — with an
+// abort-on-fail threshold so the run stops itself the moment p95 actually
+// crosses 5s, instead of guessing a target ahead of time.
 export const options = {
   insecureSkipTLSVerify: true,
   scenarios: {
@@ -17,13 +21,19 @@ export const options = {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '20s', target: 100 },
-        { duration: '20s', target: 200 },
-        { duration: '20s', target: 300 },
-        { duration: '20s', target: 400 },
+        { duration: '15s', target: 400 },
+        { duration: '15s', target: 800 },
+        { duration: '15s', target: 1200 },
+        { duration: '15s', target: 1600 },
+        { duration: '15s', target: 2000 },
+        { duration: '15s', target: 2500 },
+        { duration: '15s', target: 3000 },
         { duration: '20s', target: 0 },
       ],
     },
+  },
+  thresholds: {
+    http_req_duration: [{ threshold: 'p(95)<5000', abortOnFail: true }],
   },
 };
 

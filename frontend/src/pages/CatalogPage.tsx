@@ -179,6 +179,7 @@ export function CatalogPage() {
         description={pageDescription}
         canonical={`https://villi.com/shop${location.search}`}
       />
+      <h1 className="sr-only">{pageTitle}</h1>
       <aside aria-label="Filters">
         <div className="panel">
           <h2 className="sr-only">Filters</h2>
@@ -364,7 +365,6 @@ export function CatalogPage() {
       </aside>
 
       <main>
-        <h1 className="sr-only">Catalog</h1>
         <div className="toolbar">
           <span className="result-count">
             {q ? <>Results for &ldquo;{q}&rdquo; &middot; </> : null}

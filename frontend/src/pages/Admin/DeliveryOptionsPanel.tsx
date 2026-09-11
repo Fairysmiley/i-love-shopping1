@@ -260,6 +260,7 @@ export function DeliveryOptionsPanel() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="table-responsive">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -342,6 +343,7 @@ export function DeliveryOptionsPanel() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

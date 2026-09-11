@@ -25,8 +25,8 @@ export function ProductPage() {
         setProduct(p);
         setSelectedImage(0);
         // Fetch recommendations based on category
-        api.get<{items: Product[]}>(`/products?category=${p.category?.slug}&limit=4`)
-           .then(res => setRecommended(res.items.filter(item => item.id !== p.id).slice(0, 4)))
+        api.get<{data: Product[]}>(`/products?category=${p.category?.slug}&limit=4`)
+           .then(res => setRecommended(res.data.filter(item => item.id !== p.id).slice(0, 4)))
            .catch(() => {}); // ignore errors for recommendations
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Failed to load'));

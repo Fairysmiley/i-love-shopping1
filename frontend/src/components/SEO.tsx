@@ -17,6 +17,15 @@ const DEFAULT_DESCRIPTION = 'Villi: a curated marketplace for verified, authenti
 const DEFAULT_IMAGE = '/hero-emblem.png'; // Fallback OG image
 const SITE_NAME = 'Villi';
 const BASE_URL = 'https://villi.com'; // Update with actual production URL
+// Keeps "<title> | Villi" under the ~60-char SEO guideline even for
+// unbounded input (e.g. an admin-entered product name).
+const MAX_TITLE_LENGTH = 60 - ` | ${SITE_NAME}`.length;
+
+function truncateTitle(title: string): string {
+  return title.length > MAX_TITLE_LENGTH
+    ? `${title.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+    : title;
+}
 
 /**
  * SEO component for managing page metadata
@@ -36,7 +45,7 @@ export function SEO({
 }: SEOProps) {
   useEffect(() => {
     // Update document title
-    document.title = `${title} | ${SITE_NAME}`;
+    document.title = `${truncateTitle(title)} | ${SITE_NAME}`;
 
     // Helper function to update or create meta tag
     const setMetaTag = (selector: string, content: string, property?: string) => {
@@ -130,7 +139,7 @@ export function SEO({
  */
 export function usePageTitle(title: string) {
   useEffect(() => {
-    document.title = `${title} | ${SITE_NAME}`;
+    document.title = `${truncateTitle(title)} | ${SITE_NAME}`;
 
     return () => {
       // Reset to default title on unmount
