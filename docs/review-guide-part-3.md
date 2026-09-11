@@ -6,7 +6,6 @@ to click through or run to see it working yourself.
 
 A few things worth knowing before you start:
 
-- Four items below are verbal ("Student can explain...") rather than something to click through — each one links out to its answer in [`docs/Verbal.md`](Verbal.md), which also has the answer to "Student has identified potential bottlenecks and can propose solutions" (itself pulled from the full write-up in `docs/load_test_report.md` §5).
 - Code paths are relative to the repo root. API routes are relative to `https://localhost:3001` (hitting the API directly — genuinely HTTPS, see the TLS item below) or `http://localhost:8080` (the unified proxy — what you'll normally use for the storefront itself).
 - Seeded accounts: `admin@villi.test` / `Admin!Passw0rd` and `shopper@villi.test` / `Shopper!Passw0rd`. `shopper@villi.test` also comes with one already-`PAID` order seeded (the Fjällräven Keb Eco-Shell Jacket), so the review-writing item below is demoable immediately — no need to run a real checkout first just to unlock it.
 - The `docker exec`/`docker compose` commands below assume the stack was started with `./start.sh` or `docker compose up`, which names the containers `i-love-shopping-postgres-1`, `i-love-shopping-api-1`, etc. If you renamed the project folder, swap in whatever `docker ps` shows you.
@@ -20,9 +19,9 @@ Relationship Diagram`, `## Setup and installation`, `## Usage guide`, and a
 `## Performance Analysis Report` section are all present as top-level
 headings, with the last one linking out to
 [`docs/PERFORMANCE_REPORT.md`](PERFORMANCE_REPORT.md) and
-[`docs/load_test_report.md`](load_test_report.md) for the full k6 results.
+[`docs/load_test_report.md`](load_test_report.md).
 
-> Just read through the README top to bottom — nothing to run here.
+> Just read through the README.
 
 ---
 
@@ -427,12 +426,6 @@ meant for abuse, not legitimate page loads.
 
 ---
 
-**Student can explain CIA (Confidentiality, Integrity, Availability) principles.**
-
-Verbal item — see [`docs/Verbal.md`](Verbal.md).
-
----
-
 **The platform implements basic SEO best practices including title tags under 60 characters, proper heading hierarchy (H2-H6), logical URL structure, and descriptive alt text for images.**
 
 Every page sets its title via `usePageTitle()`/`<SEO title=...>`
@@ -481,41 +474,6 @@ reflows rather than overflowing or getting clipped as the effective
 viewport shrinks under zoom.
 
 > Press `Ctrl` `+` (or `Cmd` `+` on Mac) repeatedly until the browser reaches 200% zoom on `/shop`, `/product/:id`, and `/checkout` — text should reflow and stay fully readable with no horizontal scrollbar on the page body.
-
----
-
-**Student can explain the importance of semantic HTML for accessibility.**
-
-Verbal item — see [`docs/Verbal.md`](Verbal.md).
-
----
-
-**Student can explain their approach to testing, integration of automated and usage of manual tests throughout the development process.**
-
-Verbal item — see [`docs/Verbal.md`](Verbal.md).
-
----
-
-**Automated tests exist for Unit, API integration, User flow and Security tests. Ask the student to explain and demonstrate the functionality of the tests.**
-
-| Layer | Where | Covers |
-|---|---|---|
-| Unit | `backend/src/**/*.spec.ts` | JWT issue/rotate/reuse (`tokens.service.spec.ts`), product data model validation (`catalog/dto/product.dto.spec.ts`), user input validation (`auth/dto/auth.dto.spec.ts`), plus cart/checkout/order/units/captcha specs — 120 tests, 13 suites |
-| API integration | `backend/test/app.e2e-spec.ts`, `commerce.e2e-spec.ts` | Endpoint responses, DB persistence, product search (`app.e2e-spec.ts:139,154`), reviews (`:649-`) — 64 tests, 2 suites |
-| Security | `app.e2e-spec.ts` `'security: input validation & injection'` block | Malformed/SQLi-shaped input, auth bypass attempts, and a dedicated rate-limiting test (`'enforces rate-limiting on authentication endpoints (429)'`, `:604-614`) that hits the throttle 15x and asserts a `429` shows up |
-| User flow | `commerce.e2e-spec.ts` | Full register → cart → checkout → order lifecycle end to end |
-
-184 tests total across both suites.
-
-> Unit suite (no database needed, ~10 seconds):
-> ```
-> cd backend && npm test
-> ```
-> Everything — unit + API integration + security + user flow, 184 tests, against a fully isolated throwaway Postgres/Redis/RabbitMQ that never touches dev data:
-> ```
-> docker compose --profile test run --rm e2e
-> ```
-> To see a test actually fail and prove it's real: open `backend/test/app.e2e-spec.ts`, flip any `.expect(429)` in the rate-limiting test to `.expect(200)`, rerun, watch it fail with a clear diff, then revert.
 
 ---
 

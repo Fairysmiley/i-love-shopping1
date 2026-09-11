@@ -9,11 +9,12 @@ export function ProductManagementPanel() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: 0,
-    stockQuantity: 0,
+    price: '',
+    stockQuantity: '',
     categoryId: '',
     brandId: '',
     weightGrams: '',
@@ -29,7 +30,11 @@ export function ProductManagementPanel() {
   const fetchProducts = async () => {
     try {
       const [res, cats, brs] = await Promise.all([
-        api.get<Paginated<Product>>('/products'),
+        // Default catalog sort is by rating, so a brand-new product (0
+        // rating, no reviews yet) would sort past the default page limit
+        // and never show up here. Admin management needs newest-first and
+        // the max page size instead, so nothing just-created goes missing.
+        api.get<Paginated<Product>>('/products?sort=newest&limit=100'),
         api.get<any[]>('/categories/tree'),
         api.get<any[]>('/brands'),
       ]);
@@ -58,13 +63,14 @@ export function ProductManagementPanel() {
   };
 
   const openModal = (product?: Product) => {
+    setFormError('');
     if (product) {
       setEditingId(product.id);
       setFormData({
         name: product.name,
         description: product.description,
-        price: product.price,
-        stockQuantity: product.stockQuantity,
+        price: product.price.toString(),
+        stockQuantity: product.stockQuantity.toString(),
         categoryId: product.category?.id || '',
         brandId: product.brand?.id || '',
         weightGrams: product.dimensions?.metric?.weightGrams?.toString() || '',
@@ -78,8 +84,8 @@ export function ProductManagementPanel() {
       setFormData({
         name: '',
         description: '',
-        price: 0,
-        stockQuantity: 0,
+        price: '',
+        stockQuantity: '',
         categoryId: categories[0]?.id || '',
         brandId: brands[0]?.id || '',
         weightGrams: '',
@@ -94,12 +100,33 @@ export function ProductManagementPanel() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.name.trim() || !formData.description.trim()) {
+      setFormError('Name and description are required.');
+      return;
+    }
+    if (!formData.categoryId || !formData.brandId) {
+      setFormError('Please select a category and a brand.');
+      return;
+    }
+    const price = Number(formData.price);
+    if (formData.price.trim() === '' || isNaN(price) || price <= 0) {
+      setFormError('Price must be a number greater than 0.');
+      return;
+    }
+    const stockQuantity = Number(formData.stockQuantity);
+    if (formData.stockQuantity.trim() === '' || isNaN(stockQuantity) || stockQuantity < 0 || !Number.isInteger(stockQuantity)) {
+      setFormError('Stock must be a whole number of 0 or more.');
+      return;
+    }
+
     try {
       const payload: any = {
         name: formData.name,
         description: formData.description,
-        price: Number(formData.price),
-        stockQuantity: Number(formData.stockQuantity),
+        price,
+        stockQuantity,
         categoryId: formData.categoryId,
         brandId: formData.brandId,
       };
@@ -118,7 +145,7 @@ export function ProductManagementPanel() {
       setIsModalOpen(false);
       fetchProducts();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Failed to save product');
+      setFormError(err instanceof ApiError ? err.message : 'Failed to save product');
     }
   };
 
@@ -166,6 +193,7 @@ export function ProductManagementPanel() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="panel" style={{ width: 600, maxHeight: '90vh', overflowY: 'auto' }}>
             <h2>{editingId ? 'Edit Product' : 'Add Product'}</h2>
+            {formError && <div className="alert alert-error">{formError}</div>}
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="field">
                 <label>Name</label>
@@ -178,11 +206,11 @@ export function ProductManagementPanel() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="field">
                   <label>Price</label>
-                  <input type="number" step="0.01" required value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} />
+                  <input type="number" step="0.01" min="0.01" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
                 </div>
                 <div className="field">
                   <label>Stock</label>
-                  <input type="number" required value={formData.stockQuantity} onChange={e => setFormData({...formData, stockQuantity: Number(e.target.value)})} />
+                  <input type="number" step="1" min="0" required value={formData.stockQuantity} onChange={e => setFormData({...formData, stockQuantity: e.target.value})} />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

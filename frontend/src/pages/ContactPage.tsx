@@ -103,7 +103,7 @@ export function ContactPage() {
         </div>
         <div>
           <h2 style={{ fontSize: '1.125rem' }}>Call Us</h2>
-          <p className="muted">+1 (555) 123-4567</p>
+          <p className="muted">+358 (50) 123-4567</p>
         </div>
       </div>
     </div>
