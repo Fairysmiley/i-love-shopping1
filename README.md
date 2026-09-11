@@ -590,23 +590,12 @@ Full list with code references: [`docs/REFERENCE.md`](docs/REFERENCE.md#bonus-fe
   concurrent users** (connection-level failures begin there, escalating to a
   6.16s max response time by higher VU counts). Full methodology, the
   stage-by-stage results, and the CDN strategy for static assets:
-  [`docs/load_test_report.md`](docs/load_test_report.md) and
-  [`docs/PERFORMANCE_REPORT.md`](docs/PERFORMANCE_REPORT.md).
+  [`docs/load_test_report.md`](docs/load_test_report.md).
 
 ---
 
 ## More documentation
 
-- [`docs/REFERENCE.md`](docs/REFERENCE.md) — tech stack, architecture, full
-  API reference, security model, testing details, per-criterion review
-  tables (auth, CAPTCHA/2FA, catalog, B2C/ERD), manual test checklist,
-  project structure, roadmap, bonus features, and oral-exam talking points.
-- [`docs/review-guide-part-1.md`](docs/review-guide-part-1.md) — step-by-step
-  walkthroughs for every task1.txt checklist item.
-- [`docs/review-guide-part-2.md`](docs/review-guide-part-2.md) — step-by-step
-  walkthroughs for every task2.txt checklist item.
 - [`docs/review-guide-part-3.md`](docs/review-guide-part-3.md) — step-by-step
   walkthroughs for every task3.txt checklist item.
-- [`docs/Verbal.md`](docs/Verbal.md) — the "student can explain..." verbal
-  checklist items, answered in the same format.
 - [`docs/load_test_report.md`](docs/load_test_report.md) — load test results.

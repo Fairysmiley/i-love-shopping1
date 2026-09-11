@@ -1,6 +1,6 @@
-# Load Test Report
+# Load Test & Performance Report
 
-**Requirement:** Load test report identifies maximum concurrent users before response times exceed 5 seconds, shows transaction throughput, and identifies potential bottlenecks with proposed solutions. (Task 3)
+**Requirement:** Load test report identifies maximum concurrent users before response times exceed 5 seconds, shows transaction throughput, and identifies potential bottlenecks with proposed solutions. Also covers task3.txt's "Content Delivery" consideration — a CDN strategy for images and static assets (§6). (Task 3)
 
 > This report reflects real, reproducible runs — not projected numbers. Tool: **k6** (`load-testing/scenario.js` + `load-testing/ceiling.js`), run via `docker run grafana/k6` against the actual `docker compose` stack. §1–3 and the resource-utilization table in §4 are from an initial session on a 4 CPU core / 7.75GB RAM host; the ceiling-VU and max-latency findings in §4 are from a follow-up session on a 16 CPU core / 7.5GB RAM host, after `ceiling.js` was extended past its original 400-VU cap (which hadn't found a breaking point) up to 3,000 VUs. Raw console output was captured to `/tmp` during each session; the commands to reproduce are below.
 
@@ -121,13 +121,30 @@ Postgres CPU stayed low throughout, but Prisma's default connection pool size wa
 As noted in §4, running k6 and the app on the same host caps how far this specific test can push before conclusions become unreliable.
 - **Proposed solution:** for a genuine ceiling-finding run, run k6 from a separate machine (or k6 Cloud) against a deployed instance, so 100% of the target host's CPU is available to the application under test.
 
-## 6. Summary against the spec's stated objectives
+## 6. CDN strategy for static product images
+
+Product images are currently served directly from the NestJS backend
+(`uploads/products/`, see the multi-size-images item in
+`docs/review-guide-part-3.md`). For a real deployment, offloading that to
+a CDN keeps image traffic off the API entirely:
+
+### Architecture
+1. **Object storage (origin):** move raw product images to a dedicated bucket (e.g. AWS S3, Google Cloud Storage, or Cloudflare R2) instead of the API's local filesystem.
+2. **CDN edge network:** put a CDN (e.g. Cloudflare, AWS CloudFront, Fastly) in front of that bucket.
+3. **Database references:** point `ProductImage.url` at the CDN endpoint (e.g. `https://cdn.villi-store.com/products/image-123.webp`) instead of the API's own `/uploads/...` path.
+
+### Key optimizations
+- **Image transformation at the edge** — CDN-side resizing (Cloudflare Image Resizing, CloudFront Functions) to serve WebP/AVIF and the right size per context (thumbnail for `ProductCard`, full size for `ProductPage`), rather than pre-generating every size server-side as `ImageService` does today.
+- **Aggressive caching** — product images are immutable once uploaded, so `Cache-Control: public, max-age=31536000, immutable` is safe; a changed image gets a new filename/hash rather than overwriting the cached one.
+- **Lazy loading stays client-side** — the frontend already uses `loading="lazy"` on product images (`ProductCard.tsx`), so the CDN is only hit as images actually enter the viewport, independent of this backend change.
+
+## 7. Summary against the spec's stated objectives
 
 | Objective | Result |
 |---|---|
 | 90% of requests under 2s | ✅ Met — p90 was 148.6ms (mixed traffic) / 346.8ms (400-VU ceiling run) |
 | Supports ≥50 concurrent users without noticeable degradation | ✅ Met — 69 VUs mixed traffic at 148ms p90; 400 VUs read-heavy at 388ms p95 |
-| Throughput ≥10 TPS | ✅ Met — 34.4 req/s sustained; 1,074 req/s on the read-heavy ceiling run |
+| Throughput ≥10 TPS | ✅ Met — 34.4 req/s sustained; 548.6 req/s on the read-heavy ceiling run (ramped to 3,000 VUs) |
 | ≥98% of transactions succeed under high traffic | ✅ Met — 100% success on all real (non-business-rule) requests across both runs |
 | Error rate <5% | ✅ Met, once expected business-rule rejections (out-of-stock 400s) are excluded — see §3 |
 | Max concurrent users before p95 > 5s | ✅ **Found — ~1,600 concurrent VUs.** Connection-level failures (dial timeouts) begin there and escalate through 3,000 VUs; max individual response time reached 6.16s. See §4 for why the run's aggregate p95 (1.58s) doesn't reflect this on its own. |

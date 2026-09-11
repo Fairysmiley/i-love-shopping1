@@ -18,8 +18,8 @@ Open [README.md](../README.md) — `## Project overview`, `## Entity
 Relationship Diagram`, `## Setup and installation`, `## Usage guide`, and a
 `## Performance Analysis Report` section are all present as top-level
 headings, with the last one linking out to
-[`docs/PERFORMANCE_REPORT.md`](PERFORMANCE_REPORT.md) and
-[`docs/load_test_report.md`](load_test_report.md).
+[`docs/load_test_report.md`](load_test_report.md) (load-test methodology
+and results, plus the CDN strategy for static assets in its §6).
 
 > Just read through the README.
 
