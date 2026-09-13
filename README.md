@@ -160,6 +160,7 @@ Accounts (email/password), catalog, 2FA, and password reset (via
 | Symptom | Fix |
 |---|---|
 | `permission denied ... docker.sock` | Your user was added to the `docker` group but the current shell predates it. Open a new terminal (or `wsl --shutdown` + reopen on Windows/WSL2), or run `newgrp docker` to refresh it in-place. |
+| `./start.sh` prints "No local HTTPS cert found" then just stops, no error shown | Almost always a `certs/` directory left **root-owned** from an earlier partial `docker compose up` (Docker auto-creates the bind-mount source dir as root if it doesn't exist yet, and `openssl` then silently fails to write into it). Run `./scripts/generate-dev-certs.sh` directly instead of `./start.sh` — it prints the real `openssl` error and self-heals root-owned permissions (`sudo chown`) before regenerating. If it still fails, the error it prints is the actual cause (missing `openssl`, disk space, etc.) rather than nothing. |
 | `api` container restart-looping, log shows `ENOENT ... certs/key.pem` | Delete the empty `certs/` dir if Docker auto-created it root-owned (`sudo rm -rf certs`), then re-run `./start.sh` — it regenerates the cert as your user. |
 | API crashes with `RangeError: Invalid key length` | `ENCRYPTION_KEY` in `.env` must be exactly 32 bytes/characters. Regenerate: `openssl rand -hex 16`. |
 | Port `3001`/`5173`/`8080` already in use | Set `API_HOST_PORT`/`WEB_HOST_PORT`/`PROXY_HOST_PORT` in `.env`, then re-run `./start.sh`. |

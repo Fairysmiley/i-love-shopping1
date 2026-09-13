@@ -17,8 +17,15 @@ if [ ! -f certs/key.pem ] || [ ! -f certs/cert.pem ]; then
     echo "[start] Error: openssl is not installed. Install it, or run ./scripts/generate-dev-certs.sh manually." >&2
     exit 1
   fi
-  mkdir -p certs
-  openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj "/CN=localhost" >/dev/null 2>&1
+  # Delegate to generate-dev-certs.sh rather than duplicating this inline:
+  # it also recovers from a certs/ dir left root-owned by an earlier partial
+  # `docker compose up` (Docker auto-creates an empty bind-mount source dir
+  # as root if one doesn't exist yet), and — unlike the old inline version —
+  # doesn't swallow openssl's own error output on failure.
+  if ! ./scripts/generate-dev-certs.sh; then
+    echo "[start] Error: certificate generation failed (see the openssl error above)." >&2
+    exit 1
+  fi
 fi
 
 # Load host port overrides from .env (safe subset — no eval of arbitrary values).
