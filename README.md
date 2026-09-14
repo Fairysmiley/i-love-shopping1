@@ -41,7 +41,7 @@ needs filled in with working defaults. Skip straight to:
 
 ```bash
 git clone <this-repo>
-cd i-love-shopping1
+cd <cloned-folder-name>
 cp .env.example .env
 ./start.sh
 ```
@@ -76,7 +76,7 @@ simulation CLI are the only prerequisites"*):
 
 ```bash
 git clone <this-repo>
-cd i-love-shopping1
+cd <cloned-folder-name>
 cp .env.example .env
 ```
 

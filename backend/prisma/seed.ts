@@ -4,12 +4,13 @@ import { encrypt, hashForLookup } from '../src/common/utils/encryption.util';
 
 const prisma = new PrismaClient();
 
-// A subset of product images also ship a genuinely smaller `-thumb.png`
-// asset (see frontend/public/products/) — wiring those up demonstrates the
-// "images stored/served in multiple sizes" requirement (task3) with real,
+// A subset of product images ship a genuine 3-tier set — `-thumb.png`
+// (small), the base file (medium), and `-large.png` (full/hero) — see
+// frontend/public/products/. Wiring all three up demonstrates the "images
+// stored/served in multiple sizes" requirement (task3) with real,
 // differently-sized files rather than every size falling back to the same
-// full-size URL. `mediumUrl` is intentionally left unset for seed data (no
-// distinct medium asset exists yet); it falls back to `url` like the rest.
+// URL: allgron is 300x465 (thumb) / 661x1024 (base, used as medium) /
+// 1200x1859 (large, used as the full/hero `url`).
 const PRODUCTS_WITH_REAL_THUMBNAIL = new Set([
   'allgron',
   'falketind',
@@ -23,10 +24,21 @@ const PRODUCTS_WITH_REAL_THUMBNAIL = new Set([
   'sasta-kaarna',
 ]);
 
-function thumbnailFor(image: string): string | undefined {
+interface ImageSizes {
+  url: string;
+  mediumUrl?: string;
+  thumbnailUrl?: string;
+}
+
+function imageSizesFor(image: string): ImageSizes {
   const match = /^\/products\/([a-z0-9-]+)\.(png|jpg)$/.exec(image);
   const base = match?.[1];
-  return base && PRODUCTS_WITH_REAL_THUMBNAIL.has(base) ? `/products/${base}-thumb.png` : undefined;
+  if (!base || !PRODUCTS_WITH_REAL_THUMBNAIL.has(base)) return { url: image };
+  return {
+    url: `/products/${base}-large.png`,
+    mediumUrl: image,
+    thumbnailUrl: `/products/${base}-thumb.png`,
+  };
 }
 
 /** Mirrors UsersService's encryption for seed data, so seeded accounts are
@@ -813,6 +825,7 @@ async function main(): Promise<void> {
 
   for (const p of products) {
     const slug = slugify(p.name);
+    const sizes = imageSizesFor(p.image);
     const product = await prisma.product.upsert({
       where: { slug },
       update: {
@@ -844,7 +857,7 @@ async function main(): Promise<void> {
         heightMm: p.dims[2],
         averageRating: p.rating,
         ratingCount: p.ratingCount,
-        images: { create: [{ url: p.image, thumbnailUrl: thumbnailFor(p.image), altText: p.name, isPrimary: true, position: 0 }] },
+        images: { create: [{ ...sizes, altText: p.name, isPrimary: true, position: 0 }] },
         attributes: { create: p.attributes },
       },
     });
@@ -854,7 +867,7 @@ async function main(): Promise<void> {
     // size/material in this file previously had no effect on re-seed).
     await prisma.productImage.deleteMany({ where: { productId: product.id } });
     await prisma.productImage.create({
-      data: { productId: product.id, url: p.image, thumbnailUrl: thumbnailFor(p.image), altText: p.name, isPrimary: true, position: 0 },
+      data: { productId: product.id, ...sizes, altText: p.name, isPrimary: true, position: 0 },
     });
     await prisma.productAttribute.deleteMany({ where: { productId: product.id } });
     await prisma.productAttribute.createMany({

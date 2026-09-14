@@ -1,3 +1,14 @@
+# Pinned explicitly — without it, Docker Compose derives the project name
+# (and therefore every container name, e.g. i-love-shopping-postgres-1) from
+# whatever directory name the repo happens to be cloned into. This repo has
+# two remotes with two different names (github.com/.../i-love-shopping1 vs
+# the Gitea origin, whose canonical name is actually i-love-shopping3, not
+# what the URL is typed as), so that name silently varied by which remote
+# and git client a reviewer used — pinning it here makes every documented
+# `docker exec -it i-love-shopping-postgres-1 ...` command reliable
+# regardless of the clone folder's actual name.
+name: i-love-shopping
+
 services:
   postgres:
     image: postgres:16-alpine
